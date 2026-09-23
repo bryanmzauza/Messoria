@@ -1,0 +1,25 @@
+[package]
+name = "messoria-game"
+description = "The Messoria game client."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "messoria"
+path = "src/main.rs"
+
+[features]
+# Faster incremental builds while iterating locally. Never enable for release builds.
+dev = ["bevy/dynamic_linking"]
+
+[dependencies]
+bevy = { workspace = true, features = ["3d"] }
+messoria-client.workspace = true
+
+[lints]
+workspace = true

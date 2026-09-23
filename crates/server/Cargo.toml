@@ -1,0 +1,17 @@
+[package]
+name = "messoria-server"
+description = "Authoritative Messoria game server, usable headless or embedded in the client."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy = { workspace = true, features = ["std", "bevy_log"] }
+messoria-shared.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+# Build output
+/target
+
+# Runtime data written by local servers
+/saves
+*.log
+
+# Local assistant configuration
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

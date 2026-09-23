@@ -1,0 +1,4 @@
+[alias]
+lint = "clippy --workspace --all-targets -- -D warnings"
+client = "run -p messoria-game"
+server = "run -p messoria-dedicated-server"

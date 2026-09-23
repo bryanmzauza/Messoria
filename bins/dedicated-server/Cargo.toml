@@ -1,0 +1,18 @@
+[package]
+name = "messoria-dedicated-server"
+description = "Headless Messoria server for community hosting."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy = { workspace = true, features = ["std", "bevy_log", "multi_threaded"] }
+messoria-server.workspace = true
+messoria-shared.workspace = true
+
+[lints]
+workspace = true
