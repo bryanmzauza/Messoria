@@ -13,7 +13,8 @@ Early development. Players share a farm valley over the network, hosted from
 the game or on a dedicated server, reshape its smooth voxel terrain with a
 shovel, farm crops through the seasons, sell their harvests at the village
 grocer, whose prices respond to what everyone sells, and live through days and
-nights that end when they go to sleep. Saving the world is next. See the
+nights that end when they go to sleep. Worlds are saved and resume where they
+stopped. Opening a world to friends with an access code is next. See the
 [roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
@@ -46,14 +47,21 @@ Arguments go after `--`:
 
 ```sh
 cargo client -- --host                       # open your world to others (UDP port 5717)
+cargo client -- --world saves/farm           # play the world saved in another folder
 cargo client -- --connect 192.168.0.10       # join a hosted world or a dedicated server
 cargo server -- --port 5717                  # dedicated server
 cargo server -- --sleep-percent 50           # share of players that must sleep to end the day
-cargo server -- --start-time 21:00           # start the world's clock at a given time
+cargo server -- --world saves/community      # folder the world is saved in
+cargo server -- --start-time 21:00           # start a new world's clock at a given time
 cargo server -- --minute-length 20           # make days pass quickly, for testing
 cargo bots -- --server 127.0.0.1 --bots 4    # add simulated players
 cargo bots -- --bots 2 --farm                # bots that farm and log their harvests
 ```
+
+Worlds are saved in `saves/`: the game's own world in `saves/local`, a
+dedicated server's in `saves/world`. They are saved every few minutes, at
+dawn and on exit, and resume where they stopped. The game keeps who you are in
+`saves/profile.ron`, so servers recognize you when you come back.
 
 The host must allow the port through their firewall, and players outside the
 local network need it forwarded on the router until access codes arrive (see

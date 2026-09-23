@@ -22,6 +22,7 @@ crates/
   economy/           messoria-economy           Wallets, market prices, daily sales limits, trades
   farming/           messoria-farming           Crop growth, withering, harvests and their quality
   inventory/         messoria-inventory         Slots, stacks, quality and spoilage
+  save/              messoria-save              Versioned save files for worlds and players
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
@@ -49,7 +50,7 @@ starts, never ahead of time:
 
 ```
 bins, tools ──► client ──┐
-           └──► server ──┴──► shared ──► domain crates (calendar, content, farming, inventory, voxel, economy)
+           └──► server ──┴──► shared ──► domain crates (calendar, content, economy, farming, inventory, save, voxel)
 ```
 
 - **Domain crates do not depend on Bevy.** They hold pure data structures and
@@ -124,6 +125,25 @@ See [ADR 0004](adr/0004-terrain-representation.md) and
   on a dedicated server.
 - Clients advance their copy of the clock between updates so lighting moves
   smoothly; sky, sun, fog and ambient light blend between keyframes.
+
+## Persistence
+
+See [ADR 0007](adr/0007-save-format.md).
+
+- A world is a save folder read by `messoria-save`. Executables open it
+  before building the app (`WorldSetup::open`): a world saved there resumes,
+  otherwise a new one starts with a random seed. A save that cannot be read
+  stops the program.
+- `ServerPlugin` receives a `WorldSetup`. Each part of the server sets up its
+  share of the world at startup from the `Beginning` resource: the clock and
+  weather seed, the terrain laid over the generated valley, the market, the
+  fields and the players who have been in the world.
+- The server saves a new world at once, then every five minutes, at each
+  dawn and when the app exits. Players who leave are kept by key and written
+  with the next save; returning players find their character as they left
+  it, caught up with any days that passed.
+- Clients identify themselves with the id in their local profile
+  (`saves/profile.ron`); the host of a world is `host`.
 
 ## Simulation timing
 

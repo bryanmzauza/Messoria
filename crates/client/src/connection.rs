@@ -14,6 +14,8 @@ pub enum Session {
     /// The world lives on another machine.
     Join {
         server_addr: SocketAddr,
+        /// Who the player is, the same every time they join.
+        player_id: u64,
         /// Extra delay applied to incoming packets, to exercise latency locally.
         simulated_latency: Option<Duration>,
     },
@@ -30,9 +32,10 @@ impl Plugin for ConnectionPlugin {
             Session::Host => app.add_systems(PostStartup, join_hosted_world),
             Session::Join {
                 server_addr,
+                player_id,
                 simulated_latency,
             } => app.add_systems(Startup, move |commands: Commands| -> Result {
-                join_remote_world(commands, server_addr, simulated_latency)
+                join_remote_world(commands, server_addr, player_id, simulated_latency)
             }),
         };
 
@@ -50,13 +53,13 @@ fn join_hosted_world(server: Single<Entity, With<Server>>, mut commands: Command
 fn join_remote_world(
     mut commands: Commands,
     server_addr: SocketAddr,
+    player_id: u64,
     simulated_latency: Option<Duration>,
 ) -> Result {
-    let client_id = rand::random();
     let client = commands
         .spawn(network::remote_client(
             server_addr,
-            client_id,
+            player_id,
             simulated_latency,
         )?)
         .id();

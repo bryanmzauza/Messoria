@@ -6,35 +6,28 @@ use std::time::Duration;
 
 use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::*;
-use messoria_calendar::{SleepRule, Weather, WorldTime};
+use messoria_calendar::{SleepRule, Weather};
 use messoria_shared::{
     energy::{Energy, Rest},
     protocol::{Asleep, CurrentWeather, PlayerId, SleepRequest, SleepTally, WorldClock},
     tick,
 };
 
-use crate::players::ControlledCharacter;
-
-/// Seeds the weather. Fixed until worlds are saved and each gets its own.
-const WORLD_SEED: u64 = 0x6d65_7373_6f72_6961;
+use crate::{Beginning, WorldSeed, WorldStart, players::ControlledCharacter};
 
 pub(crate) struct DayCyclePlugin {
     pub sleep_rule: SleepRule,
-    pub start_time: WorldTime,
     pub minute_length: Duration,
 }
 
 impl Plugin for DayCyclePlugin {
     fn build(&self, app: &mut App) {
-        let start_time = self.start_time;
         app.insert_resource(DayRules {
             sleep_rule: self.sleep_rule,
             ticks_per_minute: tick::ticks_in(self.minute_length).max(1),
         })
         .add_message::<DayStarted>()
-        .add_systems(Startup, move |commands: Commands| {
-            start_clock(commands, start_time);
-        })
+        .add_systems(Startup, start_clock)
         .add_systems(
             PreUpdate,
             handle_sleep_requests.after(MessageSystems::Receive),
@@ -58,11 +51,16 @@ pub(crate) struct ClockSystems;
 #[derive(Message, Clone, Copy, Debug)]
 pub(crate) struct DayStarted(pub u32);
 
-fn start_clock(mut commands: Commands, start_time: WorldTime) {
+fn start_clock(beginning: Res<Beginning>, seed: Res<WorldSeed>, mut commands: Commands) {
+    let (now, how) = match &beginning.0 {
+        WorldStart::New { start_time, .. } => (*start_time, "a new world starts"),
+        WorldStart::Resume(saved) => (saved.world.clock, "the world resumes"),
+    };
+    info!("{how} on {} at {}", now.date(), now.clock());
     commands.spawn((
         Name::new("World clock"),
-        WorldClock(start_time),
-        CurrentWeather(Weather::on(WORLD_SEED, start_time.day())),
+        WorldClock(now),
+        CurrentWeather(Weather::on(seed.0, now.day())),
         SleepTally::default(),
         Replicate::to_clients(NetworkTarget::All),
     ));
@@ -92,6 +90,7 @@ fn handle_sleep_requests(
 /// sleep rule is met or the day runs out.
 fn run_clock(
     rules: Res<DayRules>,
+    seed: Res<WorldSeed>,
     clock: Single<(&mut WorldClock, &mut CurrentWeather, &mut SleepTally)>,
     mut characters: Query<(Entity, &mut Energy, Has<Asleep>), With<PlayerId>>,
     mut ticks_this_minute: Local<u32>,
@@ -131,7 +130,7 @@ fn run_clock(
         }
     }
     clock.0 = clock.0.next_dawn();
-    weather.set_if_neq(CurrentWeather(Weather::on(WORLD_SEED, clock.0.day())));
+    weather.set_if_neq(CurrentWeather(Weather::on(seed.0, clock.0.day())));
     *ticks_this_minute = 0;
     days.write(DayStarted(clock.0.day()));
     info!("{} begins, {:?}", clock.0.date(), weather.0);

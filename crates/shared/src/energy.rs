@@ -23,6 +23,11 @@ pub enum Rest {
 impl Energy {
     pub const FULL: Self = Self(MAX_ENERGY);
 
+    /// `amount` of energy, up to the maximum.
+    pub fn new(amount: u16) -> Self {
+        Self(amount.min(MAX_ENERGY))
+    }
+
     pub fn current(self) -> u16 {
         self.0
     }

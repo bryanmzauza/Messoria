@@ -10,7 +10,7 @@ use lightyear::prelude::PeerId;
 use messoria_calendar::{GAME_MINUTE, MINUTES_PER_DAY, SleepRule, WorldTime};
 use messoria_content::Quality;
 use messoria_inventory::Inventory;
-use messoria_server::ServerPlugin;
+use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
     content::load_content,
@@ -139,8 +139,8 @@ impl World {
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
                 sleep_rule,
-                start_time: WorldTime::FIRST_DAWN,
                 minute_length: GAME_MINUTE,
+                world: WorldSetup::fresh(1, WorldTime::FIRST_DAWN),
             },
         ))
         .insert_resource(TimeUpdateStrategy::FixedTimesteps(1));

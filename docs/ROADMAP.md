@@ -112,9 +112,10 @@ server ([ADR 0006](adr/0006-shared-market-priced-on-both-sides.md)).
 
 Goal: nothing is lost when the server restarts.
 
-- [ ] Versioned save format: terrain deltas, entities, economy, one file per player
-- [ ] Periodic autosave and save on shutdown
-- [ ] Load path with migration hooks for future format versions
+- [x] Versioned save format: terrain deltas, entities, economy, one file per player
+- [x] Periodic autosave and save on shutdown
+- [x] Load path with migration hooks for future format versions
+- [x] Players recognized when they return, through a local profile
 
 **Exit criterion:** stop and restart the server mid-day and resume without any difference.
 

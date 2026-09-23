@@ -1,5 +1,6 @@
 use std::{
     net::{Ipv4Addr, SocketAddr},
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -7,12 +8,16 @@ use bevy::prelude::*;
 use clap::Parser;
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_client::{ClientPlugin, Session};
-use messoria_server::ServerPlugin;
+use messoria_save::{Profile, SaveDir};
+use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
     content::load_content,
     network::{self, DEFAULT_PORT, NetworkRole},
 };
+
+/// Where the local player's identity is kept, shared by every world they join.
+const PROFILE_FILE: &str = "saves/profile.ron";
 
 /// Messoria. Without options, starts a private local world.
 #[derive(Parser, Debug)]
@@ -25,6 +30,16 @@ struct Args {
     /// Open the local world to other players.
     #[arg(long)]
     host: bool,
+
+    /// Folder the local world is saved in. The world saved there is resumed,
+    /// or a new one is created.
+    #[arg(
+        long,
+        value_name = "FOLDER",
+        default_value = "saves/local",
+        conflicts_with = "connect"
+    )]
+    world: PathBuf,
 
     /// UDP port to accept other players on.
     #[arg(long, default_value_t = DEFAULT_PORT, requires = "host")]
@@ -55,6 +70,13 @@ fn main() -> AppExit {
     }));
 
     if let Some(server_addr) = args.connect {
+        let profile = match Profile::load_or_create(Path::new(PROFILE_FILE)) {
+            Ok(profile) => profile,
+            Err(error) => {
+                eprintln!("error: the player profile cannot be loaded: {error}");
+                return AppExit::error();
+            }
+        };
         app.add_plugins((
             SharedPlugin {
                 role: NetworkRole::Client,
@@ -63,11 +85,20 @@ fn main() -> AppExit {
             ClientPlugin {
                 session: Session::Join {
                     server_addr,
+                    player_id: profile.player_id,
                     simulated_latency: args.simulate_latency.map(Duration::from_millis),
                 },
             },
         ));
     } else {
+        let world =
+            match WorldSetup::open(SaveDir::new(args.world), &content, WorldTime::FIRST_DAWN) {
+                Ok(world) => world,
+                Err(error) => {
+                    eprintln!("error: the saved world cannot be loaded: {error}");
+                    return AppExit::error();
+                }
+            };
         let bind_addr = if args.host {
             SocketAddr::from((Ipv4Addr::UNSPECIFIED, args.port))
         } else {
@@ -83,8 +114,8 @@ fn main() -> AppExit {
             ServerPlugin {
                 bind_addr,
                 sleep_rule: SleepRule::Everyone,
-                start_time: WorldTime::FIRST_DAWN,
                 minute_length: GAME_MINUTE,
+                world,
             },
             ClientPlugin {
                 session: Session::Host,

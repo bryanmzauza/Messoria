@@ -25,6 +25,7 @@ use messoria_shared::{
 use messoria_voxel::Brush;
 
 use crate::{
+    Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
     inventory::{FieldTask, FieldWork, ItemUseSystems},
     players::ControlledCharacter,
@@ -42,6 +43,7 @@ pub(crate) struct FieldsPlugin;
 impl Plugin for FieldsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FieldIndex>()
+            .add_systems(Startup, restore_fields)
             .add_systems(
                 PreUpdate,
                 (
@@ -57,6 +59,38 @@ impl Plugin for FieldsPlugin {
 /// The field entity on each tilled tile.
 #[derive(Resource, Default)]
 struct FieldIndex(HashMap<IVec2, Entity>);
+
+/// Brings back the fields of a saved world, as they were.
+fn restore_fields(
+    beginning: Res<Beginning>,
+    mut index: ResMut<FieldIndex>,
+    mut commands: Commands,
+) {
+    let WorldStart::Resume(saved) = &beginning.0 else {
+        return;
+    };
+    for field in &saved.world.fields {
+        let mut entity = commands.spawn(field_bundle(field.tile, field.height));
+        if field.watered {
+            entity.insert(Watered);
+        }
+        if field.fertilized {
+            entity.insert(Fertilized);
+        }
+        if let Some(planting) = field.crop {
+            entity.insert(Crop(planting));
+        }
+        index.0.insert(field.tile, entity.id());
+    }
+}
+
+fn field_bundle(tile: IVec2, height: f32) -> impl Bundle {
+    (
+        Name::new(format!("Field {tile}")),
+        Field { tile, height },
+        Replicate::to_clients(NetworkTarget::All),
+    )
+}
 
 fn work_fields(
     content: Res<Content>,
@@ -94,13 +128,7 @@ fn work_fields(
                 if !energy.try_spend(tools::HOE_ENERGY) {
                     continue;
                 }
-                let field = commands
-                    .spawn((
-                        Name::new(format!("Field {tile}")),
-                        Field { tile, height },
-                        Replicate::to_clients(NetworkTarget::All),
-                    ))
-                    .id();
+                let field = commands.spawn(field_bundle(tile, height)).id();
                 index.0.insert(tile, field);
             }
             (FieldTask::Water, Some(field), Some((false, _, _))) => {

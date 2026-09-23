@@ -1,12 +1,14 @@
 use std::{
     net::{Ipv4Addr, SocketAddr},
+    path::PathBuf,
     time::Duration,
 };
 
 use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
 use clap::Parser;
 use messoria_calendar::{ClockTime, GAME_MINUTE, SleepRule, WorldTime};
-use messoria_server::ServerPlugin;
+use messoria_save::SaveDir;
+use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
     content::load_content,
@@ -26,7 +28,13 @@ struct Args {
     #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u8).range(1..=100))]
     sleep_percent: u8,
 
-    /// Time of day the world starts at, between 06:00 and 01:59.
+    /// Folder the world is saved in. The world saved there is resumed, or a
+    /// new one is created.
+    #[arg(long, value_name = "FOLDER", default_value = "saves/world")]
+    world: PathBuf,
+
+    /// Time of day a new world starts at, between 06:00 and 01:59. A saved
+    /// world resumes at the time it was saved.
     #[arg(long, value_name = "HH:MM", default_value = "06:00", value_parser = parse_start_time)]
     start_time: WorldTime,
 
@@ -45,6 +53,13 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    let world = match WorldSetup::open(SaveDir::new(args.world), &content, args.start_time) {
+        Ok(world) => world,
+        Err(error) => {
+            eprintln!("error: the saved world cannot be loaded: {error}");
+            return AppExit::error();
+        }
+    };
 
     App::new()
         .add_plugins((
@@ -60,10 +75,10 @@ fn main() -> AppExit {
                 sleep_rule: SleepRule::Share {
                     percent: args.sleep_percent,
                 },
-                start_time: args.start_time,
                 minute_length: args
                     .minute_length
                     .map_or(GAME_MINUTE, Duration::from_millis),
+                world,
             },
         ))
         .run()

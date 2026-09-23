@@ -5194,7 +5194,6 @@ dependencies = [
  "messoria-inventory",
  "messoria-shared",
  "messoria-voxel",
- "rand 0.10.3",
 ]
 
 [[package]]
@@ -5215,6 +5214,7 @@ dependencies = [
  "bevy",
  "clap",
  "messoria-calendar",
+ "messoria-save",
  "messoria-server",
  "messoria-shared",
 ]
@@ -5247,6 +5247,7 @@ dependencies = [
  "clap",
  "messoria-calendar",
  "messoria-client",
+ "messoria-save",
  "messoria-server",
  "messoria-shared",
 ]
@@ -5273,6 +5274,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "messoria-save"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "messoria-calendar",
+ "messoria-content",
+ "messoria-economy",
+ "messoria-farming",
+ "messoria-inventory",
+ "messoria-voxel",
+ "rand 0.10.3",
+ "ron",
+ "serde",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "messoria-server"
 version = "0.1.0"
 dependencies = [
@@ -5283,6 +5301,7 @@ dependencies = [
  "messoria-economy",
  "messoria-farming",
  "messoria-inventory",
+ "messoria-save",
  "messoria-shared",
  "messoria-voxel",
  "rand 0.10.3",

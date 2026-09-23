@@ -13,6 +13,7 @@ publish.workspace = true
 bevy = { workspace = true, features = ["std", "bevy_log", "multi_threaded"] }
 clap.workspace = true
 messoria-calendar.workspace = true
+messoria-save.workspace = true
 messoria-server.workspace = true
 messoria-shared.workspace = true
 

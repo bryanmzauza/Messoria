@@ -13,7 +13,7 @@ use lightyear::prelude::{input::native::InputMarker, server::Server, *};
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_content::{Catalog, ItemId, Quality};
 use messoria_farming::Planting;
-use messoria_server::ServerPlugin;
+use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
     fields::{tile_at, tile_center},
@@ -34,10 +34,16 @@ pub const PAUSE_BETWEEN_USES: u32 = 10;
 /// A world hosted in-process, with the host playing in it.
 pub struct HostedWorld {
     app: App,
+    /// The world's time once it was set up, before any time passed.
+    pub started_at: WorldTime,
 }
 
 impl HostedWorld {
     pub fn new(content: Catalog) -> Self {
+        Self::with_world(content, WorldSetup::fresh(1, WorldTime::FIRST_DAWN))
+    }
+
+    pub fn with_world(content: Catalog, world: WorldSetup) -> Self {
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,
@@ -48,8 +54,8 @@ impl HostedWorld {
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
                 sleep_rule: SleepRule::Everyone,
-                start_time: WorldTime::FIRST_DAWN,
                 minute_length: GAME_MINUTE,
+                world,
             },
         ))
         .insert_resource(TimeUpdateStrategy::FixedTimesteps(1));
@@ -65,7 +71,11 @@ impl HostedWorld {
         let host = app.world_mut().spawn(network::host_client(server)).id();
         app.world_mut().trigger(Connect { entity: host });
 
-        let mut world = Self { app };
+        let mut world = Self {
+            app,
+            started_at: WorldTime::FIRST_DAWN,
+        };
+        world.started_at = world.clock();
         world.run_until("the host to control a character", |world| {
             world.character().is_some()
         });
@@ -239,6 +249,13 @@ impl HostedWorld {
 
     pub fn world(&mut self) -> &mut World {
         self.app.world_mut()
+    }
+
+    /// Asks the app to exit, as closing the game or stopping the server
+    /// does, and runs the frame in which it would.
+    pub fn stop(&mut self) {
+        self.app.world_mut().write_message(AppExit::Success);
+        self.app.update();
     }
 
     pub fn send<M: lightyear::prelude::Message>(&mut self, message: M) {

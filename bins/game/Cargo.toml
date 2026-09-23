@@ -22,6 +22,7 @@ bevy = { workspace = true, features = ["3d"] }
 clap.workspace = true
 messoria-calendar.workspace = true
 messoria-client.workspace = true
+messoria-save.workspace = true
 messoria-server.workspace = true
 messoria-shared.workspace = true
 

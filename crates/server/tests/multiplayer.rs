@@ -14,7 +14,7 @@ use lightyear::prelude::{
     *,
 };
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
-use messoria_server::ServerPlugin;
+use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
     content::load_content,
@@ -309,8 +309,8 @@ fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
         ServerPlugin {
             bind_addr,
             sleep_rule: SleepRule::Everyone,
-            start_time,
             minute_length: GAME_MINUTE,
+            world: WorldSetup::fresh(1, start_time),
         },
     ));
     ready(app)

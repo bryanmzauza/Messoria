@@ -18,6 +18,7 @@ use messoria_shared::{
 };
 
 use crate::{
+    Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
     players::ControlledCharacter,
 };
@@ -35,10 +36,14 @@ impl Plugin for MarketPlugin {
     }
 }
 
-fn open_market(mut commands: Commands) {
+fn open_market(beginning: Res<Beginning>, mut commands: Commands) {
+    let market = match &beginning.0 {
+        WorldStart::New { .. } => MarketState::default(),
+        WorldStart::Resume(saved) => MarketState(saved.world.market.clone()),
+    };
     commands.spawn((
         Name::new("Market"),
-        MarketState::default(),
+        market,
         Replicate::to_clients(NetworkTarget::All),
     ));
 }

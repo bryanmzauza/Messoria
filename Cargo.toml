@@ -18,6 +18,7 @@ messoria-content = { path = "crates/content" }
 messoria-economy = { path = "crates/economy" }
 messoria-farming = { path = "crates/farming" }
 messoria-inventory = { path = "crates/inventory" }
+messoria-save = { path = "crates/save" }
 messoria-server = { path = "crates/server" }
 messoria-shared = { path = "crates/shared" }
 messoria-voxel = { path = "crates/voxel" }

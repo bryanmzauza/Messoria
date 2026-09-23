@@ -12,6 +12,13 @@ pub struct SalesLedger {
 }
 
 impl SalesLedger {
+    /// Every item sold today, with the shop and how many.
+    pub fn entries(&self) -> impl Iterator<Item = (ShopId, ItemId, u16)> + '_ {
+        self.sold
+            .iter()
+            .map(|(&(shop, item), &count)| (shop, item, count))
+    }
+
     pub fn sold(&self, shop: ShopId, item: ItemId) -> u16 {
         self.sold.get(&(shop, item)).copied().unwrap_or(0)
     }
@@ -33,6 +40,17 @@ impl SalesLedger {
 
     pub fn is_empty(&self) -> bool {
         self.sold.is_empty()
+    }
+}
+
+/// A ledger holding these sales, such as one read back from a save.
+impl FromIterator<(ShopId, ItemId, u16)> for SalesLedger {
+    fn from_iter<T: IntoIterator<Item = (ShopId, ItemId, u16)>>(sales: T) -> Self {
+        let mut ledger = Self::default();
+        for (shop, item, count) in sales {
+            ledger.record(shop, item, count);
+        }
+        ledger
     }
 }
 

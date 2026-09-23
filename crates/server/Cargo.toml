@@ -17,6 +17,7 @@ messoria-content.workspace = true
 messoria-economy.workspace = true
 messoria-farming.workspace = true
 messoria-inventory.workspace = true
+messoria-save.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true
 rand.workspace = true

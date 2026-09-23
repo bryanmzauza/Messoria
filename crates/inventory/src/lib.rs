@@ -34,6 +34,12 @@ pub struct Inventory {
 }
 
 impl Inventory {
+    /// An inventory holding exactly `slots`, such as one read back from a
+    /// save.
+    pub fn from_slots(slots: [Option<Stack>; SLOTS]) -> Self {
+        Self { slots }
+    }
+
     pub fn slots(&self) -> &[Option<Stack>; SLOTS] {
         &self.slots
     }

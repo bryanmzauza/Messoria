@@ -50,6 +50,13 @@ impl PriceBasis {
 }
 
 impl Market {
+    /// Every item sold lately, with its saturation.
+    pub fn saturations(&self) -> impl Iterator<Item = (ItemId, f32)> + '_ {
+        self.saturation
+            .iter()
+            .map(|(&item, &saturation)| (item, saturation))
+    }
+
     pub fn saturation(&self, item: ItemId) -> f32 {
         self.saturation.get(&item).copied().unwrap_or(0.0)
     }
@@ -86,6 +93,15 @@ impl Market {
 
     pub fn is_empty(&self) -> bool {
         self.saturation.is_empty()
+    }
+}
+
+/// A market holding these saturations, such as one read back from a save.
+impl FromIterator<(ItemId, f32)> for Market {
+    fn from_iter<T: IntoIterator<Item = (ItemId, f32)>>(saturations: T) -> Self {
+        Self {
+            saturation: saturations.into_iter().collect(),
+        }
     }
 }
 
