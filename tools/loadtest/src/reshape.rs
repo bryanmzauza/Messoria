@@ -4,9 +4,12 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
+use messoria_content::{ItemKind, Tool};
+use messoria_inventory::HOTBAR_SLOTS;
 use messoria_shared::{
+    content::Content,
     movement::EYE_HEIGHT,
-    protocol::{ActionChannel, Heading, PlayerInput, Position, ShovelAction, ShovelRequest},
+    protocol::{ActionChannel, Belongings, Heading, ItemAction, PlayerInput, Position, UseItem},
     shovel,
     terrain::Terrain,
 };
@@ -40,14 +43,24 @@ struct Reshape {
 fn reshape(
     time: Res<Time>,
     terrain: Res<Terrain>,
+    content: Res<Content>,
     mut state: ResMut<Reshape>,
-    player: Query<(&Position, &Heading), With<InputMarker<PlayerInput>>>,
-    mut sender: Query<&mut MessageSender<ShovelRequest>, With<Client>>,
+    player: Query<(&Position, &Heading, &Belongings), With<InputMarker<PlayerInput>>>,
+    mut sender: Query<&mut MessageSender<UseItem>, With<Client>>,
 ) {
     if !state.timer.tick(time.delta()).just_finished() {
         return;
     }
-    let (Ok((feet, heading)), Ok(mut sender)) = (player.single(), sender.single_mut()) else {
+    let (Ok((feet, heading, belongings)), Ok(mut sender)) = (player.single(), sender.single_mut())
+    else {
+        return;
+    };
+    let is_shovel = |slot: usize| {
+        belongings.0.slot(slot).is_some_and(|stack| {
+            matches!(content.item(stack.item).kind, ItemKind::Tool(Tool::Shovel))
+        })
+    };
+    let Some(slot) = (0..HOTBAR_SLOTS).find(|&slot| is_shovel(slot)) else {
         return;
     };
     let eyes = feet.0 + Vec3::Y * EYE_HEIGHT;
@@ -56,12 +69,13 @@ fn reshape(
         return;
     };
     let action = if state.rng.random_bool(0.5) {
-        ShovelAction::Dig
+        ItemAction::Primary
     } else {
-        ShovelAction::Raise
+        ItemAction::Secondary
     };
-    sender.send::<ActionChannel>(ShovelRequest {
-        target: hit.point,
+    sender.send::<ActionChannel>(UseItem {
+        slot: u8::try_from(slot).expect("hotbar slots fit in u8"),
         action,
+        target: Some(hit.point),
     });
 }

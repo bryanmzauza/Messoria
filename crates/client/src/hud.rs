@@ -8,7 +8,7 @@ use messoria_shared::{
     protocol::{Asleep, PlayerInput, SleepTally},
 };
 
-use crate::{camera::View, clock::LocalClock, sleep::SLEEP_KEY_NAME};
+use crate::{camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM, sleep::SLEEP_KEY_NAME};
 
 const CROSSHAIR_SIZE: f32 = 4.0;
 const OVERLAY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
@@ -120,7 +120,8 @@ fn spawn_hud(mut commands: Commands) {
         SleepText,
         Node {
             position_type: PositionType::Absolute,
-            bottom: px(MARGIN * 3.0),
+            // Above the hotbar.
+            bottom: px(HOTBAR_BOTTOM + 96.0),
             width: percent(100),
             justify_content: JustifyContent::Center,
             ..default()

@@ -12,8 +12,10 @@ use std::{net::SocketAddr, thread, time::Duration};
 use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
 use clap::Parser;
 use lightyear::prelude::*;
+use messoria_content::Catalog;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     network::{self, NetworkRole},
     tick::tick_duration,
 };
@@ -39,15 +41,23 @@ struct Args {
     dig: bool,
 }
 
-fn main() {
+fn main() -> AppExit {
     let args = Args::parse();
     let simulated_latency = args.simulate_latency.map(Duration::from_millis);
+    let content = match load_content() {
+        Ok(content) => content,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return AppExit::error();
+        }
+    };
 
     let bots: Vec<_> = (0..args.bots)
         .map(|index| {
+            let content = content.clone();
             thread::Builder::new()
                 .name(format!("bot-{index}"))
-                .spawn(move || run_bot(index, args.server, simulated_latency, args.dig))
+                .spawn(move || run_bot(index, args.server, simulated_latency, args.dig, content))
                 .expect("spawn bot thread")
         })
         .collect();
@@ -57,6 +67,7 @@ fn main() {
             std::panic::resume_unwind(panic);
         }
     }
+    AppExit::Success
 }
 
 fn run_bot(
@@ -64,6 +75,7 @@ fn run_bot(
     server_addr: SocketAddr,
     simulated_latency: Option<Duration>,
     dig: bool,
+    content: Catalog,
 ) -> AppExit {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(tick_duration())));
@@ -74,6 +86,7 @@ fn run_bot(
     app.add_plugins((
         SharedPlugin {
             role: NetworkRole::Client,
+            content,
         },
         wander::WanderPlugin {
             seed: u64::from(index),

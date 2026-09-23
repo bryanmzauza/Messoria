@@ -24,6 +24,8 @@ lightyear = { workspace = true, features = [
   "input_native",
 ] }
 messoria-calendar.workspace = true
+messoria-content.workspace = true
+messoria-inventory.workspace = true
 messoria-voxel.workspace = true
 serde.workspace = true
 

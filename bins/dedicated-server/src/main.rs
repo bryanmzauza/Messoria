@@ -6,6 +6,7 @@ use messoria_calendar::{ClockTime, SleepRule, WorldTime};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     network::{DEFAULT_PORT, NetworkRole},
     tick::tick_duration,
 };
@@ -29,6 +30,13 @@ struct Args {
 
 fn main() -> AppExit {
     let args = Args::parse();
+    let content = match load_content() {
+        Ok(content) => content,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return AppExit::error();
+        }
+    };
 
     App::new()
         .add_plugins((
@@ -37,6 +45,7 @@ fn main() -> AppExit {
             bevy::app::TerminalCtrlCHandlerPlugin,
             SharedPlugin {
                 role: NetworkRole::Server,
+                content,
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::UNSPECIFIED, args.port)),

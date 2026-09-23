@@ -8,12 +8,14 @@ use std::net::{Ipv4Addr, SocketAddr};
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use lightyear::prelude::PeerId;
 use messoria_calendar::{GAME_MINUTE, MINUTES_PER_DAY, SleepRule, WorldTime};
+use messoria_inventory::Inventory;
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     energy::{Energy, MAX_ENERGY},
     network::NetworkRole,
-    protocol::{Asleep, PlayerId, WorldClock},
+    protocol::{Asleep, Belongings, PlayerId, WorldClock},
     tick::ticks_in,
 };
 
@@ -74,6 +76,37 @@ fn players_still_awake_at_two_pass_out() {
 }
 
 #[test]
+fn food_spoils_into_compost_at_dawn() {
+    let content = load_content().expect("the shipped content is valid");
+    let berries = content.id("wild_berries").expect("berries exist");
+    let compost = content.item(berries).spoils_into.expect("berries spoil");
+    let shelf_life = u32::from(content.item(berries).shelf_life.expect("berries spoil"));
+
+    let mut world = World::new(SleepRule::Everyone);
+    let mut basket = Inventory::default();
+    basket.add(&content, berries, 4, 0);
+    let player = world.add_player(None, 0);
+    world
+        .app
+        .world_mut()
+        .entity_mut(player)
+        .insert(Belongings(basket));
+
+    world.set_clock(shelf_life - 1, MINUTES_PER_DAY - 1);
+    world.advance_minutes(1);
+
+    assert_eq!(world.clock().day(), shelf_life);
+    let basket = &world
+        .app
+        .world()
+        .get::<Belongings>(player)
+        .expect("still carried")
+        .0;
+    assert_eq!(basket.count(berries), 0);
+    assert_eq!(basket.count(compost), 4);
+}
+
+#[test]
 fn time_runs_one_game_minute_per_real_second() {
     let mut world = World::new(SleepRule::Everyone);
     world.add_player(None, 0);
@@ -100,6 +133,7 @@ impl World {
             MinimalPlugins,
             SharedPlugin {
                 role: NetworkRole::Server,
+                content: load_content().expect("the shipped content is valid"),
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),

@@ -10,6 +10,7 @@ use messoria_client::{ClientPlugin, Session};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     network::{self, DEFAULT_PORT, NetworkRole},
 };
 
@@ -36,6 +37,13 @@ struct Args {
 
 fn main() -> AppExit {
     let args = Args::parse();
+    let content = match load_content() {
+        Ok(content) => content,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return AppExit::error();
+        }
+    };
 
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -50,6 +58,7 @@ fn main() -> AppExit {
         app.add_plugins((
             SharedPlugin {
                 role: NetworkRole::Client,
+                content,
             },
             ClientPlugin {
                 session: Session::Join {
@@ -68,6 +77,7 @@ fn main() -> AppExit {
         app.add_plugins((
             SharedPlugin {
                 role: NetworkRole::Host,
+                content,
             },
             // A world hosted for friends waits until everyone is asleep.
             ServerPlugin {

@@ -17,12 +17,13 @@ use messoria_calendar::{SleepRule, WorldTime};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     energy::Energy,
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Asleep, PlayerId, PlayerInput, Position, ShovelAction, ShovelRequest,
-        SleepRequest, WorldClock,
+        ActionChannel, Asleep, Belongings, ItemAction, PlayerId, PlayerInput, Position,
+        SleepRequest, UseItem, WorldClock,
     },
     shovel,
     terrain::Terrain,
@@ -88,14 +89,16 @@ fn shovel_edits_reach_the_client_identically() {
     let target = target.expect("found above");
 
     let before = server.world().resource::<Terrain>().0.clone();
+    // Players start with the shovel in their first hotbar slot.
     client
         .world_mut()
-        .query_filtered::<&mut MessageSender<ShovelRequest>, With<Client>>()
+        .query_filtered::<&mut MessageSender<UseItem>, With<Client>>()
         .single_mut(client.world_mut())
         .expect("one client connection")
-        .send::<ActionChannel>(ShovelRequest {
-            target,
-            action: ShovelAction::Dig,
+        .send::<ActionChannel>(UseItem {
+            slot: 0,
+            action: ItemAction::Primary,
+            target: Some(target),
         });
 
     run_until(
@@ -111,6 +114,24 @@ fn shovel_edits_reach_the_client_identically() {
             dug && client_terrain
                 .positions()
                 .all(|chunk| client_terrain.get(chunk) == server_terrain.get(chunk))
+        },
+    );
+
+    let soil = load_content()
+        .expect("the shipped content is valid")
+        .id("soil")
+        .expect("soil exists");
+    run_until(
+        &mut server,
+        &mut client,
+        "the dug soil to show up in the client's inventory",
+        |_, client| {
+            let world = client.world_mut();
+            world
+                .query_filtered::<&Belongings, With<InputMarker<PlayerInput>>>()
+                .iter(world)
+                .next()
+                .is_some_and(|belongings| belongings.0.count(soil) == 1)
         },
     );
 }
@@ -171,6 +192,7 @@ fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
         MinimalPlugins,
         SharedPlugin {
             role: NetworkRole::Server,
+            content: load_content().expect("the shipped content is valid"),
         },
         ServerPlugin {
             bind_addr,
@@ -187,6 +209,7 @@ fn client_app(server_addr: SocketAddr, behavior: Behavior) -> App {
         MinimalPlugins,
         SharedPlugin {
             role: NetworkRole::Client,
+            content: load_content().expect("the shipped content is valid"),
         },
     ));
     if let Behavior::WalkForward = behavior {

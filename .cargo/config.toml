@@ -3,3 +3,8 @@ lint = "clippy --workspace --all-targets -- -D warnings"
 client = "run -p messoria-game"
 server = "run -p messoria-dedicated-server"
 bots = "run -p messoria-loadtest"
+
+[env]
+# Development runs read assets from the workspace root rather than from each
+# crate's directory. Shipped builds find them next to the executable.
+BEVY_ASSET_ROOT = { value = "", relative = true }

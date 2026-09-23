@@ -5,6 +5,7 @@
 //! never live here; the client only presents state that the server owns and
 //! predicts the local player's movement through shared code.
 
+mod actions;
 mod avatars;
 mod camera;
 mod clock;
@@ -12,7 +13,7 @@ mod connection;
 mod environment;
 mod hud;
 mod input;
-mod shovel;
+mod inventory;
 mod sleep;
 mod terrain;
 
@@ -36,7 +37,8 @@ impl Plugin for ClientPlugin {
             avatars::AvatarPlugin,
             camera::CameraPlugin,
             input::InputPlugin,
-            shovel::ShovelPlugin,
+            inventory::InventoryPlugin,
+            actions::ActionsPlugin,
             sleep::SleepPlugin,
             hud::HudPlugin,
         ));

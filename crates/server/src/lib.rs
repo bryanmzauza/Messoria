@@ -7,6 +7,7 @@
 
 mod connections;
 mod day_cycle;
+mod inventory;
 mod players;
 mod terrain;
 
@@ -31,6 +32,7 @@ impl Plugin for ServerPlugin {
                 bind_addr: self.bind_addr,
             },
             players::PlayersPlugin,
+            inventory::InventoryPlugin,
             terrain::TerrainPlugin,
             day_cycle::DayCyclePlugin {
                 sleep_rule: self.sleep_rule,

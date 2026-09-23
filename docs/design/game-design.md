@@ -82,8 +82,9 @@ Waiting for everyone to sleep does not work with 50 players:
 Hoe, watering can, axe, pickaxe, shovel (terraforming), scythe, basic weapon. Upgrade tiers (copper → iron → gold) increase area and efficiency.
 
 ### 5.3 Inventory and spoilage
-- Hotbar + expandable backpack, chests for storage.
-- **Perishable items expire:** each item has a shelf life in in-game days; spoiled items become trash or compost.
+- Hotbar (10 slots) + expandable backpack (20 slots to start), chests for storage. The held hotbar item decides what the mouse buttons do.
+- **Perishable items expire:** each item has a shelf life in in-game days; spoiled items become trash or compost. Stacking perishables averages their freshness by count.
+- Digging with the shovel yields the dug material (soil, stone, sand); raising the ground uses soil.
 - Preservation: **[OPEN]** fridge/cellar, and processing (jam, pickles, wine) to extend shelf life and add value.
 
 ### 5.4 Energy

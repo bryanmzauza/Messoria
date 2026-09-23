@@ -1,9 +1,10 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! terrain and player actions.
+//! terrain, inventories and player actions.
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::WorldTime;
+use messoria_inventory::Inventory;
 use messoria_voxel::{ChunkChanges, ChunkPos};
 use serde::{Deserialize, Serialize};
 
@@ -78,25 +79,40 @@ pub enum TerrainUpdate {
     Unloaded(ChunkPos),
 }
 
-/// A client asking to reshape the terrain at `target`.
+/// What a character carries.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Belongings(pub Inventory);
+
+/// A client using the item in one of its hotbar slots, aimed at `target`
+/// when the item acts on the world. What happens depends on the item.
 ///
-/// The server validates reach, rate and target before applying it.
+/// The server checks the slot, the item and the target before acting.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct ShovelRequest {
-    pub target: Vec3,
-    pub action: ShovelAction,
+pub struct UseItem {
+    pub slot: u8,
+    pub action: ItemAction,
+    pub target: Option<Vec3>,
 }
 
+/// Items have a main use and, for some, a second one; a shovel digs and raises.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ShovelAction {
-    Dig,
-    Raise,
+pub enum ItemAction {
+    Primary,
+    Secondary,
+}
+
+/// A client moving the stack in inventory slot `from` onto slot `to`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MoveItem {
+    pub from: u8,
+    pub to: u8,
 }
 
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
-/// Carries player actions such as [`ShovelRequest`]s and [`SleepRequest`]s.
+/// Carries player actions such as [`UseItem`] and [`SleepRequest`], in order:
+/// inventory moves only make sense applied in the order they were made.
 pub struct ActionChannel;
 
 impl Ease for Position {
@@ -143,14 +159,16 @@ impl Plugin for ProtocolPlugin {
         })
         .add_direction(NetworkDirection::ServerToClient);
         app.add_channel::<ActionChannel>(ChannelSettings {
-            mode: ChannelMode::UnorderedReliable(ReliableSettings::default()),
+            mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
             ..default()
         })
         .add_direction(NetworkDirection::ClientToServer);
 
         app.register_message::<TerrainUpdate>()
             .add_direction(NetworkDirection::ServerToClient);
-        app.register_message::<ShovelRequest>()
+        app.register_message::<UseItem>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<MoveItem>()
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<SleepRequest>()
             .add_direction(NetworkDirection::ClientToServer);
@@ -159,6 +177,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<SleepTally>().replicate();
         app.component::<Energy>().replicate();
         app.component::<Asleep>().replicate();
+        app.component::<Belongings>().replicate();
 
         app.component::<PlayerId>().replicate();
 

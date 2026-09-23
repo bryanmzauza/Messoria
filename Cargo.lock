@@ -5188,9 +5188,21 @@ dependencies = [
  "bevy",
  "lightyear",
  "messoria-calendar",
+ "messoria-content",
+ "messoria-inventory",
  "messoria-shared",
  "messoria-voxel",
  "rand 0.10.3",
+]
+
+[[package]]
+name = "messoria-content"
+version = "0.1.0"
+dependencies = [
+ "messoria-voxel",
+ "ron",
+ "serde",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5217,12 +5229,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "messoria-inventory"
+version = "0.1.0"
+dependencies = [
+ "messoria-content",
+ "serde",
+]
+
+[[package]]
 name = "messoria-loadtest"
 version = "0.1.0"
 dependencies = [
  "bevy",
  "clap",
  "lightyear",
+ "messoria-content",
+ "messoria-inventory",
  "messoria-shared",
  "rand 0.10.3",
 ]
@@ -5234,6 +5256,8 @@ dependencies = [
  "bevy",
  "lightyear",
  "messoria-calendar",
+ "messoria-content",
+ "messoria-inventory",
  "messoria-shared",
  "messoria-voxel",
 ]
@@ -5245,6 +5269,8 @@ dependencies = [
  "bevy",
  "lightyear",
  "messoria-calendar",
+ "messoria-content",
+ "messoria-inventory",
  "messoria-voxel",
  "serde",
 ]

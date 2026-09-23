@@ -69,10 +69,12 @@ Goal: the world keeps a calendar and the day has a rhythm.
 
 Goal: items exist, can be carried and go bad.
 
-- [ ] `messoria-content`: item, crop and shop definitions in RON, validated on load
-- [ ] Inventory with hotbar and backpack, server-authoritative
-- [ ] Shelf life for perishables; spoiled items turn into compost
-- [ ] Tools as inventory items bound to actions
+- [x] `messoria-content`: item definitions in RON, validated on load (crop and shop
+  definitions arrive with the systems that use them, in M5 and M6)
+- [x] `messoria-inventory`: hotbar and backpack, server-authoritative
+- [x] Shelf life for perishables; spoiled items turn into compost
+- [x] Tools and food as inventory items bound to actions
+- [x] Digging yields the dug material; raising the ground uses soil
 
 **Exit criterion:** an invalid content file fails at startup with a precise error;
 inventory rules are covered by unit tests.
@@ -82,7 +84,7 @@ inventory rules are covered by unit tests.
 Goal: the core farming loop works end to end.
 
 - [ ] Hoe tills terrain surface into farmland
-- [ ] Five crops defined in data
+- [ ] Crop definitions in `messoria-content`; five crops defined in data
 - [ ] Watering can and rain
 - [ ] Batched growth resolved at day rollover
 - [ ] Harvest with quality tiers; crops die out of season
@@ -94,6 +96,7 @@ predicts, in a simulated run and in a live session.
 
 Goal: produce turns into money, and money reacts to supply.
 
+- [ ] Shop definitions in `messoria-content`
 - [ ] `messoria-economy`: seasonal base price, saturation and daily recovery, daily purchase limits
 - [ ] Individual wallets and transfers between players
 - [ ] One village shop with opening hours: buys crops, sells seeds

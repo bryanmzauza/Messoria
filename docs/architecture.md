@@ -18,6 +18,8 @@ See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 ```
 crates/
   calendar/          messoria-calendar          Game time, dates, seasons, sleep rules
+  content/           messoria-content           Content catalog loaded from data files, with validation
+  inventory/         messoria-inventory         Slots, stacks and spoilage
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
@@ -27,6 +29,8 @@ bins/
   dedicated-server/  messoria-dedicated-server  Headless server executable
 tools/
   loadtest/          messoria-loadtest          Headless bot players
+assets/
+  data/              Game content in RON
 docs/
   design/            Game design document
   adr/               Architecture decision records
@@ -37,7 +41,6 @@ starts, never ahead of time:
 
 | Crate | Milestone | Responsibility |
 |---|---|---|
-| `messoria-content` | M4 | Data definitions loaded from RON, with validation |
 | `messoria-economy` | M6 | Prices, saturation, purchase limits, wallets |
 | `rendezvous` (binary) | M8 | Access codes, hole punching, relay |
 
@@ -45,7 +48,7 @@ starts, never ahead of time:
 
 ```
 bins, tools ──► client ──┐
-           └──► server ──┴──► shared ──► domain crates (calendar, voxel, content, economy)
+           └──► server ──┴──► shared ──► domain crates (calendar, content, inventory, voxel, economy)
 ```
 
 - **Domain crates do not depend on Bevy.** They hold pure data structures and
@@ -123,6 +126,25 @@ remote characters are interpolated between server snapshots.
 
 ## Content
 
-Game content (items, crops, shops, prices) lives in data files under
-`assets/data/`, never in code. Content is validated when it is loaded, so a
-malformed file fails at startup rather than during play.
+Game content (items now; crops, shops and prices as they arrive) lives in RON
+files under `assets/data/`, never in code.
+
+- Executables load the catalog before building the app. Any problem, from a
+  syntax error to a reference to an item that does not exist, stops the
+  program with the file, the position where there is one, and the reason.
+- Assets are found the way Bevy finds them: `BEVY_ASSET_ROOT`, which
+  `.cargo/config.toml` points at the workspace root for development, or the
+  executable's directory in a shipped build.
+- Items are identified on the wire by their position in the catalog, so a
+  client and a server must load the same content. Data files and saves refer
+  to items by their text id.
+
+## Items
+
+- Each character's inventory (`Belongings`) lives on the server and is
+  replicated. Clients ask to `MoveItem` between slots and to `UseItem` from a
+  hotbar slot; the item in the slot decides what the use does.
+- Tool uses that act on the world are handed to the system that owns that part
+  of the world as a Bevy message (`ShovelUse` for the terrain); eating is
+  handled by the inventory itself.
+- At dawn every inventory spoils what has expired.

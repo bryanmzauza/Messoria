@@ -4,9 +4,11 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 use lightyear::prelude::{server::*, *};
+use messoria_inventory::Inventory;
 use messoria_shared::{
+    content::Content,
     energy::Energy,
-    protocol::{Heading, PlayerId, Position, Velocity},
+    protocol::{Belongings, Heading, PlayerId, Position, Velocity, WorldClock},
     terrain::Terrain,
 };
 
@@ -33,11 +35,21 @@ fn spawn_player(
     trigger: On<Add, Connected>,
     clients: Query<&RemoteId, With<ClientOf>>,
     terrain: Res<Terrain>,
+    content: Res<Content>,
+    clock: Single<&WorldClock>,
     mut commands: Commands,
 ) {
     let Ok(&RemoteId(peer)) = clients.get(trigger.entity) else {
         return;
     };
+
+    let mut starting_kit = Inventory::default();
+    for &(item, count) in content.starting_inventory() {
+        let left = starting_kit.add(&content, item, count, clock.0.day());
+        if left > 0 {
+            warn!("the starting inventory does not fit; {left} of it is left out");
+        }
+    }
 
     let spawn = spawn_point(peer);
     let ground = ground_height(&terrain, spawn.x, spawn.z).unwrap_or_default();
@@ -49,6 +61,7 @@ fn spawn_player(
             Velocity::default(),
             Heading::default(),
             Energy::FULL,
+            Belongings(starting_kit),
             Replicate::to_clients(NetworkTarget::All),
             // The owner predicts its own character; everyone else interpolates it.
             PredictionTarget::to_clients(NetworkTarget::Single(peer)),

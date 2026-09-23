@@ -5,7 +5,7 @@ use std::time::Duration;
 use bevy::math::Vec3;
 use messoria_voxel::{Brush, BrushMode, Material};
 
-use crate::protocol::{ShovelAction, ShovelRequest};
+use crate::protocol::ItemAction;
 
 /// How far from a character's eyes the shovel reaches, in meters.
 pub const REACH: f32 = 4.5;
@@ -16,14 +16,35 @@ pub const COOLDOWN: Duration = Duration::from_millis(250);
 /// Energy each use costs.
 pub const ENERGY_COST: u16 = 2;
 
-/// The terrain edit a request asks for.
-pub fn brush(request: &ShovelRequest) -> Brush {
+/// What a shovel does with each of an item's actions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShovelAction {
+    /// Removes ground, which goes into the inventory.
+    Dig,
+    /// Adds soil taken from the inventory.
+    Raise,
+}
+
+impl From<ItemAction> for ShovelAction {
+    fn from(action: ItemAction) -> Self {
+        match action {
+            ItemAction::Primary => Self::Dig,
+            ItemAction::Secondary => Self::Raise,
+        }
+    }
+}
+
+/// Ground raising builds with.
+pub const RAISED_MATERIAL: Material = Material::Soil;
+
+/// The terrain edit a shovel use at `target` makes.
+pub fn brush(target: Vec3, action: ShovelAction) -> Brush {
     Brush {
-        center: request.target,
+        center: target,
         radius: BRUSH_RADIUS,
-        mode: match request.action {
+        mode: match action {
             ShovelAction::Dig => BrushMode::Dig,
-            ShovelAction::Raise => BrushMode::Raise(Material::Soil),
+            ShovelAction::Raise => BrushMode::Raise(RAISED_MATERIAL),
         },
     }
 }

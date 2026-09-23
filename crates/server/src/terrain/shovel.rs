@@ -1,22 +1,23 @@
-//! Validating and applying players' shovel requests.
+//! Carrying out shovel uses: validating them, reshaping the terrain, and
+//! moving ground between the terrain and the character's inventory.
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use bevy::prelude::*;
-use lightyear::prelude::*;
 use messoria_shared::{
+    content::Content,
     energy::Energy,
     movement::{BODY_HEIGHT, BODY_RADIUS, EYE_HEIGHT},
-    protocol::{Asleep, PlayerId, Position, ShovelAction, ShovelRequest},
-    shovel,
+    protocol::{Asleep, Belongings, PlayerId, Position, WorldClock},
+    shovel::{self, ShovelAction},
     terrain::{ChunkChanged, Terrain},
 };
 
 use super::{TerrainEdited, editable};
-use crate::players::ControlledCharacter;
+use crate::inventory::{self, ShovelUse};
 
-/// Clients pace their requests at `shovel::COOLDOWN`; network jitter can
-/// bunch them up in transit, so the server enforces a slightly shorter gap.
+/// Clients pace their uses at `shovel::COOLDOWN`; network jitter can bunch
+/// them up in transit, so the server enforces a slightly shorter gap.
 const MIN_INTERVAL: Duration = shovel::COOLDOWN.saturating_sub(Duration::from_millis(50));
 /// How far from the surface a target may be. Requests for points deep in the
 /// air or underground did not come from aiming at the terrain.
@@ -26,12 +27,7 @@ pub(super) struct ShovelPlugin;
 
 impl Plugin for ShovelPlugin {
     fn build(&self, app: &mut App) {
-        // lightyear drops messages left unread at the end of a frame, and not
-        // every frame runs a fixed tick, so requests are handled as they arrive.
-        app.add_systems(
-            PreUpdate,
-            apply_shovel_requests.after(MessageSystems::Receive),
-        );
+        app.add_systems(PreUpdate, apply_shovel_uses.after(inventory::use_items));
     }
 }
 
@@ -39,63 +35,84 @@ impl Plugin for ShovelPlugin {
 #[derive(Component)]
 struct LastShovelUse(Duration);
 
-fn apply_shovel_requests(
+fn apply_shovel_uses(
     time: Res<Time>,
-    mut clients: Query<(
-        Entity,
-        &mut MessageReceiver<ShovelRequest>,
-        &ControlledCharacter,
-        Option<&LastShovelUse>,
-    )>,
+    content: Res<Content>,
+    clock: Single<&WorldClock>,
+    mut uses: MessageReader<ShovelUse>,
+    last_uses: Query<&LastShovelUse>,
     characters: Query<&Position, With<PlayerId>>,
-    mut workers: Query<&mut Energy, Without<Asleep>>,
+    mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
     mut edited: MessageWriter<TerrainEdited>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
     mut commands: Commands,
 ) {
     let now = time.elapsed();
-    for (client, mut requests, character, last_use) in &mut clients {
-        let previous_use = last_use.map(|last| last.0);
-        let mut last_use = previous_use;
-        for request in requests.receive() {
-            let Ok(feet) = characters.get(character.0) else {
-                continue;
-            };
-            if last_use.is_some_and(|last| now.saturating_sub(last) < MIN_INTERVAL) {
-                continue;
-            }
-            if let Err(reason) = validate(&request, feet.0, &terrain, &characters) {
-                debug!("rejected shovel request {request:?}: {reason}");
-                continue;
-            }
-            // Sleeping characters have no energy to spend here.
-            let Ok(mut energy) = workers.get_mut(character.0) else {
-                continue;
-            };
-            if !energy.try_spend(shovel::ENERGY_COST) {
-                continue;
-            }
+    let mut used_this_frame = HashSet::new();
+    for shovel_use in uses.read() {
+        let resting = last_uses
+            .get(shovel_use.client)
+            .is_ok_and(|last| now.saturating_sub(last.0) < MIN_INTERVAL);
+        if resting || used_this_frame.contains(&shovel_use.client) {
+            continue;
+        }
+        let (Ok(feet), Ok((mut energy, mut belongings))) = (
+            characters.get(shovel_use.character),
+            workers.get_mut(shovel_use.character),
+        ) else {
+            continue;
+        };
+        if let Err(reason) = validate(shovel_use, feet.0, &terrain, &characters) {
+            debug!("rejected {shovel_use:?}: {reason}");
+            continue;
+        }
+        if energy.current() < shovel::ENERGY_COST {
+            continue;
+        }
 
-            for changes in terrain.apply_brush(&shovel::brush(&request)) {
-                chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
-                edited.write(TerrainEdited(changes));
+        // Settle what moves between terrain and inventory before touching
+        // either, so a use is carried out completely or not at all.
+        let soil = content.dug_item(shovel::RAISED_MATERIAL);
+        match shovel_use.action {
+            ShovelAction::Dig => {
+                let Some(material) = terrain.surface_material(shovel_use.target) else {
+                    continue;
+                };
+                let dug = content.dug_item(material);
+                if belongings.0.room_for(&content, dug) == 0 {
+                    debug!("rejected {shovel_use:?}: no room for what it digs up");
+                    continue;
+                }
+                belongings.0.add(&content, dug, 1, clock.0.day());
             }
-            last_use = Some(now);
+            ShovelAction::Raise => {
+                if !belongings.0.remove(soil, 1) {
+                    continue;
+                }
+            }
         }
-        if let Some(last_use) = last_use.filter(|_| last_use != previous_use) {
-            commands.entity(client).insert(LastShovelUse(last_use));
+        energy.try_spend(shovel::ENERGY_COST);
+
+        let brush = shovel::brush(shovel_use.target, shovel_use.action);
+        for changes in terrain.apply_brush(&brush) {
+            chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
+            edited.write(TerrainEdited(changes));
         }
+        used_this_frame.insert(shovel_use.client);
+        commands
+            .entity(shovel_use.client)
+            .insert(LastShovelUse(now));
     }
 }
 
 fn validate(
-    request: &ShovelRequest,
+    shovel_use: &ShovelUse,
     feet: Vec3,
     terrain: &Terrain,
     characters: &Query<&Position, With<PlayerId>>,
 ) -> Result<(), &'static str> {
-    let target = request.target;
+    let target = shovel_use.target;
     if !target.is_finite() || !editable(target) {
         return Err("target outside the editable world");
     }
@@ -108,7 +125,7 @@ fn validate(
     {
         return Err("target is not on the terrain surface");
     }
-    if request.action == ShovelAction::Raise
+    if shovel_use.action == ShovelAction::Raise
         && characters
             .iter()
             .any(|character| body_overlaps_brush(character.0, target))

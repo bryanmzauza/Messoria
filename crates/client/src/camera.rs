@@ -16,7 +16,7 @@ use bevy::{
 use lightyear::prelude::input::native::InputMarker;
 use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
 
-use crate::avatars::AvatarSystems;
+use crate::{avatars::AvatarSystems, inventory::InventoryOpen};
 
 /// Distance at which terrain is fully swallowed by fog, in meters.
 const FOG_VISIBILITY: f32 = 180.0;
@@ -92,16 +92,20 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
+/// Captures the cursor on a click in the world and releases it on Escape,
+/// when the window loses focus or while the backpack is open.
 fn capture_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
+    inventory: Res<InventoryOpen>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
     mut view: ResMut<View>,
 ) {
     let (window, mut cursor) = window.into_inner();
-    let capture = if view.captured && (!window.focused || keys.just_pressed(KeyCode::Escape)) {
+    let release = !window.focused || keys.just_pressed(KeyCode::Escape) || inventory.0;
+    let capture = if view.captured && release {
         false
-    } else if !view.captured && window.focused && mouse.just_pressed(MouseButton::Left) {
+    } else if !view.captured && !release && mouse.just_pressed(MouseButton::Left) {
         true
     } else {
         return;

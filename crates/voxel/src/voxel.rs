@@ -12,6 +12,10 @@ pub enum Material {
     Sand = 3,
 }
 
+impl Material {
+    pub const ALL: [Self; 4] = [Self::Grass, Self::Soil, Self::Stone, Self::Sand];
+}
+
 impl TryFrom<u8> for Material {
     type Error = u8;
 

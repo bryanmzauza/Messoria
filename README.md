@@ -11,9 +11,9 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 Early development. Players share a farm valley over the network, hosted from
 the game or on a dedicated server, reshape its smooth voxel terrain with a
-shovel, and live through days and nights that end when they go to sleep.
-Items and inventory are next. See the [roadmap](docs/ROADMAP.md) for what is
-done and what comes next.
+shovel, carry what they dig in their inventory, and live through days and
+nights that end when they go to sleep. Farming is next. See the
+[roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -58,16 +58,24 @@ the roadmap). `--simulate-latency <ms>` on `--connect` and on the bots delays
 packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
-`Space` to jump, left mouse button to dig, right mouse button to raise ground,
-`Z` to sleep or get up (from 18:00), `F5` to switch between first and third
-person, `Esc` to release the mouse.
+`Space` to jump, `1` to `0` or the mouse wheel to pick the held item, left and
+right mouse buttons to use it (the shovel digs and raises ground; food is
+eaten with the left button), `Tab` to open the backpack and click two slots to
+move items, `Z` to sleep or get up (from 18:00), `F5` to switch between first
+and third person, `Esc` to release the mouse.
+
+Game content lives in `assets/data/`; items are defined in
+[`items.ron`](assets/data/items.ron). The game refuses to start, naming the
+problem, if a data file is invalid.
 
 ## Repository layout
 
 ```
-crates/   libraries: voxel terrain, shared networking and simulation, server, client
+crates/   libraries: domain rules (calendar, content, inventory, voxel), shared
+          networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots
+assets/   game content and, later, art and audio
 docs/     design document, architecture notes, decision records
 ```
 

@@ -14,6 +14,8 @@ publish = false
 [workspace.dependencies]
 messoria-calendar = { path = "crates/calendar" }
 messoria-client = { path = "crates/client" }
+messoria-content = { path = "crates/content" }
+messoria-inventory = { path = "crates/inventory" }
 messoria-server = { path = "crates/server" }
 messoria-shared = { path = "crates/shared" }
 messoria-voxel = { path = "crates/voxel" }
@@ -33,6 +35,7 @@ clap = { version = "4.6", features = ["derive"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }
 rand = "0.10"
+ron = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
 

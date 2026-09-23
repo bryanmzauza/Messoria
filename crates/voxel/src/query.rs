@@ -1,8 +1,8 @@
 //! Geometric queries against the terrain surface.
 
-use glam::Vec3;
+use glam::{IVec3, Vec3};
 
-use crate::map::ChunkMap;
+use crate::{map::ChunkMap, voxel::Material};
 
 /// Distance between samples when marching along a ray or down a column.
 /// Small enough not to skip over any feature a one-meter grid can represent.
@@ -44,6 +44,27 @@ impl ChunkMap {
         let at = |depth: f32| point - Vec3::Y * depth;
         let depth = first_crossing(|depth| self.distance(at(depth)), max_depth)?;
         Some(point.y - depth)
+    }
+
+    /// The ground material at the surface near `point`: of the eight samples
+    /// around it, the solid one closest to the surface. `None` if none of them
+    /// is solid, or they are not loaded.
+    pub fn surface_material(&self, point: Vec3) -> Option<Material> {
+        let base = point.floor().as_ivec3();
+        let mut nearest: Option<(f32, Material)> = None;
+        for z in 0..=1 {
+            for y in 0..=1 {
+                for x in 0..=1 {
+                    let voxel = self.voxel(base + IVec3::new(x, y, z))?;
+                    if voxel.is_solid()
+                        && nearest.is_none_or(|(distance, _)| voxel.distance() > distance)
+                    {
+                        nearest = Some((voxel.distance(), voxel.material()));
+                    }
+                }
+            }
+        }
+        nearest.map(|(_, material)| material)
     }
 
     /// Unit vector pointing out of the ground at `point`, if it can be
@@ -130,6 +151,16 @@ mod tests {
             map.raycast(Vec3::new(5.0, 15.0, 5.0), Vec3::NEG_X, 20.0),
             None
         );
+    }
+
+    #[test]
+    fn the_surface_material_is_the_topmost_ground() {
+        let map = flat_world(10.25, [IVec3::ZERO]);
+        assert_eq!(
+            map.surface_material(Vec3::new(4.5, 10.25, 7.5)),
+            Some(Material::Grass)
+        );
+        assert_eq!(map.surface_material(Vec3::new(4.5, 20.0, 7.5)), None);
     }
 
     #[test]

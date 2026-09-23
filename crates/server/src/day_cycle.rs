@@ -1,7 +1,7 @@
 //! The passing of days: advancing the clock, putting characters to sleep and
 //! starting a new day when enough of them are asleep, or at 02:00 regardless.
 
-use bevy::prelude::*;
+use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::*;
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_shared::{
@@ -21,6 +21,7 @@ impl Plugin for DayCyclePlugin {
     fn build(&self, app: &mut App) {
         let start_time = self.start_time;
         app.insert_resource(SleepRules(self.sleep_rule))
+            .add_message::<DayStarted>()
             .add_systems(Startup, move |commands: Commands| {
                 start_clock(commands, start_time);
             })
@@ -28,12 +29,20 @@ impl Plugin for DayCyclePlugin {
                 PreUpdate,
                 handle_sleep_requests.after(MessageSystems::Receive),
             )
-            .add_systems(FixedUpdate, run_clock);
+            .add_systems(FixedUpdate, run_clock.in_set(ClockSystems));
     }
 }
 
 #[derive(Resource)]
 struct SleepRules(SleepRule);
+
+/// Advances the world clock and ends days.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct ClockSystems;
+
+/// A new day began at dawn; carries its day number.
+#[derive(Message, Clone, Copy, Debug)]
+pub(crate) struct DayStarted(pub u32);
 
 fn start_clock(mut commands: Commands, start_time: WorldTime) {
     commands.spawn((
@@ -71,6 +80,7 @@ fn run_clock(
     clock: Single<(&mut WorldClock, &mut SleepTally)>,
     mut characters: Query<(Entity, &mut Energy, Has<Asleep>), With<PlayerId>>,
     mut ticks_this_minute: Local<u32>,
+    mut days: MessageWriter<DayStarted>,
     mut commands: Commands,
 ) {
     let (mut clock, mut tally) = clock.into_inner();
@@ -107,5 +117,6 @@ fn run_clock(
     }
     clock.0 = clock.0.next_dawn();
     *ticks_this_minute = 0;
+    days.write(DayStarted(clock.0.day()));
     info!("{} begins", clock.0.date());
 }

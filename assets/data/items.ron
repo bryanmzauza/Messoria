@@ -1,0 +1,31 @@
+// Every item in the game.
+//
+// `id` is how other data files and saves refer to an item. Optional fields:
+// `stack` (most items per inventory slot, 1 if omitted), `shelf_life` (days
+// until a perishable item spoils) and `spoils_into` (what it then becomes).
+(
+    items: [
+        (id: "shovel", name: "Shovel", kind: Tool(Shovel)),
+
+        // Digging yields the item listing the dug material; raising the
+        // ground uses soil.
+        (id: "soil", name: "Soil", kind: Terrain(materials: [Grass, Soil]), stack: 99),
+        (id: "stone", name: "Stone", kind: Terrain(materials: [Stone]), stack: 99),
+        (id: "sand", name: "Sand", kind: Terrain(materials: [Sand]), stack: 99),
+
+        (
+            id: "wild_berries",
+            name: "Wild berries",
+            kind: Food(energy: 8),
+            stack: 30,
+            shelf_life: 3,
+            spoils_into: "compost",
+        ),
+        (id: "compost", name: "Compost", kind: Goods, stack: 99),
+    ],
+
+    starting_inventory: [
+        ("shovel", 1),
+        ("wild_berries", 10),
+    ],
+)

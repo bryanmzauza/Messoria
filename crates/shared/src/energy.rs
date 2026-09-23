@@ -43,6 +43,11 @@ impl Energy {
         }
     }
 
+    /// Restores `amount`, up to the maximum.
+    pub fn gain(&mut self, amount: u16) {
+        self.0 = self.0.saturating_add(amount).min(MAX_ENERGY);
+    }
+
     /// Energy on waking up after `rest`. Passing out only restores half, the
     /// price of staying up too late.
     #[must_use]
@@ -65,6 +70,13 @@ mod tests {
         assert_eq!(energy.current(), 1);
         assert!(!energy.try_spend(2));
         assert_eq!(energy.current(), 1);
+    }
+
+    #[test]
+    fn gains_stop_at_the_maximum() {
+        let mut energy = Energy(95);
+        energy.gain(10);
+        assert_eq!(energy, Energy::FULL);
     }
 
     #[test]
