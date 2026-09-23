@@ -1,14 +1,16 @@
 //! Everything that crosses the wire: replicated components, player input,
 //! terrain, inventories, fields, money, shops and player actions.
 
+use std::fmt;
+
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
 use messoria_content::{ItemId, PropId, ShopId};
-use messoria_economy::{Market, SalesLedger, Wallet};
+use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
-use messoria_voxel::{ChunkChanges, ChunkPos};
+use messoria_voxel::{ChunkChanges, ChunkPos, Material};
 use serde::{Deserialize, Serialize};
 
 use crate::energy::Energy;
@@ -39,6 +41,8 @@ pub struct PlayerInput {
     /// Camera heading the movement is relative to, in radians.
     pub yaw: f32,
     pub jump: bool,
+    /// Run faster while moving forward.
+    pub sprint: bool,
 }
 
 impl MapEntities for PlayerInput {
@@ -208,6 +212,76 @@ pub struct TerrainChannel;
 /// inventory moves only make sense applied in the order they were made.
 pub struct ActionChannel;
 
+/// Carries what the server tells clients about actions: [`Notice`]s and
+/// [`Happening`]s.
+pub struct FeedbackChannel;
+
+/// Why the server did not do something a player asked for, shown to that
+/// player.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Notice {
+    NotEnoughEnergy,
+    ProtectedGround,
+    SceneryInTheWay,
+    WouldBuryPlayer,
+    NoSoilToRaise,
+    NoRoom,
+    NotTillable,
+    OutOfSeason,
+    NotRipe,
+    TooEarlyToSleep,
+    Trade(Refusal),
+}
+
+impl fmt::Display for Notice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::NotEnoughEnergy => "Not enough energy. Eat something or sleep.",
+            Self::ProtectedGround => "The village's ground cannot be worked.",
+            Self::SceneryInTheWay => "Something stands on that ground.",
+            Self::WouldBuryPlayer => "Someone is standing there.",
+            Self::NoSoilToRaise => "You have no soil to raise the ground with.",
+            Self::NoRoom => "Your backpack is full.",
+            Self::NotTillable => "That ground is too steep or too hard to till.",
+            Self::OutOfSeason => "That does not grow in this season.",
+            Self::NotRipe => "That is not ripe yet.",
+            Self::TooEarlyToSleep => "It is too early to sleep; bedtime is at 18:00.",
+            Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
+        })
+    }
+}
+
+/// `text` with its first letter capitalized.
+fn sentence(text: &str) -> String {
+    let mut letters = text.chars();
+    letters
+        .next()
+        .map(|first| first.to_uppercase().chain(letters).collect())
+        .unwrap_or_default()
+}
+
+/// Something a player did in the world, for every client to hear and see.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Happening {
+    pub what: Happened,
+    /// Where it happened.
+    pub at: Vec3,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Happened {
+    /// The ground was dug, and it was made of this.
+    Dug(Material),
+    Raised,
+    Tilled,
+    Watered,
+    Planted,
+    Fertilized,
+    Harvested,
+    Traded,
+    Ate,
+}
+
 impl Ease for Position {
     fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
         FunctionCurve::new(Interval::UNIT, move |t| Position(start.0.lerp(end.0, t)))
@@ -256,6 +330,15 @@ impl Plugin for ProtocolPlugin {
             ..default()
         })
         .add_direction(NetworkDirection::ClientToServer);
+        app.add_channel::<FeedbackChannel>(ChannelSettings {
+            mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
+            ..default()
+        })
+        .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Notice>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Happening>()
+            .add_direction(NetworkDirection::ServerToClient);
 
         app.register_message::<TerrainUpdate>()
             .add_direction(NetworkDirection::ServerToClient);

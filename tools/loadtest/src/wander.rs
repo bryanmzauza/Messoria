@@ -59,6 +59,7 @@ fn wander(
             },
             yaw: state.rng.random_range(0.0..TAU),
             jump: false,
+            sprint: false,
         };
     }
     state.ticks_left -= 1;

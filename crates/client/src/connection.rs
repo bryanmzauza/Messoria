@@ -7,7 +7,7 @@ use lightyear::prelude::{server::Server, *};
 use messoria_shared::network;
 
 /// Where the client's world lives.
-#[derive(Clone, Debug)]
+#[derive(Resource, Clone, Debug)]
 pub enum Session {
     /// The world is hosted in this process by `ServerPlugin`.
     Host,
@@ -27,6 +27,7 @@ pub(crate) struct ConnectionPlugin {
 
 impl Plugin for ConnectionPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(self.session.clone());
         match self.session.clone() {
             // The in-process server entity is spawned during `Startup`.
             Session::Host => app.add_systems(PostStartup, join_hosted_world),

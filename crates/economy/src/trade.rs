@@ -7,6 +7,7 @@
 use messoria_calendar::WorldTime;
 use messoria_content::{Catalog, ItemId, Quality, ShopId};
 use messoria_inventory::Inventory;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
@@ -23,7 +24,7 @@ pub struct Customer<'a> {
 }
 
 /// Why a trade cannot happen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum Refusal {
     #[error("the shop is closed")]
     Closed,

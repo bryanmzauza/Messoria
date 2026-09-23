@@ -7,7 +7,7 @@ use messoria_shared::{
     content::Content,
     energy::Energy,
     movement::{BODY_RADIUS, EYE_HEIGHT},
-    protocol::{Asleep, Belongings, PlayerId, Position, WorldClock},
+    protocol::{Asleep, Belongings, Happened, Notice, PlayerId, Position, WorldClock},
     terrain::{ChunkChanged, Terrain},
     tools::{self, ShovelAction},
     village,
@@ -16,6 +16,7 @@ use messoria_voxel::Brush;
 
 use super::{GroundReshaped, TerrainEdited, editable};
 use crate::{
+    feedback::{Show, Tell},
     inventory::{ItemUseSystems, ShovelUse},
     scenery::Scenery,
 };
@@ -43,6 +44,8 @@ fn apply_shovel_uses(
     mut edited: MessageWriter<TerrainEdited>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
     mut reshaped: MessageWriter<GroundReshaped>,
+    mut tell: MessageWriter<Tell>,
+    mut show: MessageWriter<Show>,
 ) {
     for shovel_use in uses.read() {
         let (Ok(feet), Ok((mut energy, mut belongings))) = (
@@ -51,37 +54,52 @@ fn apply_shovel_uses(
         ) else {
             continue;
         };
-        if let Err(reason) = validate(shovel_use, feet.0, &terrain, &scenery, &characters) {
-            debug!("rejected {shovel_use:?}: {reason}");
-            continue;
+        let refuse = |notice| Tell {
+            character: shovel_use.character,
+            notice,
+        };
+        match validate(shovel_use, feet.0, &terrain, &scenery, &characters) {
+            Ok(()) => {}
+            Err(Refusal::Malformed(reason)) => {
+                debug!("rejected {shovel_use:?}: {reason}");
+                continue;
+            }
+            Err(Refusal::Told(notice)) => {
+                tell.write(refuse(notice));
+                continue;
+            }
         }
         if energy.current() < tools::SHOVEL_ENERGY {
+            tell.write(refuse(Notice::NotEnoughEnergy));
             continue;
         }
 
         // Settle what moves between terrain and inventory before touching
         // either, so a use is carried out completely or not at all.
         let soil = content.dug_item(tools::RAISED_MATERIAL);
-        match shovel_use.action {
+        let happened = match shovel_use.action {
             ShovelAction::Dig => {
                 let Some(material) = terrain.surface_material(shovel_use.target) else {
                     continue;
                 };
                 let dug = content.dug_item(material);
                 if belongings.0.room_for(&content, dug, Quality::Normal) == 0 {
-                    debug!("rejected {shovel_use:?}: no room for what it digs up");
+                    tell.write(refuse(Notice::NoRoom));
                     continue;
                 }
                 belongings
                     .0
                     .add(&content, dug, Quality::Normal, 1, clock.0.day());
+                Happened::Dug(material)
             }
             ShovelAction::Raise => {
                 if !belongings.0.remove(soil, 1) {
+                    tell.write(refuse(Notice::NoSoilToRaise));
                     continue;
                 }
+                Happened::Raised
             }
-        }
+        };
         energy.try_spend(tools::SHOVEL_ENERGY);
 
         let brush = tools::shovel_brush(shovel_use.target, shovel_use.action);
@@ -90,7 +108,16 @@ fn apply_shovel_uses(
             edited.write(TerrainEdited(changes));
         }
         reshaped.write(GroundReshaped(brush));
+        show.write(Show::at(happened, shovel_use.target));
     }
+}
+
+/// Why a shovel use was not carried out.
+enum Refusal {
+    /// A request no client aiming at the terrain sends; logged, not shown.
+    Malformed(&'static str),
+    /// Something the player can see and do something about.
+    Told(Notice),
 }
 
 fn validate(
@@ -99,25 +126,25 @@ fn validate(
     terrain: &Terrain,
     scenery: &Scenery,
     characters: &Query<&Position, With<PlayerId>>,
-) -> Result<(), &'static str> {
+) -> Result<(), Refusal> {
     let target = shovel_use.target;
     if !target.is_finite() || !editable(target) {
-        return Err("target outside the editable world");
+        return Err(Refusal::Malformed("target outside the editable world"));
     }
     if !tools::in_reach(feet + Vec3::Y * EYE_HEIGHT, target) {
-        return Err("target out of reach");
+        return Err(Refusal::Malformed("target out of reach"));
     }
     if village::reaches(target, tools::BRUSH_RADIUS) {
-        return Err("the village's ground is protected");
+        return Err(Refusal::Told(Notice::ProtectedGround));
     }
     if scenery.blocks(target, tools::BRUSH_RADIUS) {
-        return Err("scenery stands on that ground");
+        return Err(Refusal::Told(Notice::SceneryInTheWay));
     }
     if !terrain
         .distance(target)
         .is_some_and(|distance| distance.abs() <= MAX_SURFACE_DISTANCE)
     {
-        return Err("target is not on the terrain surface");
+        return Err(Refusal::Malformed("target is not on the terrain surface"));
     }
     if shovel_use.action == ShovelAction::Raise {
         let brush = tools::shovel_brush(target, shovel_use.action);
@@ -125,7 +152,7 @@ fn validate(
             .iter()
             .any(|character| lifts_body(&brush, character.0))
         {
-            return Err("raising would bury a player");
+            return Err(Refusal::Told(Notice::WouldBuryPlayer));
         }
     }
     Ok(())

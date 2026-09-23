@@ -11,6 +11,7 @@
 
 mod connections;
 mod day_cycle;
+mod feedback;
 mod fields;
 mod inventory;
 mod market;
@@ -119,6 +120,7 @@ impl Plugin for ServerPlugin {
                     bind_addr: self.bind_addr,
                 },
                 players::PlayersPlugin,
+                feedback::FeedbackPlugin,
                 inventory::InventoryPlugin,
                 fields::FieldsPlugin,
                 market::MarketPlugin,

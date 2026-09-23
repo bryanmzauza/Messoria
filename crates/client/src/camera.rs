@@ -2,11 +2,12 @@
 //! local character.
 //!
 //! Clicking the window captures the cursor for mouse look; Escape releases it.
-//! F5 switches perspective.
+//! F5 switches perspective. The camera is also where the player hears from.
 
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::{
+    audio::SpatialListener,
     input::mouse::AccumulatedMouseMotion,
     pbr::DistanceFog,
     prelude::*,
@@ -16,12 +17,15 @@ use bevy::{
 use lightyear::prelude::input::native::InputMarker;
 use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
 
-use crate::{avatars::AvatarSystems, panels::OpenPanel};
+use crate::{avatars::AvatarSystems, panels::OpenPanel, settings::Preferences};
 
 /// Distance at which terrain is fully swallowed by fog, in meters.
 const FOG_VISIBILITY: f32 = 180.0;
-/// Radians of rotation per pixel of mouse movement.
-const MOUSE_SENSITIVITY: f32 = 0.0025;
+/// Radians of rotation per pixel of mouse movement, at a mouse sensitivity
+/// of one.
+const RADIANS_PER_PIXEL: f32 = 0.0025;
+/// Distance between the listener's ears, in meters.
+const EAR_GAP: f32 = 0.3;
 /// Keeps the view from flipping over when looking straight up or down.
 const MAX_PITCH: f32 = FRAC_PI_2 - 0.01;
 /// Distance from the character's head to the camera in third person.
@@ -87,6 +91,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Camera"),
         Camera3d::default(),
+        SpatialListener::new(EAR_GAP),
         // The environment tints the fog to match the sky.
         DistanceFog {
             falloff: FogFalloff::from_visibility_squared(FOG_VISIBILITY),
@@ -126,12 +131,17 @@ fn capture_cursor(
     };
 }
 
-fn look(motion: Res<AccumulatedMouseMotion>, mut view: ResMut<View>) {
+fn look(
+    motion: Res<AccumulatedMouseMotion>,
+    preferences: Res<Preferences>,
+    mut view: ResMut<View>,
+) {
     if !view.captured {
         return;
     }
-    view.yaw -= motion.delta.x * MOUSE_SENSITIVITY;
-    view.pitch = (view.pitch - motion.delta.y * MOUSE_SENSITIVITY).clamp(-MAX_PITCH, MAX_PITCH);
+    let turn = motion.delta * RADIANS_PER_PIXEL * preferences.0.mouse_sensitivity;
+    view.yaw -= turn.x;
+    view.pitch = (view.pitch - turn.y).clamp(-MAX_PITCH, MAX_PITCH);
 }
 
 fn toggle_perspective(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {

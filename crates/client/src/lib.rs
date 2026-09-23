@@ -13,20 +13,28 @@ mod clock;
 mod connection;
 mod cover;
 mod environment;
+mod feedback;
 mod fields;
 mod hud;
 mod input;
 mod inventory;
+mod menu;
 mod noise;
 mod panels;
+mod particles;
 mod scenery;
+mod settings;
 mod shops;
 mod sky;
 mod sleep;
+mod sounds;
+mod target;
 mod terrain;
 mod ui;
 mod wallet;
 mod weather;
+
+use std::path::PathBuf;
 
 use bevy::prelude::*;
 
@@ -34,6 +42,8 @@ pub use crate::connection::Session;
 
 pub struct ClientPlugin {
     pub session: Session,
+    /// Where the player's settings are kept.
+    pub settings_file: PathBuf,
 }
 
 impl Plugin for ClientPlugin {
@@ -64,6 +74,14 @@ impl Plugin for ClientPlugin {
             panels::PanelsPlugin,
             shops::ShopsPlugin,
             wallet::WalletPlugin,
+            settings::SettingsPlugin {
+                file: self.settings_file.clone(),
+            },
+            menu::MenuPlugin,
+            feedback::FeedbackPlugin,
+            sounds::SoundsPlugin,
+            particles::ParticlesPlugin,
+            target::TargetPlugin,
         ));
     }
 }

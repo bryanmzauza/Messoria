@@ -5,7 +5,8 @@
 // cells, with one prop in a `density` share of the cells where it grows.
 // `clustering` gathers them into groves with clearings between. A prop grows
 // on the listed ground, no steeper than `max_slope` (rise over run), and
-// nobody can dig, raise or till the ground within its `radius`. Models are
+// nobody can dig, raise or till the ground within its `radius`, which
+// characters cannot walk into unless it sets `blocks: false`. Models are
 // relative to the models folder; each prop uses one of its models, drawn at
 // a scale between the two given.
 //
@@ -68,6 +69,7 @@
             clustering: 0.6,
             max_slope: 0.8,
             grows_on: [Grass],
+            blocks: false,
         ),
         (
             id: "boulder",

@@ -10,6 +10,7 @@ pub mod energy;
 pub mod fields;
 pub mod movement;
 pub mod network;
+pub mod obstacles;
 pub mod protocol;
 pub mod shops;
 pub mod terrain;
@@ -67,6 +68,7 @@ impl Plugin for SharedPlugin {
         app.add_plugins((
             protocol::ProtocolPlugin,
             terrain::TerrainPlugin,
+            obstacles::ObstaclesPlugin,
             movement::MovementPlugin,
         ))
         .add_observer(read_input_for_controlled_player);

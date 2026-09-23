@@ -1,5 +1,8 @@
-//! Windows that take the cursor away from the world, such as the backpack
-//! and shops. At most one is open at a time; Escape closes it.
+//! Windows that take the cursor away from the world, such as the backpack,
+//! shops and the game menu. At most one is open at a time.
+//!
+//! Escape closes the open window, or opens the game menu when none is; from
+//! the options it goes back to the menu.
 
 use bevy::prelude::*;
 
@@ -8,7 +11,7 @@ pub(crate) struct PanelsPlugin;
 impl Plugin for PanelsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<OpenPanel>()
-            .add_systems(PreUpdate, close_on_escape);
+            .add_systems(PreUpdate, answer_escape);
     }
 }
 
@@ -20,6 +23,9 @@ pub(crate) enum OpenPanel {
     Backpack,
     /// The shop whose stall is this entity.
     Shop(Entity),
+    /// The game menu, as opened with Escape.
+    Menu,
+    Options,
 }
 
 impl OpenPanel {
@@ -28,8 +34,11 @@ impl OpenPanel {
     }
 }
 
-fn close_on_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) {
-    if keys.just_pressed(KeyCode::Escape) && panel.is_open() {
-        *panel = OpenPanel::None;
+fn answer_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) {
+    if keys.just_pressed(KeyCode::Escape) {
+        *panel = match *panel {
+            OpenPanel::None | OpenPanel::Options => OpenPanel::Menu,
+            OpenPanel::Backpack | OpenPanel::Shop(_) | OpenPanel::Menu => OpenPanel::None,
+        };
     }
 }

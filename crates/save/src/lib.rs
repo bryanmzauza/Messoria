@@ -1,4 +1,4 @@
-//! Saved worlds and players.
+//! Saved worlds and players, and the local player's profile and settings.
 //!
 //! A world is saved as a folder:
 //!
@@ -27,6 +27,7 @@ mod files;
 mod player;
 mod profile;
 mod save_dir;
+mod settings;
 mod terrain;
 mod world;
 
@@ -35,5 +36,6 @@ pub use crate::{
     player::PlayerState,
     profile::Profile,
     save_dir::{SaveDir, SavedWorld, is_valid_player_key},
+    settings::Settings,
     world::{FieldState, WorldState},
 };

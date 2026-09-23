@@ -16,8 +16,8 @@ use messoria_shared::{
     fields::{tile_at, tile_center, tillable_ground},
     movement::EYE_HEIGHT,
     protocol::{
-        Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, HarvestRequest, Position,
-        Watered, WorldClock,
+        Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, Happened, HarvestRequest,
+        Notice, Position, Watered, WorldClock,
     },
     terrain::Terrain,
     tools, village,
@@ -27,6 +27,7 @@ use messoria_voxel::Brush;
 use crate::{
     Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
+    feedback::{Show, Tell},
     inventory::{FieldTask, FieldWork, ItemUseSystems},
     players::ControlledCharacter,
     scenery::Scenery,
@@ -101,8 +102,10 @@ fn work_fields(
     mut work: MessageReader<FieldWork>,
     characters: Query<&Position>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
-    fields: Query<(Has<Watered>, Has<Fertilized>, Has<Crop>), With<Field>>,
+    fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Has<Crop>)>,
     mut index: ResMut<FieldIndex>,
+    mut tell: MessageWriter<Tell>,
+    mut show: MessageWriter<Show>,
     mut commands: Commands,
 ) {
     for job in work.read() {
@@ -116,42 +119,60 @@ fn work_fields(
             continue;
         }
         let tile = tile_at(job.target);
+        let middle = tile_center(tile);
         let field = index.0.get(&tile).copied();
         let state = field.and_then(|field| fields.get(field).ok());
+        let refuse = |notice| Tell {
+            character: job.character,
+            notice,
+        };
+        let at = |height: f32| Vec3::new(middle.x, height, middle.y);
 
         match (job.task, field, state) {
             (FieldTask::Till, None, _) => {
                 // A tile reaches about 0.7 m from its middle to its corners.
-                let middle = tile_center(tile);
-                let middle = Vec3::new(middle.x, job.target.y, middle.y);
-                if village::reaches(job.target, 0.0) || scenery.blocks(middle, 0.71) {
+                if village::reaches(job.target, 0.0) {
+                    tell.write(refuse(Notice::ProtectedGround));
+                    continue;
+                }
+                if scenery.blocks(at(job.target.y), 0.71) {
+                    tell.write(refuse(Notice::SceneryInTheWay));
                     continue;
                 }
                 let Some(height) = tillable_ground(&terrain, tile, job.target.y) else {
+                    tell.write(refuse(Notice::NotTillable));
                     continue;
                 };
                 if !energy.try_spend(tools::HOE_ENERGY) {
+                    tell.write(refuse(Notice::NotEnoughEnergy));
                     continue;
                 }
                 let field = commands.spawn(field_bundle(tile, height)).id();
                 index.0.insert(tile, field);
+                show.write(Show::at(Happened::Tilled, at(height)));
             }
-            (FieldTask::Water, Some(field), Some((false, _, _))) => {
+            (FieldTask::Water, Some(field), Some((land, false, _, _))) => {
                 if energy.try_spend(tools::WATERING_ENERGY) {
                     commands.entity(field).insert(Watered);
+                    show.write(Show::at(Happened::Watered, at(land.height)));
+                } else {
+                    tell.write(refuse(Notice::NotEnoughEnergy));
                 }
             }
-            (FieldTask::Plant(crop), Some(field), Some((_, _, false))) => {
-                let in_season = content.crop(crop).seasons.contains(&clock.0.season());
-                if in_season && belongings.0.take_one(job.slot).is_some() {
+            (FieldTask::Plant(crop), Some(field), Some((land, _, _, false))) => {
+                if !content.crop(crop).seasons.contains(&clock.0.season()) {
+                    tell.write(refuse(Notice::OutOfSeason));
+                } else if belongings.0.take_one(job.slot).is_some() {
                     commands.entity(field).insert(Crop(Planting::new(crop)));
+                    show.write(Show::at(Happened::Planted, at(land.height)));
                 }
             }
-            (FieldTask::Fertilize, Some(field), Some((_, false, _))) => {
-                let spread = belongings.0.take_one(job.slot).is_some();
-                if spread {
-                    commands.entity(field).insert(Fertilized);
+            (FieldTask::Fertilize, Some(field), Some((land, _, false, _))) => {
+                if belongings.0.take_one(job.slot).is_none() {
+                    continue;
                 }
+                commands.entity(field).insert(Fertilized);
+                show.write(Show::at(Happened::Fertilized, at(land.height)));
             }
             _ => {}
         }
@@ -165,7 +186,9 @@ fn harvest_crops(
     mut clients: Query<(&mut MessageReceiver<HarvestRequest>, &ControlledCharacter)>,
     characters: Query<&Position>,
     mut workers: Query<&mut Belongings, Without<Asleep>>,
-    mut crops: Query<(&mut Crop, Has<Fertilized>)>,
+    mut crops: Query<(&Field, &mut Crop, Has<Fertilized>)>,
+    mut tell: MessageWriter<Tell>,
+    mut show: MessageWriter<Show>,
     mut commands: Commands,
 ) {
     for (mut requests, character) in &mut clients {
@@ -181,15 +204,31 @@ fn harvest_crops(
             let Some(&field) = index.0.get(&tile_at(target)) else {
                 continue;
             };
-            let Ok((mut crop, fertilized)) = crops.get_mut(field) else {
+            let Ok((land, mut crop, fertilized)) = crops.get_mut(field) else {
                 continue;
             };
             let definition = content.crop(crop.0.crop);
             let quality = harvest_quality(rand::random_range(0..100), fertilized);
             let room = belongings.0.room_for(&content, definition.produce, quality);
-            if !crop.0.is_ripe(definition) || room < u32::from(definition.harvest) {
+            let refusal = if !crop.0.is_ripe(definition) {
+                Some(Notice::NotRipe)
+            } else if room < u32::from(definition.harvest) {
+                Some(Notice::NoRoom)
+            } else {
+                None
+            };
+            if let Some(notice) = refusal {
+                tell.write(Tell {
+                    character: character.0,
+                    notice,
+                });
                 continue;
             }
+            let middle = tile_center(land.tile);
+            show.write(Show::at(
+                Happened::Harvested,
+                Vec3::new(middle.x, land.height, middle.y),
+            ));
 
             let mut planting = crop.0;
             let Some(harvest) = planting.harvest(definition, quality) else {

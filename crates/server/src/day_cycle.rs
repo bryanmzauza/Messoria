@@ -9,11 +9,11 @@ use lightyear::prelude::*;
 use messoria_calendar::{SleepRule, Weather};
 use messoria_shared::{
     energy::{Energy, Rest},
-    protocol::{Asleep, CurrentWeather, PlayerId, SleepRequest, SleepTally, WorldClock},
+    protocol::{Asleep, CurrentWeather, Notice, PlayerId, SleepRequest, SleepTally, WorldClock},
     tick,
 };
 
-use crate::{Beginning, WorldSeed, WorldStart, players::ControlledCharacter};
+use crate::{Beginning, WorldSeed, WorldStart, feedback::Tell, players::ControlledCharacter};
 
 pub(crate) struct DayCyclePlugin {
     pub sleep_rule: SleepRule,
@@ -69,6 +69,7 @@ fn start_clock(beginning: Res<Beginning>, seed: Res<WorldSeed>, mut commands: Co
 fn handle_sleep_requests(
     clock: Single<&WorldClock>,
     mut clients: Query<(&mut MessageReceiver<SleepRequest>, &ControlledCharacter)>,
+    mut tell: MessageWriter<Tell>,
     mut commands: Commands,
 ) {
     for (mut requests, character) in &mut clients {
@@ -77,7 +78,12 @@ fn handle_sleep_requests(
                 SleepRequest::Sleep if clock.0.is_bedtime() => {
                     commands.entity(character.0).insert(Asleep);
                 }
-                SleepRequest::Sleep => debug!("rejected sleep request before bedtime"),
+                SleepRequest::Sleep => {
+                    tell.write(Tell {
+                        character: character.0,
+                        notice: Notice::TooEarlyToSleep,
+                    });
+                }
                 SleepRequest::Wake => {
                     commands.entity(character.0).remove::<Asleep>();
                 }

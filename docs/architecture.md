@@ -210,6 +210,26 @@ See [ADR 0008](adr/0008-scenery-and-art.md).
   the `Sky` resource, and `sky` draws the dome, the sun or moon and the
   clouds from it. Fog fades the land into the horizon's color.
 
+## Feedback and feel
+
+See [ADR 0009](adr/0009-action-feedback-and-collision.md).
+
+- Server systems write `Tell` where they refuse an action for a reason the
+  player can act on, and `Show` where one goes through; the `feedback`
+  module sends them as `Notice` (to that player) and `Happening` (to
+  everyone) on the `FeedbackChannel`.
+- The client shows notices above the hotbar, and plays a spatial sound and
+  throws particles where each happening happened. Footsteps sound by the
+  ground under each character.
+- `messoria_shared::obstacles` builds upright cylinders from replicated props
+  and stalls on every peer; movement pushes bodies out of them, so predicted
+  and authoritative movement collide alike. Sprinting is part of
+  `PlayerInput`.
+- The client names what the crosshair is on from the terrain it aims at and
+  a ray cast against the same obstacles.
+- The game menu, its options and the backpack window are client panels
+  (`OpenPanel`), one at a time. Options are kept in `saves/settings.ron`.
+
 ## Village and economy
 
 See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).

@@ -139,13 +139,17 @@ with all scenery in view.
 
 Goal: every action answers the player.
 
-- [ ] Sprinting, and collision with scenery and buildings
-- [ ] Sounds for footsteps, tools, harvests and trades
-- [ ] Particles: soil when digging, water when watering, leaves when
+- [x] Sprinting, and collision with scenery and buildings
+- [x] Sounds for footsteps, tools, harvests and trades
+- [x] Particles: soil when digging, water when watering, leaves when
       harvesting
-- [ ] On-screen notices for refused actions ("not enough energy", "the shop
+- [x] On-screen notices for refused actions ("not enough energy", "the shop
       is closed")
-- [ ] What the crosshair is on: crop, days to ripen, whether it needs water
+- [x] What the crosshair is on: crop, days to ripen, whether it needs water
+- [x] A backpack window with the hotbar, stacks carried on the cursor and
+      descriptions on hover
+- [x] A game menu on Escape, with options for volume, mouse sensitivity and
+      field of view, kept between sessions
 
 **Exit criterion:** a new player can find out why an action did nothing
 without reading the code.

@@ -62,7 +62,8 @@ cargo bots -- --bots 2 --farm                # bots that farm and log their harv
 Worlds are saved in `saves/`: the game's own world in `saves/local`, a
 dedicated server's in `saves/world`. They are saved every few minutes, at
 dawn and on exit, and resume where they stopped. The game keeps who you are in
-`saves/profile.ron`, so servers recognize you when you come back.
+`saves/profile.ron`, so servers recognize you when you come back, and your
+options in `saves/settings.ron`.
 
 The host must allow the port through their firewall, and players outside the
 local network need it forwarded on the router until access codes arrive (see
@@ -70,11 +71,14 @@ the roadmap). `--simulate-latency <ms>` on `--connect` and on the bots delays
 packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
-`Space` to jump, `1` to `0` or the mouse wheel to pick the held item, left and
-right mouse buttons to use it, `E` to harvest a ripe crop or, at a stall, to
-open its shop, `Tab` to open the backpack (click two slots to move items, and
-give money to other players beside it), `Z` to sleep or get up (from 18:00),
-`F5` to switch between first and third person, `Esc` to release the mouse.
+`Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
+held item, left and right mouse buttons to use it, `E` to harvest a ripe crop
+or, at a stall, to open its shop, `Tab` to open the backpack (click a stack to
+pick it up and a slot to put it down, and give money to other players beside
+it), `Z` to sleep or get up (from 18:00), `F5` to switch between first and
+third person, `Esc` for the game menu (options, and saving and quitting).
+What the crosshair is on is named under it, and the game says why when an
+action does nothing.
 The shovel digs and raises ground; the hoe tills a field, seeds are planted in
 it and the watering can waters it; food is eaten. The village lies straight
 ahead of where players arrive; its grocer opens from 09:00 to 17:00, except on
@@ -87,16 +91,16 @@ Game content lives in `assets/data/`: items in
 [`scenery.ron`](assets/data/scenery.ron), and the colors of everything, season
 by season, in [`palette.ron`](assets/data/palette.ron). The game refuses to
 start, naming the problem, if a data file is invalid. Models come from CC0 art
-packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
+and sound packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
 
 ## Repository layout
 
 ```
-crates/   libraries: domain rules (calendar, content, economy, farming, inventory, voxel), shared
-          networking and simulation, server, client
+crates/   libraries: domain rules (calendar, content, economy, farming, inventory, save, voxel),
+          shared networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots
-assets/   game content and, later, art and audio
+assets/   game content, models and sounds
 docs/     design document, architecture notes, decision records
 ```
 

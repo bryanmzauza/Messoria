@@ -14,12 +14,14 @@ use messoria_inventory::HOTBAR_SLOTS;
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    protocol::{Asleep, Belongings, ItemAction, MoveItem, UseItem},
+    movement::EYE_HEIGHT,
+    protocol::{Asleep, Belongings, Happened, ItemAction, MoveItem, Position, UseItem},
     tools::{self, ShovelAction},
 };
 
 use crate::{
     day_cycle::{ClockSystems, DayStarted},
+    feedback::Show,
     players::ControlledCharacter,
 };
 
@@ -106,9 +108,10 @@ fn use_items(
         &ControlledCharacter,
         Option<&LastItemUse>,
     )>,
-    mut characters: Query<(&mut Belongings, &mut Energy), Without<Asleep>>,
+    mut characters: Query<(&Position, &mut Belongings, &mut Energy), Without<Asleep>>,
     mut shovel_uses: MessageWriter<ShovelUse>,
     mut field_work: MessageWriter<FieldWork>,
+    mut show: MessageWriter<Show>,
     mut commands: Commands,
 ) {
     let now = time.elapsed();
@@ -120,7 +123,7 @@ fn use_items(
             if resting || used_this_frame.contains(&client) {
                 continue;
             }
-            let Ok((mut belongings, mut energy)) = characters.get_mut(character.0) else {
+            let Ok((feet, mut belongings, mut energy)) = characters.get_mut(character.0) else {
                 continue;
             };
             let slot = usize::from(request.slot);
@@ -170,6 +173,7 @@ fn use_items(
                 ) if request.action == ItemAction::Primary && *energy < Energy::FULL => {
                     belongings.0.take_one(slot);
                     energy.gain(nourishment);
+                    show.write(Show::at(Happened::Ate, feet.0 + Vec3::Y * EYE_HEIGHT));
                     true
                 }
                 _ => false,

@@ -10,6 +10,7 @@ use lightyear::prelude::{client::Remote, input::native::ActionState, *};
 use messoria_voxel::ChunkMap;
 
 use crate::{
+    obstacles::Obstacles,
     protocol::{Asleep, Heading, PlayerInput, Position, Velocity},
     terrain::Terrain,
     tick,
@@ -17,6 +18,8 @@ use crate::{
 
 /// Horizontal speed at full input, in meters per second.
 pub const WALK_SPEED: f32 = 4.5;
+/// How much faster a sprinting character moves forward.
+pub const SPRINT_FACTOR: f32 = 1.6;
 /// Vertical speed at the start of a jump, in meters per second.
 pub const JUMP_SPEED: f32 = 6.0;
 /// Downward acceleration, in meters per second squared.
@@ -42,13 +45,20 @@ pub struct Motion {
     pub velocity: Vec3,
 }
 
-/// Advances `motion` by one step of `dt` seconds under `input`.
+/// Advances `motion` by one step of `dt` seconds under `input`, among the
+/// terrain and `obstacles`.
 ///
 /// Input comes from clients and is sanitized here rather than trusted: the
 /// movement vector is clamped to unit length and non-finite values are
 /// treated as no input. A character whose surroundings are not loaded yet
 /// stays where it is.
-pub fn advance(motion: Motion, input: &PlayerInput, dt: f32, terrain: &ChunkMap) -> Motion {
+pub fn advance(
+    motion: Motion,
+    input: &PlayerInput,
+    dt: f32,
+    terrain: &ChunkMap,
+    obstacles: &Obstacles,
+) -> Motion {
     if terrain.distance(motion.position).is_none() {
         return Motion {
             position: motion.position,
@@ -61,6 +71,15 @@ pub fn advance(motion: Motion, input: &PlayerInput, dt: f32, terrain: &ChunkMap)
             .is_some_and(|ground| motion.position.y - ground <= GROUND_TOLERANCE);
 
     let mut position = walk(terrain, motion.position, horizontal_velocity(input) * dt);
+    // Slide around obstacles, unless that would push the body into the ground.
+    let clear = obstacles.push_out(position, BODY_RADIUS, BODY_HEIGHT);
+    if clear != position {
+        position = if body_fits(terrain, clear) {
+            clear
+        } else {
+            motion.position
+        };
+    }
     let mut velocity = (position - motion.position) / dt;
 
     if grounded && !input.jump {
@@ -110,7 +129,13 @@ fn horizontal_velocity(input: &PlayerInput) -> Vec3 {
         Vec2::ZERO
     };
     let yaw = sanitize_yaw(input.yaw).unwrap_or(0.0);
-    Quat::from_rotation_y(yaw) * Vec3::new(wish.x, 0.0, -wish.y) * WALK_SPEED
+    // Sprinting only speeds up running forward.
+    let speed = if input.sprint && wish.y > 0.0 {
+        WALK_SPEED * SPRINT_FACTOR
+    } else {
+        WALK_SPEED
+    };
+    Quat::from_rotation_y(yaw) * Vec3::new(wish.x, 0.0, -wish.y) * speed
 }
 
 /// Moves `feet` by `step` if the body fits there, otherwise slides along
@@ -177,6 +202,7 @@ impl Plugin for MovementPlugin {
 /// characters ignore their input but still fall.
 fn move_characters(
     terrain: Res<Terrain>,
+    obstacles: Res<Obstacles>,
     mut characters: Query<
         (
             &mut Position,
@@ -203,6 +229,7 @@ fn move_characters(
             input,
             dt,
             &terrain,
+            &obstacles,
         );
         position.set_if_neq(Position(motion.position));
         velocity.set_if_neq(Velocity(motion.velocity));
@@ -218,7 +245,12 @@ mod tests {
 
     use messoria_voxel::{Chunk, ChunkPos, Material, Voxel};
 
+    use std::sync::LazyLock;
+
     use super::*;
+
+    /// Open ground, with nothing standing on it.
+    static NO_OBSTACLES: LazyLock<Obstacles> = LazyLock::new(Obstacles::default);
 
     const DT: f32 = 1.0 / 30.0;
 
@@ -251,7 +283,7 @@ mod tests {
         PlayerInput {
             movement: Vec2::Y,
             yaw,
-            jump: false,
+            ..default()
         }
     }
 
@@ -264,7 +296,7 @@ mod tests {
 
     fn run(mut motion: Motion, input: &PlayerInput, ticks: u32, terrain: &ChunkMap) -> Motion {
         for _ in 0..ticks {
-            motion = advance(motion, input, DT, terrain);
+            motion = advance(motion, input, DT, terrain, &NO_OBSTACLES);
         }
         motion
     }
@@ -284,14 +316,26 @@ mod tests {
     #[test]
     fn forward_follows_yaw() {
         let start = Vec3::new(-10.0, 0.0, -10.0);
-        let north = advance(standing_at(start), &walk_forward(0.0), DT, &flat());
+        let north = advance(
+            standing_at(start),
+            &walk_forward(0.0),
+            DT,
+            &flat(),
+            &NO_OBSTACLES,
+        );
         assert!(
             north
                 .position
                 .abs_diff_eq(start + Vec3::NEG_Z * WALK_SPEED * DT, 1e-4)
         );
 
-        let west = advance(standing_at(start), &walk_forward(FRAC_PI_2), DT, &flat());
+        let west = advance(
+            standing_at(start),
+            &walk_forward(FRAC_PI_2),
+            DT,
+            &flat(),
+            &NO_OBSTACLES,
+        );
         assert!(
             west.position
                 .abs_diff_eq(start + Vec3::NEG_X * WALK_SPEED * DT, 1e-4)
@@ -309,6 +353,7 @@ mod tests {
             &input,
             DT,
             &flat(),
+            &NO_OBSTACLES,
         );
         assert!((motion.velocity.length() - WALK_SPEED).abs() < 1e-3);
     }
@@ -324,8 +369,38 @@ mod tests {
             &input,
             DT,
             &flat(),
+            &NO_OBSTACLES,
         );
         assert!((motion.velocity.length() - WALK_SPEED).abs() < 1e-3);
+    }
+
+    #[test]
+    fn trunks_stop_characters_walking_into_them() {
+        let trunk = Obstacles::one_trunk(Vec2::new(-10.0, -14.0), 0.5);
+        let mut motion = standing_at(Vec3::new(-10.0, 0.0, -10.0));
+        for _ in 0..60 {
+            motion = advance(motion, &walk_forward(0.0), DT, &flat(), &trunk);
+        }
+        let stopped_at = -14.0 + 0.5 + BODY_RADIUS;
+        assert!(
+            (motion.position.z - stopped_at).abs() < 1e-3,
+            "walked on to {}",
+            motion.position
+        );
+    }
+
+    #[test]
+    fn sprinting_speeds_up_running_forward_only() {
+        let start = standing_at(Vec3::new(-10.0, 0.0, -10.0));
+        let sprint = |movement| PlayerInput {
+            movement,
+            sprint: true,
+            ..default()
+        };
+        let forward = advance(start, &sprint(Vec2::Y), DT, &flat(), &NO_OBSTACLES);
+        let backward = advance(start, &sprint(Vec2::NEG_Y), DT, &flat(), &NO_OBSTACLES);
+        assert!((forward.velocity.length() - WALK_SPEED * SPRINT_FACTOR).abs() < 1e-3);
+        assert!((backward.velocity.length() - WALK_SPEED).abs() < 1e-3);
     }
 
     #[test]
@@ -334,9 +409,9 @@ mod tests {
         let input = PlayerInput {
             movement: Vec2::new(f32::NAN, 1.0),
             yaw: f32::INFINITY,
-            jump: false,
+            ..default()
         };
-        assert_eq!(advance(start, &input, DT, &flat()), start);
+        assert_eq!(advance(start, &input, DT, &flat(), &NO_OBSTACLES), start);
     }
 
     #[test]
@@ -351,11 +426,12 @@ mod tests {
             &jump,
             DT,
             &terrain,
+            &NO_OBSTACLES,
         );
         let mut apex = motion.position.y;
         let mut ticks = 1;
         while motion.position.y > 1e-3 {
-            motion = advance(motion, &PlayerInput::default(), DT, &terrain);
+            motion = advance(motion, &PlayerInput::default(), DT, &terrain, &NO_OBSTACLES);
             apex = apex.max(motion.position.y);
             ticks += 1;
             assert!(ticks < 300, "character never landed");
@@ -436,7 +512,7 @@ mod tests {
             position: Vec3::new(100.0, 5.0, 100.0),
             velocity: Vec3::new(0.0, -3.0, 0.0),
         };
-        let motion = advance(start, &walk_forward(0.0), DT, &flat());
+        let motion = advance(start, &walk_forward(0.0), DT, &flat(), &NO_OBSTACLES);
         assert_eq!(motion.position, start.position);
         assert_eq!(motion.velocity, Vec3::ZERO);
     }

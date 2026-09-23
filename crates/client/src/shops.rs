@@ -26,7 +26,7 @@ use crate::{
     camera::View,
     clock::LocalClock,
     panels::OpenPanel,
-    ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, WINDOW_COLOR},
+    ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
 const INTERACT_KEY: KeyCode = KeyCode::KeyE;
@@ -134,26 +134,18 @@ fn spawn_shop_window(mut commands: Commands) {
         .spawn((
             Name::new("Shop window"),
             ShopWindow,
-            Node {
-                position_type: PositionType::Absolute,
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+            ui::screen(),
             Visibility::Hidden,
         ))
         .with_child((
             ShopListing,
-            Node {
+            ui::window(Node {
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(px(16)),
                 row_gap: px(6),
                 min_width: px(560),
                 ..default()
-            },
-            BackgroundColor(WINDOW_COLOR),
+            }),
         ));
 }
 
@@ -210,7 +202,7 @@ fn show_shop_window(
 ) {
     let stall = match *panel {
         OpenPanel::Shop(stall) => stalls.get(stall).ok(),
-        OpenPanel::None | OpenPanel::Backpack => None,
+        OpenPanel::None | OpenPanel::Backpack | OpenPanel::Menu | OpenPanel::Options => None,
     };
     window.set_if_neq(ui::visible_if(stall.is_some()));
     let (Some(stall), Ok((belongings, money, sold)), Ok(market), Some(now)) =

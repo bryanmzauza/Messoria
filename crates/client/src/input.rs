@@ -44,6 +44,7 @@ fn write_input(
             ),
             yaw: view.yaw,
             jump: keys.pressed(KeyCode::Space),
+            sprint: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
         }
     } else {
         PlayerInput {

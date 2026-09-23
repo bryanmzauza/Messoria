@@ -42,6 +42,13 @@ pub struct PropDef {
     pub max_slope: f32,
     /// Ground it grows on.
     pub grows_on: Vec<Material>,
+    /// Whether characters walk into it rather than through it.
+    #[serde(default = "solid")]
+    pub blocks: bool,
+}
+
+fn solid() -> bool {
+    true
 }
 
 /// Small plants covering grassy ground, drawn by clients only.

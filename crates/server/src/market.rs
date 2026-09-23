@@ -11,8 +11,8 @@ use messoria_economy::{Customer, buy, sell};
 use messoria_shared::{
     content::Content,
     protocol::{
-        Asleep, Belongings, Deal, GiveMoney, MarketState, Money, PlayerId, Position, Shopfront,
-        SoldToday, Trade, WorldClock,
+        Asleep, Belongings, Deal, GiveMoney, Happened, MarketState, Money, Notice, PlayerId,
+        Position, Shopfront, SoldToday, Trade, WorldClock,
     },
     shops,
 };
@@ -20,6 +20,7 @@ use messoria_shared::{
 use crate::{
     Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
+    feedback::{Show, Tell},
     players::ControlledCharacter,
 };
 
@@ -58,6 +59,8 @@ fn trade(
         (&Position, &mut Belongings, &mut Money, &mut SoldToday),
         Without<Asleep>,
     >,
+    mut tell: MessageWriter<Tell>,
+    mut show: MessageWriter<Show>,
 ) {
     let now = clock.0;
     for (mut requests, character) in &mut clients {
@@ -66,13 +69,13 @@ fn trade(
             else {
                 continue;
             };
-            if !stalls
+            let Some(stall) = stalls
                 .iter()
-                .any(|stall| stall.shop == shop && shops::can_reach(feet.0, stall))
-            {
+                .find(|stall| stall.shop == shop && shops::can_reach(feet.0, stall))
+            else {
                 debug!("rejected {deal:?}: not at the stall of {shop:?}");
                 continue;
-            }
+            };
 
             let (mut inventory, mut wallet, mut ledger) =
                 (belongings.0.clone(), money.0, sold.0.clone());
@@ -102,8 +105,14 @@ fn trade(
                     belongings.0 = inventory;
                     money.0 = wallet;
                     sold.set_if_neq(SoldToday(ledger));
+                    show.write(Show::at(Happened::Traded, stall.position));
                 }
-                Err(refusal) => debug!("rejected {deal:?}: {refusal}"),
+                Err(refusal) => {
+                    tell.write(Tell {
+                        character: character.0,
+                        notice: Notice::Trade(refusal),
+                    });
+                }
             }
         }
     }

@@ -18,6 +18,8 @@ use messoria_shared::{
 
 /// Where the local player's identity is kept, shared by every world they join.
 const PROFILE_FILE: &str = "saves/profile.ron";
+/// Where the player's settings are kept.
+const SETTINGS_FILE: &str = "saves/settings.ron";
 
 /// Messoria. Without options, starts a private local world.
 #[derive(Parser, Debug)]
@@ -88,6 +90,7 @@ fn main() -> AppExit {
                     player_id: profile.player_id,
                     simulated_latency: args.simulate_latency.map(Duration::from_millis),
                 },
+                settings_file: SETTINGS_FILE.into(),
             },
         ));
     } else {
@@ -119,6 +122,7 @@ fn main() -> AppExit {
             },
             ClientPlugin {
                 session: Session::Host,
+                settings_file: SETTINGS_FILE.into(),
             },
         ));
     }

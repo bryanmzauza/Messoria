@@ -19,8 +19,8 @@ use messoria_shared::{
     fields::{tile_at, tile_center},
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Belongings, Crop, Field, HarvestRequest, ItemAction, Money, PlayerInput,
-        Position, SleepRequest, UseItem, Watered, WorldClock,
+        ActionChannel, Belongings, Crop, Field, Happening, HarvestRequest, ItemAction, Money,
+        Notice, PlayerInput, Position, SleepRequest, UseItem, Watered, WorldClock,
     },
     terrain::Terrain,
 };
@@ -30,6 +30,13 @@ const PATIENCE: u32 = 2_000;
 /// Updates between two item uses: more than the server's minimum interval
 /// between uses at one tick per update.
 pub const PAUSE_BETWEEN_USES: u32 = 10;
+
+/// What the host's client was told since the world began.
+#[derive(Resource, Default)]
+pub struct Heard {
+    pub notices: Vec<Notice>,
+    pub happenings: Vec<Happening>,
+}
 
 /// A world hosted in-process, with the host playing in it.
 pub struct HostedWorld {
@@ -58,7 +65,9 @@ impl HostedWorld {
                 world,
             },
         ))
-        .insert_resource(TimeUpdateStrategy::FixedTimesteps(1));
+        .insert_resource(TimeUpdateStrategy::FixedTimesteps(1))
+        .init_resource::<Heard>()
+        .add_systems(PreUpdate, listen.after(MessageSystems::Receive));
         app.finish();
         app.cleanup();
         app.update();
@@ -247,6 +256,10 @@ impl HostedWorld {
             .and_then(|slot| u8::try_from(slot).ok())
     }
 
+    pub fn heard(&self) -> &Heard {
+        self.app.world().resource::<Heard>()
+    }
+
     pub fn world(&mut self) -> &mut World {
         self.app.world_mut()
     }
@@ -281,5 +294,20 @@ impl HostedWorld {
             self.app.update();
         }
         panic!("timed out waiting for {waiting_for}");
+    }
+}
+
+/// Keeps what the host's client receives, which lightyear would otherwise
+/// drop at the end of the frame. Each receiver appears with its first message.
+fn listen(
+    mut notices: Query<&mut MessageReceiver<Notice>, With<Client>>,
+    mut happenings: Query<&mut MessageReceiver<Happening>, With<Client>>,
+    mut heard: ResMut<Heard>,
+) {
+    for mut receiver in &mut notices {
+        heard.notices.extend(receiver.receive());
+    }
+    for mut receiver in &mut happenings {
+        heard.happenings.extend(receiver.receive());
     }
 }

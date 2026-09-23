@@ -49,7 +49,7 @@ impl Plugin for ActionsPlugin {
         app.init_resource::<Aim>().add_systems(
             Update,
             (
-                aim,
+                aim.in_set(AimSystems),
                 // Before the cursor is captured, so the capturing click is not a use.
                 (use_held_item, harvest.after(ShopSystems)).before(LookSystems),
                 draw_aim,
@@ -61,7 +61,11 @@ impl Plugin for ActionsPlugin {
 
 /// The terrain under the crosshair, if it is within the character's reach.
 #[derive(Resource, Default)]
-struct Aim(Option<RayHit>);
+pub(crate) struct Aim(pub Option<RayHit>);
+
+/// Finds what the crosshair is on.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct AimSystems;
 
 /// How the held item acts on the world, which decides how aiming looks and
 /// whether holding the button repeats the use.

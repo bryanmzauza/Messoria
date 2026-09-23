@@ -1,4 +1,4 @@
-//! Giving money to other players, from a panel shown beside the backpack.
+//! Giving money to other players, from a panel beside the backpack window.
 //!
 //! The panel lists everyone else in the world, with a button to give each of
 //! them the chosen amount.
@@ -8,8 +8,9 @@ use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_shared::protocol::{ActionChannel, GiveMoney, Money, PlayerId, PlayerInput};
 
 use crate::{
+    inventory::BackpackSide,
     panels::OpenPanel,
-    ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, WINDOW_COLOR},
+    ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
 /// Amount chosen when the game starts, and the steps it changes by.
@@ -21,7 +22,8 @@ pub(crate) struct WalletPlugin;
 impl Plugin for WalletPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(GiftAmount(STARTING_GIFT))
-            .add_systems(Startup, spawn_gift_panel)
+            // Once the backpack window it sits beside exists.
+            .add_systems(PostStartup, spawn_gift_panel)
             .add_systems(Update, (press_gift_buttons, show_gift_panel).chain());
     }
 }
@@ -43,23 +45,18 @@ enum GiftButton {
     Give(PeerId),
 }
 
-fn spawn_gift_panel(mut commands: Commands) {
-    commands.spawn((
+fn spawn_gift_panel(side: Single<Entity, With<BackpackSide>>, mut commands: Commands) {
+    commands.entity(*side).with_child((
         Name::new("Gift panel"),
         GiftPanel,
         GiftListing,
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(24),
-            top: px(120),
+        ui::window(Node {
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(px(12)),
             row_gap: px(6),
-            min_width: px(240),
+            min_width: px(200),
             ..default()
-        },
-        BackgroundColor(WINDOW_COLOR),
-        Visibility::Hidden,
+        }),
     ));
 }
 
@@ -97,12 +94,10 @@ fn show_gift_panel(
     player: Query<Ref<Money>, With<InputMarker<PlayerInput>>>,
     others: Query<&PlayerId, Without<InputMarker<PlayerInput>>>,
     mut shown_players: Local<Vec<PeerId>>,
-    window: Single<(Entity, &mut Visibility), With<GiftPanel>>,
+    listing: Single<Entity, With<GiftPanel>>,
     mut commands: Commands,
 ) {
-    let (listing, mut visibility) = window.into_inner();
     let open = *panel == OpenPanel::Backpack;
-    visibility.set_if_neq(ui::visible_if(open));
     let Ok(money) = player.single() else {
         return;
     };
@@ -119,7 +114,7 @@ fn show_gift_panel(
 
     let coins = money.0.coins();
     commands
-        .entity(listing)
+        .entity(*listing)
         .despawn_related::<Children>()
         .with_children(|listing| {
             listing.spawn(ui::label("Give money", HEADING_SIZE, TEXT_COLOR));
@@ -128,18 +123,17 @@ fn show_gift_panel(
                 TEXT_SIZE,
                 TEXT_COLOR,
             ));
+            listing.spawn(ui::label(
+                format!("Amount: {}", amount.0),
+                TEXT_SIZE,
+                TEXT_COLOR,
+            ));
             listing
                 .spawn(Node {
                     column_gap: px(4),
-                    align_items: AlignItems::Center,
                     ..default()
                 })
                 .with_children(|row| {
-                    row.spawn(ui::label(
-                        format!("Amount: {}", amount.0),
-                        TEXT_SIZE,
-                        TEXT_COLOR,
-                    ));
                     for step in GIFT_STEPS {
                         ui::spawn_button(row, format!("{step:+}"), GiftButton::Change(step));
                     }

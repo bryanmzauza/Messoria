@@ -18,7 +18,7 @@ path = "src/main.rs"
 dev = ["bevy/dynamic_linking"]
 
 [dependencies]
-bevy = { workspace = true, features = ["3d"] }
+bevy = { workspace = true, features = ["3d", "audio"] }
 clap.workspace = true
 messoria-calendar.workspace = true
 messoria-client.workspace = true
