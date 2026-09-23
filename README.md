@@ -9,9 +9,10 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 ## Status
 
-Early development. Players can share a world over the network, host it from
-the game or run a dedicated server, and walk around together. Terrain is next.
-See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
+Early development. Players share a farm valley over the network, hosted from
+the game or on a dedicated server, and reshape its smooth voxel terrain
+together with a shovel. The day cycle is next. See the
+[roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -54,13 +55,13 @@ the roadmap). `--simulate-latency <ms>` on `--connect` and on the bots delays
 packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
-`Space` to jump, `F5` to switch between first and third person, `Esc` to
-release the mouse.
+`Space` to jump, left mouse button to dig, right mouse button to raise ground,
+`F5` to switch between first and third person, `Esc` to release the mouse.
 
 ## Repository layout
 
 ```
-crates/   libraries: shared networking and simulation, server, client
+crates/   libraries: voxel terrain, shared networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots
 docs/     design document, architecture notes, decision records

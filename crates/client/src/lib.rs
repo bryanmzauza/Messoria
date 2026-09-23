@@ -9,7 +9,10 @@ mod avatars;
 mod camera;
 mod connection;
 mod environment;
+mod hud;
 mod input;
+mod shovel;
+mod terrain;
 
 use bevy::prelude::*;
 
@@ -26,9 +29,12 @@ impl Plugin for ClientPlugin {
                 session: self.session.clone(),
             },
             environment::EnvironmentPlugin,
+            terrain::TerrainPlugin,
             avatars::AvatarPlugin,
             camera::CameraPlugin,
             input::InputPlugin,
+            shovel::ShovelPlugin,
+            hud::HudPlugin,
         ));
     }
 }

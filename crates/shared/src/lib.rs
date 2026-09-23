@@ -8,6 +8,8 @@
 pub mod movement;
 pub mod network;
 pub mod protocol;
+pub mod shovel;
+pub mod terrain;
 pub mod tick;
 
 use bevy::{prelude::*, state::app::StatesPlugin};
@@ -46,8 +48,12 @@ impl Plugin for SharedPlugin {
         };
 
         // lightyear requires the protocol to be registered after its plugin groups.
-        app.add_plugins((protocol::ProtocolPlugin, movement::MovementPlugin))
-            .add_observer(read_input_for_controlled_player);
+        app.add_plugins((
+            protocol::ProtocolPlugin,
+            terrain::TerrainPlugin,
+            movement::MovementPlugin,
+        ))
+        .add_observer(read_input_for_controlled_player);
     }
 }
 

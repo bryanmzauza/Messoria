@@ -1,7 +1,9 @@
-//! Everything that crosses the wire: replicated components and player input.
+//! Everything that crosses the wire: replicated components, player input and
+//! terrain messages.
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
+use messoria_voxel::{ChunkChanges, ChunkPos};
 use serde::{Deserialize, Serialize};
 
 /// The peer an entity belongs to.
@@ -35,6 +37,41 @@ pub struct PlayerInput {
 impl MapEntities for PlayerInput {
     fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
 }
+
+/// Terrain streamed from the server to a client.
+///
+/// A single message type keeps every update on one ordered channel, so a
+/// chunk always arrives before the changes made to it afterwards.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum TerrainUpdate {
+    /// A chunk came into range, encoded with `Chunk::encode`.
+    Loaded { chunk: ChunkPos, data: Vec<u8> },
+    /// Voxels of a loaded chunk changed.
+    Changed(ChunkChanges),
+    /// A chunk went out of range and can be forgotten.
+    Unloaded(ChunkPos),
+}
+
+/// A client asking to reshape the terrain at `target`.
+///
+/// The server validates reach, rate and target before applying it.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct ShovelRequest {
+    pub target: Vec3,
+    pub action: ShovelAction,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShovelAction {
+    Dig,
+    Raise,
+}
+
+/// Carries [`TerrainUpdate`]s, in order and without loss.
+pub struct TerrainChannel;
+
+/// Carries player actions such as [`ShovelRequest`]s.
+pub struct ActionChannel;
 
 impl Ease for Position {
     fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
@@ -73,6 +110,22 @@ pub(crate) struct ProtocolPlugin;
 impl Plugin for ProtocolPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InputPlugin::<PlayerInput>::default());
+
+        app.add_channel::<TerrainChannel>(ChannelSettings {
+            mode: ChannelMode::OrderedReliable(ReliableSettings::default()),
+            ..default()
+        })
+        .add_direction(NetworkDirection::ServerToClient);
+        app.add_channel::<ActionChannel>(ChannelSettings {
+            mode: ChannelMode::UnorderedReliable(ReliableSettings::default()),
+            ..default()
+        })
+        .add_direction(NetworkDirection::ClientToServer);
+
+        app.register_message::<TerrainUpdate>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<ShovelRequest>()
+            .add_direction(NetworkDirection::ClientToServer);
 
         app.component::<PlayerId>().replicate();
 

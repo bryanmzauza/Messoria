@@ -17,6 +17,7 @@ See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 
 ```
 crates/
+  voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
   client/            messoria-client            Rendering, input, camera, UI, audio
@@ -35,7 +36,6 @@ starts, never ahead of time:
 
 | Crate | Milestone | Responsibility |
 |---|---|---|
-| `messoria-voxel` | M2 | Chunk storage, voxel edits, Surface Nets meshing |
 | `messoria-content` | M4 | Data definitions loaded from RON, with validation |
 | `messoria-economy` | M6 | Prices, saturation, purchase limits, wallets |
 | `rendezvous` (binary) | M8 | Access codes, hole punching, relay |
@@ -82,6 +82,23 @@ which groups are added.
   `ControlledBy` ties the character's lifetime to the connection.
 - Clients send one `PlayerInput` per tick. The server treats input as
   untrusted and sanitizes it in the shared movement code.
+- lightyear drops messages left unread at the end of a frame, so systems that
+  receive messages run every frame (`PreUpdate`), never in `FixedUpdate`.
+
+## Terrain
+
+See [ADR 0004](adr/0004-terrain-representation.md).
+
+- The server generates the farm valley at startup and owns the authoritative
+  `Terrain` resource. A client's `Terrain` holds only the chunks streamed to it.
+  A hosted world shares one `Terrain` between its server and client.
+- Chunks within a client's view radius are streamed nearest first, a few per
+  tick; chunks beyond a wider radius are unloaded.
+- Clients ask to dig or raise with a `ShovelRequest`. The server checks reach,
+  rate, the target and nearby players, applies the brush and forwards the
+  changed voxels to every client holding the chunk.
+- Any change to `Terrain` emits `ChunkChanged` for each chunk whose mesh
+  depends on it; the client remeshes those under a per-frame time budget.
 
 ## Simulation timing
 

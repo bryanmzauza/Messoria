@@ -4,7 +4,12 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 use lightyear::prelude::{server::*, *};
-use messoria_shared::protocol::{Heading, PlayerId, Position, Velocity};
+use messoria_shared::{
+    protocol::{Heading, PlayerId, Position, Velocity},
+    terrain::Terrain,
+};
+
+use crate::terrain::ground_height;
 
 /// Distance from the world origin at which players appear.
 const SPAWN_RADIUS: f32 = 3.0;
@@ -17,32 +22,44 @@ impl Plugin for PlayersPlugin {
     }
 }
 
+/// The character a client's connection controls, set on the connection entity.
+#[derive(Component)]
+pub(crate) struct ControlledCharacter(pub Entity);
+
 /// Spawns a character once the connection is confirmed, not when the link is
 /// first created: the server may still reject a connection attempt.
 fn spawn_player(
     trigger: On<Add, Connected>,
     clients: Query<&RemoteId, With<ClientOf>>,
+    terrain: Res<Terrain>,
     mut commands: Commands,
 ) {
     let Ok(&RemoteId(peer)) = clients.get(trigger.entity) else {
         return;
     };
 
-    commands.spawn((
-        Name::new(format!("Player {peer:?}")),
-        PlayerId(peer),
-        Position(spawn_point(peer)),
-        Velocity::default(),
-        Heading::default(),
-        Replicate::to_clients(NetworkTarget::All),
-        // The owner predicts its own character; everyone else interpolates it.
-        PredictionTarget::to_clients(NetworkTarget::Single(peer)),
-        InterpolationTarget::to_clients(NetworkTarget::AllExceptSingle(peer)),
-        ControlledBy {
-            owner: trigger.entity,
-            lifetime: Lifetime::SessionBased,
-        },
-    ));
+    let spawn = spawn_point(peer);
+    let ground = ground_height(&terrain, spawn.x, spawn.z).unwrap_or_default();
+    let character = commands
+        .spawn((
+            Name::new(format!("Player {peer:?}")),
+            PlayerId(peer),
+            Position(spawn.with_y(ground)),
+            Velocity::default(),
+            Heading::default(),
+            Replicate::to_clients(NetworkTarget::All),
+            // The owner predicts its own character; everyone else interpolates it.
+            PredictionTarget::to_clients(NetworkTarget::Single(peer)),
+            InterpolationTarget::to_clients(NetworkTarget::AllExceptSingle(peer)),
+            ControlledBy {
+                owner: trigger.entity,
+                lifetime: Lifetime::SessionBased,
+            },
+        ))
+        .id();
+    commands
+        .entity(trigger.entity)
+        .insert(ControlledCharacter(character));
 }
 
 /// Spreads players around a circle so they do not appear inside each other.

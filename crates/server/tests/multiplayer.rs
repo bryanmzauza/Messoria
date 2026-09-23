@@ -1,5 +1,5 @@
-//! End-to-end check of the networked skeleton: a dedicated server and a
-//! headless client in one process, talking over loopback UDP.
+//! End-to-end checks: a dedicated server and a headless client in one
+//! process, talking over loopback UDP.
 
 use std::{
     net::{Ipv4Addr, SocketAddr, UdpSocket},
@@ -16,8 +16,11 @@ use lightyear::prelude::{
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    movement::EYE_HEIGHT,
     network::{self, NetworkRole},
-    protocol::{PlayerId, PlayerInput, Position},
+    protocol::{ActionChannel, PlayerId, PlayerInput, Position, ShovelAction, ShovelRequest},
+    shovel,
+    terrain::Terrain,
 };
 
 const TIMEOUT: Duration = Duration::from_secs(20);
@@ -26,7 +29,7 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 fn client_controls_its_own_predicted_character() {
     let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
     let mut server = server_app(server_addr);
-    let mut client = client_app(server_addr);
+    let mut client = client_app(server_addr, Behavior::WalkForward);
 
     run_until(
         &mut server,
@@ -46,6 +49,7 @@ fn client_controls_its_own_predicted_character() {
         },
     );
 
+    let start = local_character(&mut client);
     run_until(
         &mut server,
         &mut client,
@@ -55,9 +59,60 @@ fn client_controls_its_own_predicted_character() {
                 .world_mut()
                 .query::<&Position>()
                 .iter(server.world())
-                .any(|position| position.0.z < -1.0)
+                .any(|position| position.0.z < start.z - 1.0)
         },
     );
+}
+
+#[test]
+fn shovel_edits_reach_the_client_identically() {
+    let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
+    let mut server = server_app(server_addr);
+    let mut client = client_app(server_addr, Behavior::StandStill);
+
+    let mut target = None;
+    run_until(
+        &mut server,
+        &mut client,
+        "client to receive the ground in front of its character",
+        |_, client| {
+            target = aim_ahead(client);
+            target.is_some()
+        },
+    );
+    let target = target.expect("found above");
+
+    let before = server.world().resource::<Terrain>().0.clone();
+    client
+        .world_mut()
+        .query_filtered::<&mut MessageSender<ShovelRequest>, With<Client>>()
+        .single_mut(client.world_mut())
+        .expect("one client connection")
+        .send::<ActionChannel>(ShovelRequest {
+            target,
+            action: ShovelAction::Dig,
+        });
+
+    run_until(
+        &mut server,
+        &mut client,
+        "the dug terrain to reach the client",
+        |server, client| {
+            let server_terrain = server.world().resource::<Terrain>();
+            let client_terrain = client.world().resource::<Terrain>();
+            let dug = before
+                .positions()
+                .any(|chunk| before.get(chunk) != server_terrain.get(chunk));
+            dug && client_terrain
+                .positions()
+                .all(|chunk| client_terrain.get(chunk) == server_terrain.get(chunk))
+        },
+    );
+}
+
+enum Behavior {
+    StandStill,
+    WalkForward,
 }
 
 fn server_app(bind_addr: SocketAddr) -> App {
@@ -72,18 +127,20 @@ fn server_app(bind_addr: SocketAddr) -> App {
     ready(app)
 }
 
-fn client_app(server_addr: SocketAddr) -> App {
+fn client_app(server_addr: SocketAddr, behavior: Behavior) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
         SharedPlugin {
             role: NetworkRole::Client,
         },
-    ))
-    .add_systems(
-        FixedPreUpdate,
-        walk_forward.in_set(InputSystems::WriteClientInputs),
-    );
+    ));
+    if let Behavior::WalkForward = behavior {
+        app.add_systems(
+            FixedPreUpdate,
+            walk_forward.in_set(InputSystems::WriteClientInputs),
+        );
+    }
 
     let client = app
         .world_mut()
@@ -95,7 +152,7 @@ fn client_app(server_addr: SocketAddr) -> App {
     ready(app)
 }
 
-/// Completes plugin setup the way `App::run` would, since the test drives
+/// Completes plugin setup the way `App::run` would, since the tests drive
 /// updates by hand.
 fn ready(mut app: App) -> App {
     app.finish();
@@ -110,6 +167,32 @@ fn walk_forward(mut inputs: Query<&mut ActionState<PlayerInput>, With<InputMarke
             ..default()
         };
     }
+}
+
+/// Feet of the character the client controls, once it has one.
+fn local_character_if_any(client: &mut App) -> Option<Vec3> {
+    client
+        .world_mut()
+        .query_filtered::<&Position, With<InputMarker<PlayerInput>>>()
+        .iter(client.world())
+        .next()
+        .map(|position| position.0)
+}
+
+fn local_character(client: &mut App) -> Vec3 {
+    local_character_if_any(client).expect("the client controls a character")
+}
+
+/// Where the client's shovel would hit the ground just ahead of its character,
+/// once that terrain has arrived.
+fn aim_ahead(client: &mut App) -> Option<Vec3> {
+    let eyes = local_character_if_any(client)? + Vec3::Y * EYE_HEIGHT;
+    let direction = Vec3::new(0.0, -1.0, -1.0).normalize();
+    let hit = client
+        .world()
+        .resource::<Terrain>()
+        .raycast(eyes, direction, shovel::REACH)?;
+    Some(hit.point)
 }
 
 /// Updates both apps in lockstep, in real time, until `done` holds.

@@ -15,6 +15,7 @@ publish = false
 messoria-client = { path = "crates/client" }
 messoria-server = { path = "crates/server" }
 messoria-shared = { path = "crates/shared" }
+messoria-voxel = { path = "crates/voxel" }
 
 # Every crate opts into the Bevy features it needs; the server must stay free of
 # rendering, windowing and audio.
@@ -23,9 +24,16 @@ bevy = { version = "0.19.1", default-features = false }
 # roles; see docs/adr/0002-networking-lightyear.md.
 lightyear = { version = "0.30.1", default-features = false }
 
+# Must match the version re-exported by Bevy, so math types cross between
+# domain crates and the engine without conversion.
+glam = { version = "0.32", features = ["serde"] }
+
 clap = { version = "4.6", features = ["derive"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }
 rand = "0.10"
 serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -46,6 +54,10 @@ must_use_candidate = "allow"
 opt-level = 1
 
 [profile.dev.package."*"]
+opt-level = 3
+
+# Meshing and collision queries are hot loops; keep them fast in debug builds.
+[profile.dev.package.messoria-voxel]
 opt-level = 3
 
 [profile.release]

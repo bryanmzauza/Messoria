@@ -10,12 +10,10 @@ use bevy::{prelude::*, transform::TransformSystems};
 use lightyear::{
     frame_interpolation::FrameInterpolationSystems, prelude::client::Remote, prelude::*,
 };
-use messoria_shared::protocol::{Heading, PlayerId, Position};
-
-const BODY_RADIUS: f32 = 0.35;
-const BODY_HEIGHT: f32 = 1.8;
-/// Height of the eyes above the feet, used by the first-person camera.
-pub(crate) const EYE_HEIGHT: f32 = 1.6;
+use messoria_shared::{
+    movement::{BODY_HEIGHT, BODY_RADIUS, EYE_HEIGHT},
+    protocol::{Heading, PlayerId, Position},
+};
 
 pub(crate) struct AvatarPlugin;
 

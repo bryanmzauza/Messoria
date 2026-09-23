@@ -1,0 +1,40 @@
+# 0004 — Terrain as signed distances, meshed with Surface Nets
+
+**Status:** accepted
+
+## Context
+
+The design calls for terrain players can dig and raise, rendered as smooth
+low-poly ground rather than cubes, shared by up to 50 players on one server.
+The representation decides how edits look, how collision works, what crosses
+the network and how much memory a world costs.
+
+## Decision
+
+- Terrain is a grid of samples one meter apart, split into 32³ chunks. Each
+  sample stores the signed distance to the surface (negative underground),
+  quantized to 1/16 m in one byte, and a material in another.
+- Surfaces are extracted with Surface Nets. Distances give sub-voxel vertex
+  placement and smooth normals; materials become vertex colors.
+- Edits are spherical brushes that combine with the distance field (union to
+  raise, subtraction to dig), updating only a thin shell around the sphere.
+- The server sends a chunk whole when it comes into a client's range and then
+  sends each edit as the new absolute value of every voxel it changed, all on
+  one ordered, reliable channel.
+- Character collision queries the same distance field on the server and on
+  predicting clients.
+
+## Consequences
+
+- Digging and raising produce smooth craters and mounds, and edits compose
+  naturally.
+- Absolute voxel values make edits idempotent and independent of
+  floating-point behavior, so every peer's terrain is identical, which
+  prediction depends on.
+- Uniform chunks (all air or all rock) cost two bytes; dense chunks cost 64 KiB
+  in memory and compress well for transmission.
+- A one-meter grid cannot represent features thinner than about a meter.
+  Structures such as fences and buildings will be separate entities rather
+  than terrain.
+- Generated distances are estimates away from the surface, so collision probes
+  for solid ground instead of trusting distance magnitudes.

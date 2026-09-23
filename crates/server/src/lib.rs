@@ -7,6 +7,7 @@
 
 mod connections;
 mod players;
+mod terrain;
 
 use std::net::SocketAddr;
 
@@ -24,6 +25,7 @@ impl Plugin for ServerPlugin {
                 bind_addr: self.bind_addr,
             },
             players::PlayersPlugin,
+            terrain::TerrainPlugin,
         ));
     }
 }

@@ -14,12 +14,9 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use lightyear::prelude::input::native::InputMarker;
-use messoria_shared::protocol::PlayerInput;
+use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
 
-use crate::{
-    avatars::{AvatarSystems, EYE_HEIGHT},
-    environment::SKY_COLOR,
-};
+use crate::{avatars::AvatarSystems, environment::SKY_COLOR};
 
 /// Distance at which terrain is fully swallowed by fog, in meters.
 const FOG_VISIBILITY: f32 = 180.0;
@@ -37,7 +34,12 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<View>()
             .add_systems(Startup, spawn_camera)
-            .add_systems(Update, (capture_cursor, look, toggle_perspective).chain())
+            .add_systems(
+                Update,
+                (capture_cursor, look, toggle_perspective)
+                    .chain()
+                    .in_set(LookSystems),
+            )
             .add_systems(
                 PostUpdate,
                 (follow_player, show_own_avatar)
@@ -46,6 +48,10 @@ impl Plugin for CameraPlugin {
             );
     }
 }
+
+/// Updates the view from the mouse and keyboard.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct LookSystems;
 
 /// Where the player is looking, and from where.
 #[derive(Resource, Debug, Default)]
@@ -82,7 +88,7 @@ fn spawn_camera(mut commands: Commands) {
             ..default()
         },
         // Overview shown until the local character arrives.
-        Transform::from_xyz(-12.0, 9.0, 16.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(0.0, 30.0, 40.0).looking_at(Vec3::new(0.0, 8.0, 0.0), Vec3::Y),
     ));
 }
 

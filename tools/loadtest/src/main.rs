@@ -1,8 +1,10 @@
-//! Connects headless bot players to a server and lets them wander.
+//! Connects headless bot players to a server that wander and, optionally,
+//! reshape the terrain.
 //!
 //! Each bot is a complete client app running on its own thread, so the server
 //! sees exactly the traffic real players would produce.
 
+mod reshape;
 mod wander;
 
 use std::{net::SocketAddr, thread, time::Duration};
@@ -31,6 +33,10 @@ struct Args {
     /// Delay packets from the server by this many milliseconds.
     #[arg(long, value_name = "MS")]
     simulate_latency: Option<u64>,
+
+    /// Make bots dig and raise the terrain as they wander.
+    #[arg(long)]
+    dig: bool,
 }
 
 fn main() {
@@ -41,7 +47,7 @@ fn main() {
         .map(|index| {
             thread::Builder::new()
                 .name(format!("bot-{index}"))
-                .spawn(move || run_bot(index, args.server, simulated_latency))
+                .spawn(move || run_bot(index, args.server, simulated_latency, args.dig))
                 .expect("spawn bot thread")
         })
         .collect();
@@ -53,7 +59,12 @@ fn main() {
     }
 }
 
-fn run_bot(index: u16, server_addr: SocketAddr, simulated_latency: Option<Duration>) -> AppExit {
+fn run_bot(
+    index: u16,
+    server_addr: SocketAddr,
+    simulated_latency: Option<Duration>,
+    dig: bool,
+) -> AppExit {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(tick_duration())));
     // The log subscriber is process-wide, so only one bot installs it.
@@ -68,6 +79,11 @@ fn run_bot(index: u16, server_addr: SocketAddr, simulated_latency: Option<Durati
             seed: u64::from(index),
         },
     ));
+    if dig {
+        app.add_plugins(reshape::ReshapePlugin {
+            seed: u64::from(index),
+        });
+    }
 
     let client_id = rand::random();
     let connection = network::remote_client(server_addr, client_id, simulated_latency)

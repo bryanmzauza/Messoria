@@ -41,12 +41,13 @@ dedicated server with 150 ms of simulated latency.
 
 Goal: a smooth, deformable farm that every player sees identically.
 
-- [ ] `messoria-voxel`: chunk storage (32³), materials, coordinate types, edits
-- [ ] Surface Nets meshing with material blending, covered by tests and benchmarks
-- [ ] Server-side terrain generation for the fixed farm area
-- [ ] Chunk streaming by player proximity; voxel deltas after the initial snapshot
-- [ ] Character collision against terrain on server and client alike
-- [ ] Shovel: dig and raise terrain; highlight of the targeted voxel
+- [x] `messoria-voxel`: chunk storage (32³), materials, coordinate types, edits
+- [x] Surface Nets meshing with material blending, covered by tests and benchmarks
+- [x] Server-side terrain generation for the fixed farm area
+- [x] Chunk streaming by player proximity; voxel deltas after the initial snapshot
+- [x] Character collision against terrain on server and client alike
+- [x] Shovel: dig and raise terrain; highlight of the targeted spot
+- [x] End-to-end test: a client digs and its terrain ends identical to the server's
 
 **Exit criterion:** two players reshape the same hill and see identical results;
 remeshing a chunk stays under one frame budget.
