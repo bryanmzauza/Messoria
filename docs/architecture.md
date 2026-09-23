@@ -19,6 +19,7 @@ See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 crates/
   calendar/          messoria-calendar          Game time, dates, seasons, sleep rules
   content/           messoria-content           Content catalog loaded from data files, with validation
+  economy/           messoria-economy           Wallets, market prices, daily sales limits, trades
   farming/           messoria-farming           Crop growth, withering, harvests and their quality
   inventory/         messoria-inventory         Slots, stacks, quality and spoilage
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
@@ -42,7 +43,6 @@ starts, never ahead of time:
 
 | Crate | Milestone | Responsibility |
 |---|---|---|
-| `messoria-economy` | M6 | Prices, saturation, purchase limits, wallets |
 | `rendezvous` (binary) | M8 | Access codes, hole punching, relay |
 
 ## Dependency rules
@@ -135,8 +135,8 @@ remote characters are interpolated between server snapshots.
 
 ## Content
 
-Game content (items now; crops, shops and prices as they arrive) lives in RON
-files under `assets/data/`, never in code.
+Game content (items, crops, shops and the market's tuning) lives in RON files
+under `assets/data/`, never in code.
 
 - Executables load the catalog before building the app. Any problem, from a
   syntax error to a reference to an item that does not exist, stops the
@@ -170,3 +170,21 @@ files under `assets/data/`, never in code.
   waters every field.
 - Reshaping the ground under a field destroys it, which terrain edits report
   as `GroundReshaped`.
+
+## Village and economy
+
+See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
+
+- The village is a fixed area of the valley (`messoria_shared::village`),
+  generated level and paved. Its ground cannot be dug, raised or tilled.
+- Each shop's stall is a replicated `Shopfront` entity placed by the server's
+  village layout. A client trades by sending `Trade` while its character
+  stands at the stall; the server checks the stall, the shop's hours and the
+  trade rules.
+- Characters carry `Money` and `SoldToday` (their sales against the shops'
+  daily limits). One `MarketState` entity holds the server-wide saturation.
+  At dawn the market recovers and everyone's daily sales start over.
+- Trades run on copies of a character's state, which replace the originals
+  only if the trade happens. Clients price their shop window with the same
+  functions on copies of their own state.
+- `GiveMoney` moves money to another player, all of it or none.

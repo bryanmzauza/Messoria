@@ -1,4 +1,4 @@
-// Every item in the game.
+// Every item in the game, and what new players start with.
 //
 // `id` is how other data files and saves refer to an item. Optional fields:
 // `stack` (most items per inventory slot, 1 if omitted), `shelf_life` (days
@@ -49,4 +49,5 @@
         ("strawberry_seeds", 5),
         ("wild_berries", 10),
     ],
+    starting_money: 200,
 )

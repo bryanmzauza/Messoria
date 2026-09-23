@@ -1,9 +1,9 @@
 //! The local player's inventory: choosing the held hotbar slot, and the
 //! hotbar and backpack on screen.
 //!
-//! Number keys and the mouse wheel pick the held slot. Tab opens the
-//! backpack; while it is open, clicking one slot and then another moves the
-//! first slot's stack onto the second.
+//! Number keys and the mouse wheel pick the held slot. Tab opens and closes
+//! the backpack; while it is open, clicking one slot and then another moves
+//! the first slot's stack onto the second.
 
 use bevy::{
     input::mouse::{AccumulatedMouseScroll, MouseScrollUnit},
@@ -17,7 +17,7 @@ use messoria_shared::{
     protocol::{ActionChannel, Belongings, MoveItem, PlayerInput},
 };
 
-use crate::clock::LocalClock;
+use crate::{clock::LocalClock, panels::OpenPanel, ui::visible_if};
 
 const TOGGLE_KEY: KeyCode = KeyCode::Tab;
 /// Number keys in hotbar order: 1 to 9, then 0 for the tenth slot.
@@ -49,7 +49,6 @@ pub(crate) struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HeldSlot>()
-            .init_resource::<InventoryOpen>()
             .init_resource::<PickedSlot>()
             .add_systems(Startup, spawn_inventory)
             .add_systems(
@@ -62,10 +61,6 @@ impl Plugin for InventoryPlugin {
 /// The hotbar slot whose item the player holds and uses.
 #[derive(Resource, Default)]
 pub(crate) struct HeldSlot(pub usize);
-
-/// Whether the backpack is open, which frees the cursor for clicking slots.
-#[derive(Resource, Default)]
-pub(crate) struct InventoryOpen(pub bool);
 
 /// A slot clicked while the backpack is open, waiting for where to move it.
 #[derive(Resource, Default)]
@@ -180,7 +175,7 @@ fn spawn_slot(parent: &mut ChildSpawnerCommands, slot: usize) {
 fn choose_held_slot(
     keys: Res<ButtonInput<KeyCode>>,
     scroll: Res<AccumulatedMouseScroll>,
-    open: Res<InventoryOpen>,
+    panel: Res<OpenPanel>,
     mut held: ResMut<HeldSlot>,
 ) {
     if let Some(slot) = HOTBAR_KEYS.iter().position(|&key| keys.just_pressed(key)) {
@@ -191,39 +186,41 @@ fn choose_held_slot(
         // Touchpads report pixels; count about 40 of them as one notch.
         MouseScrollUnit::Pixel => scroll.delta.y / 40.0,
     };
-    if !open.0 && notches != 0.0 {
+    if !panel.is_open() && notches != 0.0 {
         // Scrolling down moves right along the hotbar, as in most games.
         let step = if notches < 0.0 { 1 } else { HOTBAR_SLOTS - 1 };
         held.0 = (held.0 + step) % HOTBAR_SLOTS;
     }
 }
 
+/// Tab opens the backpack, or closes it; it also takes the place of any
+/// other open window.
 fn toggle_backpack(
     keys: Res<ButtonInput<KeyCode>>,
-    mut open: ResMut<InventoryOpen>,
+    mut panel: ResMut<OpenPanel>,
     mut picked: ResMut<PickedSlot>,
     mut backpack: Single<&mut Visibility, With<Backpack>>,
 ) {
-    let toggle = keys.just_pressed(TOGGLE_KEY);
-    let close = keys.just_pressed(KeyCode::Escape);
-    if toggle || (close && open.0) {
-        open.0 = toggle && !open.0;
-        picked.0 = None;
-        **backpack = if open.0 {
-            Visibility::Inherited
+    if keys.just_pressed(TOGGLE_KEY) {
+        *panel = if *panel == OpenPanel::Backpack {
+            OpenPanel::None
         } else {
-            Visibility::Hidden
+            OpenPanel::Backpack
         };
+    }
+    if panel.is_changed() {
+        picked.0 = None;
+        backpack.set_if_neq(visible_if(*panel == OpenPanel::Backpack));
     }
 }
 
 fn click_slots(
-    open: Res<InventoryOpen>,
+    panel: Res<OpenPanel>,
     mut picked: ResMut<PickedSlot>,
     clicked: Query<(&Interaction, &SlotView), Changed<Interaction>>,
     mut sender: Query<&mut MessageSender<MoveItem>, With<Client>>,
 ) {
-    if !open.0 {
+    if *panel != OpenPanel::Backpack {
         return;
     }
     for (interaction, view) in &clicked {

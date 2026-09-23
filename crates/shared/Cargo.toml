@@ -25,6 +25,7 @@ lightyear = { workspace = true, features = [
 ] }
 messoria-calendar.workspace = true
 messoria-content.workspace = true
+messoria-economy.workspace = true
 messoria-farming.workspace = true
 messoria-inventory.workspace = true
 messoria-voxel.workspace = true

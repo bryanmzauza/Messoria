@@ -5,8 +5,9 @@
 //! terrain under the crosshair: the shovel shows the ground it will move, and
 //! farming items the field square they work. Tools repeat while the button is
 //! held; seeds, fertilizer and food act once per click. `E` harvests the ripe
-//! crop under the crosshair. The server carries out every use, so the world
-//! changes when its update arrives.
+//! crop under the crosshair, unless it opens a shop. The server carries out
+//! every use, so the world changes when its update arrives. Aim markers turn
+//! red over the village, whose ground cannot be worked.
 
 use std::time::Duration;
 
@@ -21,17 +22,19 @@ use messoria_shared::{
         ActionChannel, Belongings, HarvestRequest, ItemAction, PlayerInput, Position, UseItem,
     },
     terrain::Terrain,
-    tools,
+    tools, village,
 };
 use messoria_voxel::RayHit;
 
 use crate::{
     camera::{LookSystems, View},
     inventory::HeldSlot,
+    shops::ShopSystems,
 };
 
 const HARVEST_KEY: KeyCode = KeyCode::KeyE;
 const AIM_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
+const PROTECTED_AIM_COLOR: Color = Color::srgba(1.0, 0.3, 0.25, 0.8);
 /// Lifts aim markers off the surface so they are not hidden inside it.
 const AIM_LIFT: f32 = 0.05;
 const BUTTONS: [(MouseButton, ItemAction); 2] = [
@@ -48,7 +51,7 @@ impl Plugin for ActionsPlugin {
             (
                 aim,
                 // Before the cursor is captured, so the capturing click is not a use.
-                (use_held_item, harvest).before(LookSystems),
+                (use_held_item, harvest.after(ShopSystems)).before(LookSystems),
                 draw_aim,
             )
                 .chain(),
@@ -191,19 +194,26 @@ fn draw_aim(
     };
     // Gizmo shapes are drawn facing +Z; this lays them on the ground.
     let flat = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    let color = |reach| {
+        if village::reaches(hit.point, reach) {
+            PROTECTED_AIM_COLOR
+        } else {
+            AIM_COLOR
+        }
+    };
     match held_handling(&content, &held, belongings) {
         Some(Handling::Shovel) => {
             gizmos.circle(
                 Isometry3d::new(hit.point + Vec3::Y * AIM_LIFT, flat),
                 tools::BRUSH_RADIUS,
-                AIM_COLOR,
+                color(tools::BRUSH_RADIUS),
             );
         }
         Some(Handling::FieldTool | Handling::FieldSupply) => {
             let center = tile_center(tile_at(hit.point));
             let square =
                 Isometry3d::new(Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y), flat);
-            gizmos.rect(square, Vec2::ONE, AIM_COLOR);
+            gizmos.rect(square, Vec2::ONE, color(0.0));
         }
         Some(Handling::Consumable) | None => {}
     }

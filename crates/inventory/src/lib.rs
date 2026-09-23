@@ -140,14 +140,27 @@ impl Inventory {
 
     /// Removes one item from `slot`, returning what it was.
     pub fn take_one(&mut self, slot: usize) -> Option<ItemId> {
+        self.take(slot, 1).map(|taken| taken.item)
+    }
+
+    /// Removes up to `count` items from `slot`, returning what was removed,
+    /// or `None` if the slot is empty or `count` is 0.
+    pub fn take(&mut self, slot: usize, count: u16) -> Option<Stack> {
         let entry = self.slots.get_mut(slot)?;
         let stack = entry.as_mut()?;
-        let item = stack.item;
-        stack.count -= 1;
+        let taken = count.min(stack.count);
+        if taken == 0 {
+            return None;
+        }
+        stack.count -= taken;
+        let removed = Stack {
+            count: taken,
+            ..*stack
+        };
         if stack.count == 0 {
             *entry = None;
         }
-        Some(item)
+        Some(removed)
     }
 
     /// Moves the stack in slot `from` onto slot `to`. Stacks of the same item
@@ -247,8 +260,11 @@ mod tests {
             (id: "compost", name: "Compost", kind: Goods, stack: 99),
         ],
         starting_inventory: [],
+        starting_money: 0,
     )"#;
     const CROPS: &str = "(crops: [])";
+    /// Market rules and no shops.
+    const SHOPS: &str = "(market: (off_season_markup: 1.5, halves_after: 100.0, daily_recovery: 0.25, silver_bonus: 1.25, gold_bonus: 1.5), shops: [])";
 
     struct Fixture {
         catalog: Catalog,
@@ -259,7 +275,7 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
-        let catalog = Catalog::from_sources(ITEMS, CROPS).unwrap();
+        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
         let id = |key| catalog.id(key).unwrap();
         Fixture {
             shovel: id("shovel"),

@@ -99,8 +99,9 @@ impl WorldTime {
     }
 }
 
-/// A time of day as shown on a 24-hour clock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A time of day as shown on a 24-hour clock. Times order by the clock,
+/// from midnight on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClockTime {
     pub hour: u8,
     pub minute: u8,

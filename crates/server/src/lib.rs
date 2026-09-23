@@ -9,8 +9,10 @@ mod connections;
 mod day_cycle;
 mod fields;
 mod inventory;
+mod market;
 mod players;
 mod terrain;
+mod village;
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -38,6 +40,8 @@ impl Plugin for ServerPlugin {
             players::PlayersPlugin,
             inventory::InventoryPlugin,
             fields::FieldsPlugin,
+            market::MarketPlugin,
+            village::VillagePlugin,
             terrain::TerrainPlugin,
             day_cycle::DayCyclePlugin {
                 sleep_rule: self.sleep_rule,

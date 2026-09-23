@@ -130,7 +130,10 @@ mod tests {
             (id: "berry", name: "Berry", kind: Goods, stack: 99),
         ],
         starting_inventory: [],
+        starting_money: 0,
     )"#;
+    /// Market rules and no shops.
+    const SHOPS: &str = "(market: (off_season_markup: 1.5, halves_after: 100.0, daily_recovery: 0.25, silver_bonus: 1.25, gold_bonus: 1.5), shops: [])";
     const CROPS: &str = r#"(
         crops: [
             (id: "turnip", name: "Turnip", seeds: "turnip_seeds", produce: "turnip",
@@ -141,7 +144,7 @@ mod tests {
     )"#;
 
     fn crops() -> (Catalog, CropId, CropId) {
-        let catalog = Catalog::from_sources(ITEMS, CROPS).unwrap();
+        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
         let turnip = catalog.crop_id("turnip").unwrap();
         let berry = catalog.crop_id("berry").unwrap();
         (catalog, turnip, berry)

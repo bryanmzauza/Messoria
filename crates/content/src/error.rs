@@ -55,6 +55,12 @@ pub enum Problem {
     UnplantedSeed(String),
     #[error("crop `{crop}` is invalid: {reason}")]
     InvalidCrop { crop: String, reason: String },
+    #[error("shop `{0}` is defined more than once")]
+    DuplicateShop(String),
+    #[error("shop `{shop}` is invalid: {reason}")]
+    InvalidShop { shop: String, reason: String },
+    #[error("the market rules are invalid: {0}")]
+    InvalidMarket(String),
 }
 
 impl From<ron::error::SpannedError> for Problem {

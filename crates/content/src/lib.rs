@@ -12,10 +12,12 @@ mod catalog;
 mod crop;
 mod error;
 mod item;
+mod shop;
 
 pub use crate::{
     catalog::Catalog,
     crop::{CropDef, CropId},
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Quality, Tool},
+    shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
 };

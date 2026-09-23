@@ -10,6 +10,7 @@ use messoria_shared::{
     protocol::{Asleep, Belongings, PlayerId, Position, WorldClock},
     terrain::{ChunkChanged, Terrain},
     tools::{self, ShovelAction},
+    village,
 };
 use messoria_voxel::Brush;
 
@@ -100,6 +101,9 @@ fn validate(
     }
     if !tools::in_reach(feet + Vec3::Y * EYE_HEIGHT, target) {
         return Err("target out of reach");
+    }
+    if village::reaches(target, tools::BRUSH_RADIUS) {
+        return Err("the village's ground is protected");
     }
     if !terrain
         .distance(target)

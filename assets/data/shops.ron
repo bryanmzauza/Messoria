@@ -1,0 +1,48 @@
+// The village shops, and the rules the prices they pay follow.
+//
+// A shop trades from `opens` until `closes`, except on the weekdays listed in
+// `closed_on`. It `buys` items at a base price per unit, which the market then
+// moves, and `sells` items at a fixed price. A sold item that lists `seasons`
+// is only on sale in them. Each player can sell a shop at most `daily_limit`
+// units of each item a day.
+(
+    // Prices shops pay are shared by the whole server: every unit anyone
+    // sells saturates the market for that item and lowers its price, and the
+    // saturation fades a little every night.
+    market: (
+        // Produce is worth this much more outside the seasons it grows in.
+        off_season_markup: 1.5,
+        // Units sold, across the server, that halve an item's price.
+        halves_after: 200.0,
+        // Share of the saturation that fades each night.
+        daily_recovery: 0.25,
+        silver_bonus: 1.25,
+        gold_bonus: 1.5,
+    ),
+
+    shops: [
+        (
+            id: "grocer",
+            name: "Grocer",
+            opens: "09:00",
+            closes: "17:00",
+            closed_on: [Sunday],
+            daily_limit: 60,
+            buys: [
+                ("turnip", 35),
+                ("potato", 40),
+                ("strawberry", 30),
+                ("tomato", 45),
+                ("wheat", 25),
+                ("wild_berries", 10),
+            ],
+            sells: [
+                (item: "turnip_seeds", price: 10, seasons: [Spring]),
+                (item: "potato_seeds", price: 20, seasons: [Spring]),
+                (item: "strawberry_seeds", price: 50, seasons: [Spring]),
+                (item: "tomato_seeds", price: 40, seasons: [Summer]),
+                (item: "wheat_seeds", price: 15, seasons: [Summer, Autumn]),
+            ],
+        ),
+    ],
+)

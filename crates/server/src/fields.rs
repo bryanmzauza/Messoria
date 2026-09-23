@@ -20,7 +20,7 @@ use messoria_shared::{
         Watered, WorldClock,
     },
     terrain::Terrain,
-    tools,
+    tools, village,
 };
 use messoria_voxel::Brush;
 
@@ -85,6 +85,9 @@ fn work_fields(
 
         match (job.task, field, state) {
             (FieldTask::Till, None, _) => {
+                if village::reaches(job.target, 0.0) {
+                    continue;
+                }
                 let Some(height) = tillable_ground(&terrain, tile, job.target.y) else {
                     continue;
                 };

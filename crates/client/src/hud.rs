@@ -1,14 +1,18 @@
-//! On-screen overlay: crosshair, clock and date, energy, and sleep status.
+//! On-screen overlay: crosshair, clock and date, energy, money, and sleep
+//! status.
 
 use bevy::prelude::*;
 use lightyear::prelude::input::native::InputMarker;
 use messoria_calendar::{Weather, WorldTime};
 use messoria_shared::{
     energy::Energy,
-    protocol::{Asleep, CurrentWeather, PlayerInput, SleepTally},
+    protocol::{Asleep, CurrentWeather, Money, PlayerInput, SleepTally},
 };
 
-use crate::{camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM, sleep::SLEEP_KEY_NAME};
+use crate::{
+    camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM, sleep::SLEEP_KEY_NAME,
+    ui::visible_if,
+};
 
 const CROSSHAIR_SIZE: f32 = 4.0;
 const OVERLAY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
@@ -25,7 +29,13 @@ impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud).add_systems(
             Update,
-            (show_crosshair, show_clock, show_energy, show_sleep_status),
+            (
+                show_crosshair,
+                show_clock,
+                show_energy,
+                show_money,
+                show_sleep_status,
+            ),
         );
     }
 }
@@ -38,6 +48,9 @@ struct ClockText;
 
 #[derive(Component)]
 struct EnergyFill;
+
+#[derive(Component)]
+struct MoneyText;
 
 #[derive(Component)]
 struct SleepVeil;
@@ -100,6 +113,7 @@ fn spawn_hud(mut commands: Commands) {
                     },
                     BackgroundColor(ENERGY_COLOR),
                 ));
+            panel.spawn((MoneyText, Text::new(""), TextFont::from_font_size(16.0)));
         });
 
     commands.spawn((
@@ -149,7 +163,12 @@ fn show_clock(
         Ok(Weather::Snow) => ", snow",
         Ok(Weather::Clear) | Err(_) => "",
     };
-    let shown = format!("{}\n{}{weather}", time.date(), time.clock());
+    let date = time.date();
+    let shown = format!(
+        "{}, {date}\n{}{weather}",
+        date.weekday.short_name(),
+        time.clock()
+    );
     if text.0 != shown {
         text.0 = shown;
     }
@@ -164,6 +183,15 @@ fn show_energy(
         if fill.width != width {
             fill.width = width;
         }
+    }
+}
+
+fn show_money(
+    player: Query<&Money, (With<InputMarker<PlayerInput>>, Changed<Money>)>,
+    mut text: Single<&mut Text, With<MoneyText>>,
+) {
+    if let Ok(money) = player.single() {
+        text.0 = format!("{} coins", money.0.coins());
     }
 }
 
@@ -189,13 +217,5 @@ fn show_sleep_status(
     };
     if text.0 != shown {
         text.0 = shown;
-    }
-}
-
-fn visible_if(visible: bool) -> Visibility {
-    if visible {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
     }
 }

@@ -11,9 +11,11 @@ pub mod fields;
 pub mod movement;
 pub mod network;
 pub mod protocol;
+pub mod shops;
 pub mod terrain;
 pub mod tick;
 pub mod tools;
+pub mod village;
 
 use bevy::{prelude::*, state::app::StatesPlugin};
 use lightyear::prelude::{

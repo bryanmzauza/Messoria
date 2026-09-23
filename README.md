@@ -11,9 +11,10 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 Early development. Players share a farm valley over the network, hosted from
 the game or on a dedicated server, reshape its smooth voxel terrain with a
-shovel, farm crops through the seasons, and live through days and nights
-that end when they go to sleep. The village shop and its economy are next.
-See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
+shovel, farm crops through the seasons, sell their harvests at the village
+grocer, whose prices respond to what everyone sells, and live through days and
+nights that end when they go to sleep. Saving the world is next. See the
+[roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -61,21 +62,25 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Space` to jump, `1` to `0` or the mouse wheel to pick the held item, left and
-right mouse buttons to use it, `E` to harvest a ripe crop, `Tab` to open the
-backpack and click two slots to move items, `Z` to sleep or get up (from
-18:00), `F5` to switch between first and third person, `Esc` to release the
-mouse. The shovel digs and raises ground; the hoe tills a field, seeds are
-planted in it and the watering can waters it; food is eaten.
+right mouse buttons to use it, `E` to harvest a ripe crop or, at a stall, to
+open its shop, `Tab` to open the backpack (click two slots to move items, and
+give money to other players beside it), `Z` to sleep or get up (from 18:00),
+`F5` to switch between first and third person, `Esc` to release the mouse.
+The shovel digs and raises ground; the hoe tills a field, seeds are planted in
+it and the watering can waters it; food is eaten. The village lies straight
+ahead of where players arrive; its grocer opens from 09:00 to 17:00, except on
+Sundays.
 
 Game content lives in `assets/data/`: items in
-[`items.ron`](assets/data/items.ron) and crops in
-[`crops.ron`](assets/data/crops.ron). The game refuses to start, naming the
+[`items.ron`](assets/data/items.ron), crops in
+[`crops.ron`](assets/data/crops.ron), and shops and market prices in
+[`shops.ron`](assets/data/shops.ron). The game refuses to start, naming the
 problem, if a data file is invalid.
 
 ## Repository layout
 
 ```
-crates/   libraries: domain rules (calendar, content, farming, inventory, voxel), shared
+crates/   libraries: domain rules (calendar, content, economy, farming, inventory, voxel), shared
           networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots

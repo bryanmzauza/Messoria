@@ -15,6 +15,7 @@ publish = false
 messoria-calendar = { path = "crates/calendar" }
 messoria-client = { path = "crates/client" }
 messoria-content = { path = "crates/content" }
+messoria-economy = { path = "crates/economy" }
 messoria-farming = { path = "crates/farming" }
 messoria-inventory = { path = "crates/inventory" }
 messoria-server = { path = "crates/server" }

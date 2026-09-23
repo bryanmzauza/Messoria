@@ -5,11 +5,12 @@ use std::f32::consts::TAU;
 use bevy::prelude::*;
 use lightyear::prelude::{server::*, *};
 use messoria_content::Quality;
+use messoria_economy::Wallet;
 use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    protocol::{Belongings, Heading, PlayerId, Position, Velocity, WorldClock},
+    protocol::{Belongings, Heading, Money, PlayerId, Position, SoldToday, Velocity, WorldClock},
     terrain::Terrain,
 };
 
@@ -63,6 +64,8 @@ fn spawn_player(
             Heading::default(),
             Energy::FULL,
             Belongings(starting_kit),
+            Money(Wallet::with(content.starting_money())),
+            SoldToday::default(),
             Replicate::to_clients(NetworkTarget::All),
             // The owner predicts its own character; everyone else interpolates it.
             PredictionTarget::to_clients(NetworkTarget::Single(peer)),

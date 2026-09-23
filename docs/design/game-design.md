@@ -58,6 +58,7 @@
 - **1 in-game day = 20 real minutes:** a day runs from 06:00 to 02:00, one game minute per real second.
 - **365-day year**, split into 4 seasons (91/91/91/92 days).
 - A full year ≈ **122 real hours**, so the game is long-form; crop cycles must be proportional (several harvests per season, perennials, trees that take seasons to bear fruit).
+- Weeks have seven days, and each season is thirteen weeks (winter has one extra day).
 - Day/night cycle with dynamic lighting; shops have opening hours and closed days.
 - Weather: sun, rain (waters crops), storms, snow in winter.
 
@@ -107,12 +108,13 @@ Actions consume energy; food restores it; sleep refills it. A character has 100 
 - Friendship is **per player**.
 
 ### 5.8 Economy
-**Selling happens only at shops** — there is no shipping bin. Players carry produce to the merchant and are paid immediately. Each shop buys specific categories (grocer: crops; blacksmith: ores; carpenter: wood). Shops keep opening hours.
+**Selling happens only at shops** — there is no shipping bin. Players carry produce to the merchant and are paid immediately. Each shop buys specific categories (grocer: crops; blacksmith: ores; carpenter: wood). Shops keep opening hours and closed days. The first shop is the village grocer: it buys crops and sells the seeds in season.
 
 **Dynamic price per item (per server):**
-- **Seasonal base price** — the same item is worth more outside the season in which it is abundant.
-- **Supply and demand** — every sale raises the item's "saturation" and lowers its price; saturation recovers gradually each day.
-- **Daily limit per shop** — each shop buys at most N units of an item per day (**[OPEN]** per player or shared across the shop).
+- **Seasonal base price** — the same item is worth more outside the season in which it is abundant: produce sells at a markup outside the seasons its crop grows in.
+- **Supply and demand** — every sale raises the item's "saturation" and lowers its price; the price halves once a set number of units has piled up, and saturation recovers gradually each night.
+- **Quality** — silver and gold harvests sell for more.
+- **Daily limit per player** — each shop buys at most N units of an item from each player per day, so nobody can use up a shop for everyone else. Saturation stays shared by the whole server.
 - Because the economy is **shared by the whole server**, 50 players planting the same crop drive the price down for everyone → encourages diversification and specialization.
 
 **Individual money:**
@@ -222,10 +224,10 @@ Combat and mines, fishing, animals, loans (right after the MVP), festivals, marr
 
 1. Fantasy sub-theme
 2. Farm plots: number, size, sharing
-3. Sales limit per player or shared across the shop
-4. Loan defaults
-5. Item preservation (fridge, processing)
+3. Loan defaults
+4. Item preservation (fridge, processing)
 
 ### Resolved
+- **Sales limit:** per player; the market's saturation is shared by the whole server.
 - **Combat in the MVP:** no; it ships right after, together with the mines.
 - **Networking library:** lightyear ([ADR 0002](../adr/0002-networking-lightyear.md)).

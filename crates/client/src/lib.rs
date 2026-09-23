@@ -16,8 +16,12 @@ mod hud;
 mod input;
 mod inventory;
 mod noise;
+mod panels;
+mod shops;
 mod sleep;
 mod terrain;
+mod ui;
+mod wallet;
 mod weather;
 
 use bevy::prelude::*;
@@ -46,6 +50,12 @@ impl Plugin for ClientPlugin {
             actions::ActionsPlugin,
             sleep::SleepPlugin,
             hud::HudPlugin,
+        ))
+        .add_plugins((
+            ui::UiPlugin,
+            panels::PanelsPlugin,
+            shops::ShopsPlugin,
+            wallet::WalletPlugin,
         ));
     }
 }

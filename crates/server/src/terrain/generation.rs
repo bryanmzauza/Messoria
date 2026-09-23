@@ -1,10 +1,11 @@
 //! The farm valley every world starts with.
 //!
 //! The terrain is a heightfield: gently rolling ground, one hill to reshape,
-//! and a rim of higher hills that closes the valley well before the edge of
-//! the world.
+//! a level, paved village square, and a rim of higher hills that closes the
+//! valley well before the edge of the world.
 
 use bevy::math::{IVec3, Vec2, Vec3};
+use messoria_shared::village;
 use messoria_voxel::{CHUNK_SIZE, Chunk, ChunkMap, ChunkPos, Material, Voxel};
 
 /// Chunks generated along x and z, centered on the origin.
@@ -24,7 +25,18 @@ const FLOOR_HEIGHT: f32 = 8.0;
 const RIM_HEIGHT: f32 = 26.0;
 /// Slope, as rise over run, beyond which bare stone shows instead of grass.
 const STEEP_SLOPE: f32 = 1.2;
-const TOPSOIL_DEPTH: f32 = 1.0;
+/// Distance beyond the village over which its level ground blends into the
+/// valley.
+const VILLAGE_BLEND: f32 = 8.0;
+/// Radius of the paved square in the middle of the village.
+const SQUARE_RADIUS: f32 = 9.0;
+/// Height steps the village's level is rounded to, matching the levels
+/// shovels bring ground to.
+const LEVEL_STEP: f32 = 0.5;
+/// Depth of the top layer: grass, or the village's paving. More than a
+/// sample apart, so it covers the sample just under the surface even where
+/// the surface falls exactly on a sample, which then counts as air.
+const TOPSOIL_DEPTH: f32 = 1.5;
 const SOIL_DEPTH: f32 = 4.0;
 
 /// Generates the whole farm valley.
@@ -55,8 +67,28 @@ pub(crate) fn editable(point: Vec3) -> bool {
     (world(BOTTOM_HEIGHT) + EDIT_MARGIN..world(SKY_HEIGHT) - EDIT_MARGIN).contains(&point.y)
 }
 
-/// Terrain height of the valley at `(x, z)`, in meters.
+/// Terrain height of the valley at `(x, z)`, in meters: the natural ground,
+/// leveled around the village.
 fn height(x: f32, z: f32) -> f32 {
+    let village_level =
+        (natural_height(village::CENTER.x, village::CENTER.y) / LEVEL_STEP).round() * LEVEL_STEP;
+    let from_village = Vec2::new(x, z).distance(village::CENTER);
+    let leveled = 1.0
+        - smoothstep(
+            village::RADIUS,
+            village::RADIUS + VILLAGE_BLEND,
+            from_village,
+        );
+    natural_height(x, z) + (village_level - natural_height(x, z)) * leveled
+}
+
+/// Whether the ground at `(x, z)` is part of the village's paved square.
+fn paved(x: f32, z: f32) -> bool {
+    Vec2::new(x, z).distance(village::CENTER) < SQUARE_RADIUS
+}
+
+/// Height of the valley at `(x, z)` before anything was built on it.
+fn natural_height(x: f32, z: f32) -> f32 {
     let rolling = 1.2 * (x * 0.045).sin() * (z * 0.038).cos()
         + 0.5 * (x * 0.11 + 1.7).sin() * (z * 0.09 - 0.4).sin();
     let hill = 7.0 * (-(Vec2::new(x - 36.0, z + 28.0).length_squared()) / 338.0).exp();
@@ -117,7 +149,10 @@ impl Columns {
             let y = world(origin.y + local.y);
             let depth = height - y;
             let steep = slope > STEEP_SLOPE;
-            let material = if depth < TOPSOIL_DEPTH && !steep {
+            let paved = paved(world(origin.x + local.x), world(origin.z + local.z));
+            let material = if depth < TOPSOIL_DEPTH && paved {
+                Material::Stone
+            } else if depth < TOPSOIL_DEPTH && !steep {
                 Material::Grass
             } else if depth < SOIL_DEPTH && !steep {
                 Material::Soil
@@ -160,6 +195,29 @@ mod tests {
     fn the_rim_encloses_the_valley() {
         assert!(height(world(HALF_EXTENT) - 4.0, 0.0) > FLOOR_HEIGHT + RIM_HEIGHT * 0.9);
         assert!(height(0.0, 0.0) < FLOOR_HEIGHT + 2.0);
+    }
+
+    #[test]
+    fn the_village_stands_on_level_ground() {
+        let terrain = farm();
+        let at = |offset: Vec2| {
+            let point = village::CENTER + offset;
+            ground_height(&terrain, point.x, point.y).expect("the village is generated")
+        };
+        let middle = at(Vec2::ZERO);
+        assert!((middle / LEVEL_STEP - (middle / LEVEL_STEP).round()).abs() < 0.05);
+        for offset in [
+            Vec2::new(10.0, 0.0),
+            Vec2::new(-7.0, 9.0),
+            Vec2::new(0.0, -13.0),
+        ] {
+            assert!(
+                (at(offset) - middle).abs() < 0.05,
+                "ground at {offset} is not level"
+            );
+        }
+        let square = Vec3::new(village::CENTER.x, middle - 0.25, village::CENTER.y);
+        assert_eq!(terrain.surface_material(square), Some(Material::Stone));
     }
 
     #[test]

@@ -5189,6 +5189,7 @@ dependencies = [
  "lightyear",
  "messoria-calendar",
  "messoria-content",
+ "messoria-economy",
  "messoria-farming",
  "messoria-inventory",
  "messoria-shared",
@@ -5216,6 +5217,17 @@ dependencies = [
  "messoria-calendar",
  "messoria-server",
  "messoria-shared",
+]
+
+[[package]]
+name = "messoria-economy"
+version = "0.1.0"
+dependencies = [
+ "messoria-calendar",
+ "messoria-content",
+ "messoria-inventory",
+ "serde",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5268,6 +5280,7 @@ dependencies = [
  "lightyear",
  "messoria-calendar",
  "messoria-content",
+ "messoria-economy",
  "messoria-farming",
  "messoria-inventory",
  "messoria-shared",
@@ -5283,6 +5296,7 @@ dependencies = [
  "lightyear",
  "messoria-calendar",
  "messoria-content",
+ "messoria-economy",
  "messoria-farming",
  "messoria-inventory",
  "messoria-voxel",

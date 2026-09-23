@@ -1,9 +1,11 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! terrain, inventories, fields and player actions.
+//! terrain, inventories, fields, money, shops and player actions.
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
+use messoria_content::{ItemId, ShopId};
+use messoria_economy::{Market, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
 use messoria_voxel::{ChunkChanges, ChunkPos};
@@ -139,6 +141,53 @@ pub struct MoveItem {
     pub to: u8,
 }
 
+/// A character's money.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Money(pub Wallet);
+
+/// What a character sold each shop today, which counts against the shops'
+/// daily limits.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SoldToday(pub SalesLedger);
+
+/// The server-wide market that sets what shops pay, on an entity of its
+/// own. Clients price goods from it exactly as the server will.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct MarketState(pub Market);
+
+/// A shop's stall in the village.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Shopfront {
+    pub shop: ShopId,
+    /// The ground in the middle of the stall.
+    pub position: Vec3,
+    /// Direction the counter faces, as a [`Heading`].
+    pub facing: f32,
+}
+
+/// A client trading with a shop whose stall its character stands at.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Trade {
+    pub shop: ShopId,
+    pub deal: Deal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Deal {
+    /// Sell up to `count` items from an inventory slot. The server sells as
+    /// many as the shop still buys today.
+    Sell { slot: u8, count: u16 },
+    /// Buy exactly `count` of an item.
+    Buy { item: ItemId, count: u16 },
+}
+
+/// A client giving money to another player.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GiveMoney {
+    pub to: PeerId,
+    pub amount: u32,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -205,6 +254,10 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<SleepRequest>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Trade>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<GiveMoney>()
+            .add_direction(NetworkDirection::ClientToServer);
 
         app.component::<WorldClock>().replicate();
         app.component::<SleepTally>().replicate();
@@ -216,6 +269,10 @@ impl Plugin for ProtocolPlugin {
         app.component::<Watered>().replicate();
         app.component::<Fertilized>().replicate();
         app.component::<Crop>().replicate();
+        app.component::<Money>().replicate();
+        app.component::<SoldToday>().replicate();
+        app.component::<MarketState>().replicate();
+        app.component::<Shopfront>().replicate();
 
         app.component::<PlayerId>().replicate();
 

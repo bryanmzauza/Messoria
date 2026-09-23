@@ -80,6 +80,7 @@ pub enum Quality {
 pub(crate) struct ItemsFile {
     items: Vec<ItemEntry>,
     starting_inventory: Vec<(String, u16)>,
+    starting_money: u32,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +106,7 @@ pub(crate) struct Items {
     pub definitions: Vec<ItemDef>,
     pub by_key: HashMap<String, ItemId>,
     pub starting_inventory: Vec<(ItemId, u16)>,
+    pub starting_money: u32,
 }
 
 impl Items {
@@ -140,6 +142,7 @@ impl ItemsFile {
             definitions: Vec::with_capacity(self.items.len()),
             by_key,
             starting_inventory: Vec::new(),
+            starting_money: self.starting_money,
         };
 
         for entry in self.items {

@@ -22,8 +22,8 @@ use messoria_shared::{
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Asleep, Belongings, ItemAction, PlayerId, PlayerInput, Position,
-        SleepRequest, UseItem, WorldClock,
+        ActionChannel, Asleep, Belongings, Deal, ItemAction, Money, PlayerId, PlayerInput,
+        Position, Shopfront, SleepRequest, Trade, UseItem, WorldClock,
     },
     terrain::Terrain,
     tools,
@@ -172,6 +172,73 @@ fn shovel_edits_reach_the_client_identically() {
                 .iter(world)
                 .next()
                 .is_some_and(|belongings| belongings.0.count(soil) == 1)
+        },
+    );
+}
+
+#[test]
+fn a_purchase_made_over_the_network_reaches_the_buyer() {
+    let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
+    let mut server = server_app(server_addr);
+    let mut client = client_app(server_addr, Behavior::StandStill);
+    run_until(
+        &mut server,
+        &mut client,
+        "client to control a character",
+        |_, client| local_character_if_any(client).is_some(),
+    );
+
+    // Open the grocer and put the character at its stall.
+    let world = server.world_mut();
+    world
+        .query::<&mut WorldClock>()
+        .single_mut(world)
+        .expect("the world has a clock")
+        .0 = WorldTime::at(0, "10:00".parse().expect("valid time")).expect("within the day");
+    let stall = *world
+        .query::<&Shopfront>()
+        .single(world)
+        .expect("the village has one stall");
+    world
+        .query_filtered::<&mut Position, With<PlayerId>>()
+        .single_mut(world)
+        .expect("one character")
+        .0 = stall.position + Quat::from_rotation_y(stall.facing) * Vec3::new(0.0, 0.0, -1.5);
+
+    let content = load_content().expect("the shipped content is valid");
+    let seeds = content.id("turnip_seeds").expect("turnip seeds exist");
+    let price = content
+        .shop(stall.shop)
+        .listing(seeds)
+        .expect("the grocer sells turnip seeds")
+        .price;
+    client
+        .world_mut()
+        .query_filtered::<&mut MessageSender<Trade>, With<Client>>()
+        .single_mut(client.world_mut())
+        .expect("one client connection")
+        .send::<ActionChannel>(Trade {
+            shop: stall.shop,
+            deal: Deal::Buy {
+                item: seeds,
+                count: 2,
+            },
+        });
+
+    run_until(
+        &mut server,
+        &mut client,
+        "the client to see its money spent and its seeds",
+        |_, client| {
+            let world = client.world_mut();
+            world
+                .query_filtered::<(&Money, &Belongings), With<InputMarker<PlayerInput>>>()
+                .iter(world)
+                .next()
+                .is_some_and(|(money, belongings)| {
+                    money.0.coins() == content.starting_money() - 2 * price
+                        && belongings.0.count(seeds) >= 2
+                })
         },
     );
 }

@@ -97,13 +97,14 @@ predicts, in a simulated run and in a live session.
 
 Goal: produce turns into money, and money reacts to supply.
 
-- [ ] Shop definitions in `messoria-content`
-- [ ] `messoria-economy`: seasonal base price, saturation and daily recovery, daily purchase limits
-- [ ] Individual wallets and transfers between players
-- [ ] One village shop with opening hours: buys crops, sells seeds
-- [ ] Protected village area
+- [x] Shop definitions in `messoria-content`
+- [x] `messoria-economy`: seasonal base price, saturation and daily recovery, daily purchase limits
+- [x] Individual wallets and transfers between players
+- [x] One village shop with opening hours and a closed day: buys crops, sells seeds
+- [x] Protected village area
 
-**Open:** is the daily limit per player or shared across the shop?
+**Decided:** the daily limit is per player; saturation is shared by the whole
+server ([ADR 0006](adr/0006-shared-market-priced-on-both-sides.md)).
 
 **Exit criterion:** price curves under simulated load match the design in tests.
 
