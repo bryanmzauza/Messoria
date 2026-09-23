@@ -13,6 +13,8 @@ pub const REACH: f32 = 4.5;
 pub const BRUSH_RADIUS: f32 = 1.3;
 /// Minimum time between two uses by the same player.
 pub const COOLDOWN: Duration = Duration::from_millis(250);
+/// Energy each use costs.
+pub const ENERGY_COST: u16 = 2;
 
 /// The terrain edit a request asks for.
 pub fn brush(request: &ShovelRequest) -> Brush {

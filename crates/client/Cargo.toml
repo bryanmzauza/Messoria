@@ -12,6 +12,7 @@ publish.workspace = true
 [dependencies]
 bevy = { workspace = true, features = ["3d", "ui"] }
 lightyear.workspace = true
+messoria-calendar.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true
 rand.workspace = true

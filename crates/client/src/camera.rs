@@ -16,7 +16,7 @@ use bevy::{
 use lightyear::prelude::input::native::InputMarker;
 use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
 
-use crate::{avatars::AvatarSystems, environment::SKY_COLOR};
+use crate::avatars::AvatarSystems;
 
 /// Distance at which terrain is fully swallowed by fog, in meters.
 const FOG_VISIBILITY: f32 = 180.0;
@@ -82,8 +82,8 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Camera"),
         Camera3d::default(),
+        // The environment tints the fog to match the sky.
         DistanceFog {
-            color: SKY_COLOR,
             falloff: FogFalloff::from_visibility_squared(FOG_VISIBILITY),
             ..default()
         },

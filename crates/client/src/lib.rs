@@ -7,11 +7,13 @@
 
 mod avatars;
 mod camera;
+mod clock;
 mod connection;
 mod environment;
 mod hud;
 mod input;
 mod shovel;
+mod sleep;
 mod terrain;
 
 use bevy::prelude::*;
@@ -28,12 +30,14 @@ impl Plugin for ClientPlugin {
             connection::ConnectionPlugin {
                 session: self.session.clone(),
             },
+            clock::ClockPlugin,
             environment::EnvironmentPlugin,
             terrain::TerrainPlugin,
             avatars::AvatarPlugin,
             camera::CameraPlugin,
             input::InputPlugin,
             shovel::ShovelPlugin,
+            sleep::SleepPlugin,
             hud::HudPlugin,
         ));
     }

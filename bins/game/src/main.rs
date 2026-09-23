@@ -5,6 +5,7 @@ use std::{
 
 use bevy::prelude::*;
 use clap::Parser;
+use messoria_calendar::{SleepRule, WorldTime};
 use messoria_client::{ClientPlugin, Session};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
@@ -68,7 +69,12 @@ fn main() -> AppExit {
             SharedPlugin {
                 role: NetworkRole::Host,
             },
-            ServerPlugin { bind_addr },
+            // A world hosted for friends waits until everyone is asleep.
+            ServerPlugin {
+                bind_addr,
+                sleep_rule: SleepRule::Everyone,
+                start_time: WorldTime::FIRST_DAWN,
+            },
             ClientPlugin {
                 session: Session::Host,
             },

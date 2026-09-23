@@ -5,6 +5,7 @@ use std::f32::consts::TAU;
 use bevy::prelude::*;
 use lightyear::prelude::{server::*, *};
 use messoria_shared::{
+    energy::Energy,
     protocol::{Heading, PlayerId, Position, Velocity},
     terrain::Terrain,
 };
@@ -47,6 +48,7 @@ fn spawn_player(
             Position(spawn.with_y(ground)),
             Velocity::default(),
             Heading::default(),
+            Energy::FULL,
             Replicate::to_clients(NetworkTarget::All),
             // The owner predicts its own character; everyone else interpolates it.
             PredictionTarget::to_clients(NetworkTarget::Single(peer)),

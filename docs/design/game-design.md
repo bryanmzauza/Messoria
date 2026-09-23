@@ -55,7 +55,7 @@
 
 ## 4. Time and seasons
 
-- **1 in-game day = 20 real minutes.**
+- **1 in-game day = 20 real minutes:** a day runs from 06:00 to 02:00, one game minute per real second.
 - **365-day year**, split into 4 seasons (91/91/91/92 days).
 - A full year ≈ **122 real hours**, so the game is long-form; crop cycles must be proportional (several harvests per season, perennials, trees that take seasons to bear fruit).
 - Day/night cycle with dynamic lighting; shops have opening hours and closed days.
@@ -65,7 +65,8 @@
 Waiting for everyone to sleep does not work with 50 players:
 - **Solo:** sleeping skips to morning.
 - **Small server (hosted in-game):** the day advances when **all** players sleep (Stardew style).
-- **Dedicated server:** time runs continuously; sleeping skips the night if **X% of online players** are asleep (configurable, as in Minecraft). Anyone still awake at 2 AM passes out with a light penalty.
+- **Dedicated server:** time runs continuously; sleeping skips the night if **X% of online players** are asleep (configurable, 50% by default, as in Minecraft).
+- Players may go to sleep from 18:00. Anyone still awake at 2 AM passes out and the day ends for everyone; passing out restores only half the energy that sleeping would.
 
 ---
 
@@ -86,7 +87,7 @@ Hoe, watering can, axe, pickaxe, shovel (terraforming), scythe, basic weapon. Up
 - Preservation: **[OPEN]** fridge/cellar, and processing (jam, pickles, wine) to extend shelf life and add value.
 
 ### 5.4 Energy
-Actions consume energy; food restores it; sleep refills it.
+Actions consume energy; food restores it; sleep refills it. A character has 100 energy; each shovel use costs 2, and tools cannot be used without enough energy left.
 
 ### 5.5 Mining and combat
 - Mines with procedural floors, ores by depth, stairs/elevator every N floors.

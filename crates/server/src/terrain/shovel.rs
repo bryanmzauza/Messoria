@@ -5,8 +5,9 @@ use std::time::Duration;
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use messoria_shared::{
+    energy::Energy,
     movement::{BODY_HEIGHT, BODY_RADIUS, EYE_HEIGHT},
-    protocol::{PlayerId, Position, ShovelAction, ShovelRequest},
+    protocol::{Asleep, PlayerId, Position, ShovelAction, ShovelRequest},
     shovel,
     terrain::{ChunkChanged, Terrain},
 };
@@ -47,6 +48,7 @@ fn apply_shovel_requests(
         Option<&LastShovelUse>,
     )>,
     characters: Query<&Position, With<PlayerId>>,
+    mut workers: Query<&mut Energy, Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
     mut edited: MessageWriter<TerrainEdited>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
@@ -65,6 +67,13 @@ fn apply_shovel_requests(
             }
             if let Err(reason) = validate(&request, feet.0, &terrain, &characters) {
                 debug!("rejected shovel request {request:?}: {reason}");
+                continue;
+            }
+            // Sleeping characters have no energy to spend here.
+            let Ok(mut energy) = workers.get_mut(character.0) else {
+                continue;
+            };
+            if !energy.try_spend(shovel::ENERGY_COST) {
                 continue;
             }
 

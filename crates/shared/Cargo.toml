@@ -23,6 +23,7 @@ lightyear = { workspace = true, features = [
   "frame_interpolation",
   "input_native",
 ] }
+messoria-calendar.workspace = true
 messoria-voxel.workspace = true
 serde.workspace = true
 

@@ -1,10 +1,13 @@
-//! Everything that crosses the wire: replicated components, player input and
-//! terrain messages.
+//! Everything that crosses the wire: replicated components, player input,
+//! terrain and player actions.
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
+use messoria_calendar::WorldTime;
 use messoria_voxel::{ChunkChanges, ChunkPos};
 use serde::{Deserialize, Serialize};
+
+use crate::energy::Energy;
 
 /// The peer an entity belongs to.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -36,6 +39,29 @@ pub struct PlayerInput {
 
 impl MapEntities for PlayerInput {
     fn map_entities<M: EntityMapper>(&mut self, _entity_mapper: &mut M) {}
+}
+
+/// Marks a character that is asleep. Sleeping characters do not move.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Asleep;
+
+/// The world's current time, on the single clock entity the server replicates.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldClock(pub WorldTime);
+
+/// How many players are asleep, and how many must be for the day to end.
+/// Kept on the clock entity.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SleepTally {
+    pub asleep: u32,
+    pub required: u32,
+}
+
+/// A client asking for its character to go to sleep or wake up.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SleepRequest {
+    Sleep,
+    Wake,
 }
 
 /// Terrain streamed from the server to a client.
@@ -70,7 +96,7 @@ pub enum ShovelAction {
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
-/// Carries player actions such as [`ShovelRequest`]s.
+/// Carries player actions such as [`ShovelRequest`]s and [`SleepRequest`]s.
 pub struct ActionChannel;
 
 impl Ease for Position {
@@ -126,6 +152,13 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ServerToClient);
         app.register_message::<ShovelRequest>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<SleepRequest>()
+            .add_direction(NetworkDirection::ClientToServer);
+
+        app.component::<WorldClock>().replicate();
+        app.component::<SleepTally>().replicate();
+        app.component::<Energy>().replicate();
+        app.component::<Asleep>().replicate();
 
         app.component::<PlayerId>().replicate();
 

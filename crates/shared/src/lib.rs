@@ -5,6 +5,7 @@
 //! also the only crate that configures lightyear; other crates use the types it
 //! re-exports through its modules.
 
+pub mod energy;
 pub mod movement;
 pub mod network;
 pub mod protocol;

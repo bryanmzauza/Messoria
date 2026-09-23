@@ -6,16 +6,22 @@
 //! their own world. It expects `SharedPlugin` with the `Server` or `Host` role.
 
 mod connections;
+mod day_cycle;
 mod players;
 mod terrain;
 
 use std::net::SocketAddr;
 
 use bevy::prelude::*;
+use messoria_calendar::{SleepRule, WorldTime};
 
 pub struct ServerPlugin {
     /// Address the server listens on for clients.
     pub bind_addr: SocketAddr,
+    /// How many players must sleep to end the day.
+    pub sleep_rule: SleepRule,
+    /// When the world's clock starts.
+    pub start_time: WorldTime,
 }
 
 impl Plugin for ServerPlugin {
@@ -26,6 +32,10 @@ impl Plugin for ServerPlugin {
             },
             players::PlayersPlugin,
             terrain::TerrainPlugin,
+            day_cycle::DayCyclePlugin {
+                sleep_rule: self.sleep_rule,
+                start_time: self.start_time,
+            },
         ));
     }
 }

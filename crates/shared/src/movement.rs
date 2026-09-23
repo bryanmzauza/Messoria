@@ -10,7 +10,7 @@ use lightyear::prelude::{client::Remote, input::native::ActionState, *};
 use messoria_voxel::ChunkMap;
 
 use crate::{
-    protocol::{Heading, PlayerInput, Position, Velocity},
+    protocol::{Asleep, Heading, PlayerInput, Position, Velocity},
     terrain::Terrain,
     tick,
 };
@@ -173,7 +173,8 @@ impl Plugin for MovementPlugin {
 
 /// Moves every character this app simulates: all local characters when
 /// acting as a server, plus the one it predicts when acting as a client.
-/// Remote characters that are only interpolated are left alone.
+/// Remote characters that are only interpolated are left alone. Sleeping
+/// characters ignore their input but still fall.
 fn move_characters(
     terrain: Res<Terrain>,
     mut characters: Query<
@@ -182,12 +183,18 @@ fn move_characters(
             &mut Velocity,
             &mut Heading,
             &ActionState<PlayerInput>,
+            Has<Asleep>,
         ),
         Or<(With<Predicted>, Without<Remote>)>,
     >,
 ) {
     let dt = tick::tick_duration().as_secs_f32();
-    for (mut position, mut velocity, mut heading, input) in &mut characters {
+    for (mut position, mut velocity, mut heading, input, asleep) in &mut characters {
+        let input = if asleep {
+            &PlayerInput::default()
+        } else {
+            &input.0
+        };
         let motion = advance(
             Motion {
                 position: position.0,
@@ -199,7 +206,7 @@ fn move_characters(
         );
         position.set_if_neq(Position(motion.position));
         velocity.set_if_neq(Velocity(motion.velocity));
-        if let Some(yaw) = sanitize_yaw(input.yaw) {
+        if !asleep && let Some(yaw) = sanitize_yaw(input.yaw) {
             heading.set_if_neq(Heading(yaw));
         }
     }

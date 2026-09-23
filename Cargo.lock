@@ -5174,11 +5174,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "messoria-calendar"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "messoria-client"
 version = "0.1.0"
 dependencies = [
  "bevy",
  "lightyear",
+ "messoria-calendar",
  "messoria-shared",
  "messoria-voxel",
  "rand 0.10.3",
@@ -5190,6 +5199,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "clap",
+ "messoria-calendar",
  "messoria-server",
  "messoria-shared",
 ]
@@ -5200,6 +5210,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "clap",
+ "messoria-calendar",
  "messoria-client",
  "messoria-server",
  "messoria-shared",
@@ -5222,6 +5233,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "lightyear",
+ "messoria-calendar",
  "messoria-shared",
  "messoria-voxel",
 ]
@@ -5232,6 +5244,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "lightyear",
+ "messoria-calendar",
  "messoria-voxel",
  "serde",
 ]

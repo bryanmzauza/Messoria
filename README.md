@@ -10,9 +10,10 @@ Written in Rust with [Bevy](https://bevyengine.org).
 ## Status
 
 Early development. Players share a farm valley over the network, hosted from
-the game or on a dedicated server, and reshape its smooth voxel terrain
-together with a shovel. The day cycle is next. See the
-[roadmap](docs/ROADMAP.md) for what is done and what comes next.
+the game or on a dedicated server, reshape its smooth voxel terrain with a
+shovel, and live through days and nights that end when they go to sleep.
+Items and inventory are next. See the [roadmap](docs/ROADMAP.md) for what is
+done and what comes next.
 
 ## Building
 
@@ -46,6 +47,8 @@ Arguments go after `--`:
 cargo client -- --host                       # open your world to others (UDP port 5717)
 cargo client -- --connect 192.168.0.10       # join a hosted world or a dedicated server
 cargo server -- --port 5717                  # dedicated server
+cargo server -- --sleep-percent 50           # share of players that must sleep to end the day
+cargo server -- --start-time 21:00           # start the world's clock at a given time
 cargo bots -- --server 127.0.0.1 --bots 4    # add simulated players
 ```
 
@@ -56,7 +59,8 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Space` to jump, left mouse button to dig, right mouse button to raise ground,
-`F5` to switch between first and third person, `Esc` to release the mouse.
+`Z` to sleep or get up (from 18:00), `F5` to switch between first and third
+person, `Esc` to release the mouse.
 
 ## Repository layout
 

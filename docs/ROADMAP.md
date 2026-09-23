@@ -56,11 +56,12 @@ remeshing a chunk stays under one frame budget.
 
 Goal: the world keeps a calendar and the day has a rhythm.
 
-- [ ] World clock: 20-minute days, 365-day year, four seasons
-- [ ] Day/night lighting driven by the clock
-- [ ] Sleep rules per mode: solo, hosted (everyone asleep), dedicated (configurable percentage)
-- [ ] Passing out at 2 AM with a penalty
-- [ ] Energy: spent by actions, restored by sleep
+- [x] World clock: 20-minute days, 365-day year, four seasons (`messoria-calendar`)
+- [x] Day/night lighting driven by the clock
+- [x] Sleep rules per mode: solo, hosted (everyone asleep), dedicated (configurable percentage)
+- [x] Passing out at 2 AM with a penalty
+- [x] Energy: spent by actions, restored by sleep
+- [x] HUD: date, time, energy and sleep status
 
 **Exit criterion:** a day advances correctly under each sleep rule, verified by tests.
 

@@ -12,6 +12,7 @@ repository = "https://github.com/bryanmzauza/Messoria"
 publish = false
 
 [workspace.dependencies]
+messoria-calendar = { path = "crates/calendar" }
 messoria-client = { path = "crates/client" }
 messoria-server = { path = "crates/server" }
 messoria-shared = { path = "crates/shared" }

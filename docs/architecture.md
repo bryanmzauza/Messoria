@@ -17,6 +17,7 @@ See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 
 ```
 crates/
+  calendar/          messoria-calendar          Game time, dates, seasons, sleep rules
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
@@ -44,7 +45,7 @@ starts, never ahead of time:
 
 ```
 bins, tools ──► client ──┐
-           └──► server ──┴──► shared ──► domain crates (voxel, content, economy)
+           └──► server ──┴──► shared ──► domain crates (calendar, voxel, content, economy)
 ```
 
 - **Domain crates do not depend on Bevy.** They hold pure data structures and
@@ -99,6 +100,18 @@ See [ADR 0004](adr/0004-terrain-representation.md).
   changed voxels to every client holding the chunk.
 - Any change to `Terrain` emits `ChunkChanged` for each chunk whose mesh
   depends on it; the client remeshes those under a per-frame time budget.
+
+## Days
+
+- The server owns a single clock entity carrying `WorldClock` and
+  `SleepTally`, replicated to every client. It advances one game minute per
+  real second, counted in whole ticks so it never drifts.
+- A day ends when the server's `SleepRule` is met or at 02:00. Sleepers wake
+  rested; anyone still awake at 02:00 passes out and recovers only half their
+  energy. The rule is `Everyone` in a hosted world and a configurable share
+  on a dedicated server.
+- Clients advance their copy of the clock between updates so lighting moves
+  smoothly; sky, sun, fog and ambient light blend between keyframes.
 
 ## Simulation timing
 

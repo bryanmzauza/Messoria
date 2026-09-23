@@ -13,12 +13,17 @@ use lightyear::prelude::{
     input::native::{ActionState, InputMarker},
     *,
 };
+use messoria_calendar::{SleepRule, WorldTime};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
+    energy::Energy,
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
-    protocol::{ActionChannel, PlayerId, PlayerInput, Position, ShovelAction, ShovelRequest},
+    protocol::{
+        ActionChannel, Asleep, PlayerId, PlayerInput, Position, ShovelAction, ShovelRequest,
+        SleepRequest, WorldClock,
+    },
     shovel,
     terrain::Terrain,
 };
@@ -110,19 +115,68 @@ fn shovel_edits_reach_the_client_identically() {
     );
 }
 
+#[test]
+fn sleeping_through_the_night_starts_a_new_day() {
+    let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
+    let bedtime = WorldTime::at(0, "21:00".parse().expect("valid time")).expect("within the day");
+    let mut server = server_app_starting_at(server_addr, bedtime);
+    let mut client = client_app(server_addr, Behavior::StandStill);
+
+    run_until(
+        &mut server,
+        &mut client,
+        "client to control a character",
+        |_, client| local_character_if_any(client).is_some(),
+    );
+    client
+        .world_mut()
+        .query_filtered::<&mut MessageSender<SleepRequest>, With<Client>>()
+        .single_mut(client.world_mut())
+        .expect("one client connection")
+        .send::<ActionChannel>(SleepRequest::Sleep);
+
+    run_until(
+        &mut server,
+        &mut client,
+        "the client to wake up rested on the next day",
+        |_, client| {
+            let world = client.world_mut();
+            let day = world
+                .query::<&WorldClock>()
+                .iter(world)
+                .next()
+                .map(|clock| clock.0.day());
+            let rested = world
+                .query_filtered::<(&Energy, Has<Asleep>), With<InputMarker<PlayerInput>>>()
+                .iter(world)
+                .next()
+                .is_some_and(|(energy, asleep)| *energy == Energy::FULL && !asleep);
+            day == Some(1) && rested
+        },
+    );
+}
+
 enum Behavior {
     StandStill,
     WalkForward,
 }
 
 fn server_app(bind_addr: SocketAddr) -> App {
+    server_app_starting_at(bind_addr, WorldTime::FIRST_DAWN)
+}
+
+fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
         SharedPlugin {
             role: NetworkRole::Server,
         },
-        ServerPlugin { bind_addr },
+        ServerPlugin {
+            bind_addr,
+            sleep_rule: SleepRule::Everyone,
+            start_time,
+        },
     ));
     ready(app)
 }
