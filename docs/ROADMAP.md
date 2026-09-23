@@ -24,14 +24,15 @@ Goal: a workspace that builds, lints and tests cleanly on every platform we ship
 
 Goal: several players share one world over the network and see each other move.
 
-- [ ] Protocol module in `messoria-shared` (components, inputs, channels) on lightyear
-- [ ] Dedicated server accepting clients by IP and port
-- [ ] Player spawn and despawn on connect and disconnect
-- [ ] Shared movement system with client-side prediction and reconciliation
-- [ ] Interpolation of remote players
-- [ ] First- and third-person camera, toggled with a key
-- [ ] Hosted mode: the server running inside the game client
-- [ ] Headless bot client that connects and walks at random (seed of the load test)
+- [x] Protocol module in `messoria-shared` (components, inputs) on lightyear
+- [x] Dedicated server accepting clients by IP and port
+- [x] Player spawn and despawn on connect and disconnect
+- [x] Shared movement system with client-side prediction and reconciliation
+- [x] Interpolation of remote players
+- [x] First- and third-person camera, toggled with a key
+- [x] Hosted mode: the server running inside the game client; solo play is a private hosted world
+- [x] Headless bot client that connects and walks at random (`tools/loadtest`)
+- [x] End-to-end test: a server and a client connect over loopback and the client's input moves its character
 
 **Exit criterion:** four clients (two real, two bots) move smoothly on a
 dedicated server with 150 ms of simulated latency.
@@ -115,6 +116,7 @@ Goal: nothing is lost when the server restarts.
 Goal: inviting a friend takes under a minute and needs no router setup.
 
 - [ ] Rendezvous service issuing short access codes
+- [ ] Connect tokens issued by the rendezvous service, retiring self-issued tokens and the public key
 - [ ] UDP hole punching between host and guest
 - [ ] Relay fallback through the rendezvous host
 - [ ] "Open to friends" flow in the client
@@ -125,7 +127,7 @@ Goal: inviting a friend takes under a minute and needs no router setup.
 
 Goal: a dedicated server holds 50 players comfortably.
 
-- [ ] `tools/loadtest`: scripted bots exercising movement, farming and trading
+- [ ] Extend `tools/loadtest` so bots farm and trade, not only walk
 - [ ] Interest management for entities and chunks
 - [ ] Server tick profiling and budgets
 - [ ] Low-frequency simulation for areas far from players

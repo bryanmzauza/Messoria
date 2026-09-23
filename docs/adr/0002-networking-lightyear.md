@@ -20,15 +20,20 @@ networking libraries that support Bevy 0.19 are lightyear and bevy_replicon.
 Use lightyear. Its prediction and interpolation cover the needs of the first
 networked milestone without custom infrastructure.
 
-Protocol registration (replicated components, messages, channels, inputs)
-lives in one module of `messoria-shared`. Other crates depend on game types,
-not on lightyear types, wherever practical.
+`messoria-shared` owns every piece of lightyear configuration: its plugin
+groups (`SharedPlugin`), protocol registration (`protocol`), and transports and
+authentication (`network`). The server and client crates use lightyear's
+replication and control types (`Replicate`, `PredictionTarget`,
+`ControlledBy`, input markers) where they need them, but never configure the
+library themselves.
 
 ## Consequences
 
 - Less networking code to write and maintain in the early milestones.
-- lightyear's API changes between releases; confining it to the protocol module
-  and a few systems limits the cost of each upgrade.
+- lightyear's API changes between releases; confining its configuration to one
+  crate and its types to a few systems limits the cost of each upgrade.
+- lightyear 0.30 runs on bevy_replicon internally, so replication itself is
+  still built on the other candidate.
 - lightyear upgrades are tied to Bevy upgrades; the two are bumped together.
 - If lightyear stops fitting, the confinement keeps a migration to another
   library tractable.

@@ -11,7 +11,9 @@ publish.workspace = true
 
 [dependencies]
 bevy = { workspace = true, features = ["3d"] }
+lightyear.workspace = true
 messoria-shared.workspace = true
+rand.workspace = true
 
 [lints]
 workspace = true

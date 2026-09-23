@@ -1,6 +1,6 @@
 [package]
-name = "messoria-server"
-description = "Authoritative Messoria game server, usable headless or embedded in the client."
+name = "messoria-loadtest"
+description = "Headless bot players for exercising a Messoria server."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,8 +11,10 @@ publish.workspace = true
 
 [dependencies]
 bevy = { workspace = true, features = ["std", "bevy_log"] }
+clap.workspace = true
 lightyear.workspace = true
 messoria-shared.workspace = true
+rand.workspace = true
 
 [lints]
 workspace = true

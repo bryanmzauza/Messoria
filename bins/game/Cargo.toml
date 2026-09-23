@@ -19,7 +19,10 @@ dev = ["bevy/dynamic_linking"]
 
 [dependencies]
 bevy = { workspace = true, features = ["3d"] }
+clap.workspace = true
 messoria-client.workspace = true
+messoria-server.workspace = true
+messoria-shared.workspace = true
 
 [lints]
 workspace = true

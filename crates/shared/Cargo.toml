@@ -10,7 +10,20 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-bevy = { workspace = true, features = ["std"] }
+bevy = { workspace = true, features = ["std", "bevy_state"] }
+lightyear = { workspace = true, features = [
+  "std",
+  "client",
+  "server",
+  "netcode",
+  "udp",
+  "replication",
+  "prediction",
+  "interpolation",
+  "frame_interpolation",
+  "input_native",
+] }
+serde.workspace = true
 
 [lints]
 workspace = true
