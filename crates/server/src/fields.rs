@@ -13,7 +13,7 @@ use messoria_farming::{Overnight, Planting, harvest_quality};
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    fields::{tile_at, tile_center, tillable_ground},
+    fields::{tile_at, tillable_ground},
     movement::EYE_HEIGHT,
     protocol::{
         Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, HarvestRequest, Position,
@@ -22,6 +22,7 @@ use messoria_shared::{
     terrain::Terrain,
     tools,
 };
+use messoria_voxel::Brush;
 
 use crate::{
     day_cycle::{ClockSystems, DayStarted},
@@ -30,9 +31,11 @@ use crate::{
     terrain::GroundReshaped,
 };
 
-/// How far beyond a reshaped sphere fields are disturbed, so that a field
-/// whose edge was dug away goes too.
-const DISTURBANCE_MARGIN: f32 = 1.0;
+/// How far the ground under a field may move, in meters, before the field
+/// is lost.
+const GROUND_TOLERANCE: f32 = 0.05;
+/// Offsets of the samples at a tile's corners from the tile.
+const CORNERS: [IVec2; 4] = [IVec2::ZERO, IVec2::X, IVec2::Y, IVec2::ONE];
 
 pub(crate) struct FieldsPlugin;
 
@@ -221,26 +224,69 @@ fn ruin_disturbed_fields(
     mut index: ResMut<FieldIndex>,
     mut commands: Commands,
 ) {
-    for disturbance in reshaped.read() {
-        let reach = disturbance.radius + DISTURBANCE_MARGIN;
-        let min = tile_at(disturbance.center - Vec3::splat(reach));
-        let max = tile_at(disturbance.center + Vec3::splat(reach));
+    for GroundReshaped(brush) in reshaped.read() {
+        let reach = Vec3::splat(brush.radius + 1.0);
+        let min = tile_at(brush.center - reach);
+        let max = tile_at(brush.center + reach);
         for z in min.y..=max.y {
             for x in min.x..=max.x {
                 let tile = IVec2::new(x, z);
                 let Some(&entity) = index.0.get(&tile) else {
                     continue;
                 };
-                let Ok(field) = fields.get(entity) else {
-                    continue;
-                };
-                let center = tile_center(tile);
-                let ground = Vec3::new(center.x, field.height, center.y);
-                if ground.distance(disturbance.center) <= reach {
+                if fields
+                    .get(entity)
+                    .is_ok_and(|field| ground_moves_under(brush, field))
+                {
                     index.0.remove(&tile);
                     commands.entity(entity).despawn();
                 }
             }
         }
+    }
+}
+
+/// Whether `brush` moves the ground a field rests on: the samples at its
+/// tile's corners, which lie at about the field's height. Ground moving
+/// further out only tilts the terrain near the field's edges a little, which
+/// the soil drawn for it is deep enough to hide.
+fn ground_moves_under(brush: &Brush, field: &Field) -> bool {
+    CORNERS.iter().any(|&corner| {
+        let column = (field.tile + corner).as_vec2();
+        brush.shift(column, field.height).abs() > GROUND_TOLERANCE
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use messoria_shared::tools::ShovelAction;
+
+    use super::*;
+
+    const FIELD: Field = Field {
+        tile: IVec2::ZERO,
+        height: 10.0,
+    };
+
+    fn dig_at(x: f32) -> Brush {
+        tools::shovel_brush(Vec3::new(x, 10.0, 0.5), ShovelAction::Dig)
+    }
+
+    #[test]
+    fn digging_in_a_field_or_next_to_it_ruins_it() {
+        assert!(ground_moves_under(&dig_at(0.5), &FIELD));
+        assert!(ground_moves_under(&dig_at(1.5), &FIELD));
+    }
+
+    #[test]
+    fn digging_a_tile_away_leaves_it() {
+        assert!(!ground_moves_under(&dig_at(2.5), &FIELD));
+        assert!(!ground_moves_under(&dig_at(-1.5), &FIELD));
+    }
+
+    #[test]
+    fn digging_on_higher_ground_next_to_a_field_leaves_it() {
+        let above = tools::shovel_brush(Vec3::new(1.5, 11.0, 0.5), ShovelAction::Dig);
+        assert!(!ground_moves_under(&above, &FIELD));
     }
 }

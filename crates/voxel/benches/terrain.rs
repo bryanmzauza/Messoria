@@ -43,9 +43,10 @@ fn editing(c: &mut Criterion) {
     let brush = Brush {
         center: Vec3::new(16.0, 16.0, 16.0),
         radius: 1.5,
-        mode: BrushMode::Dig,
+        step: 0.5,
+        mode: BrushMode::Lower,
     };
-    c.bench_function("dig with the shovel", |b| {
+    c.bench_function("lower the ground with the shovel", |b| {
         b.iter_batched_ref(
             || map.clone(),
             |map| map.apply_brush(black_box(&brush)),

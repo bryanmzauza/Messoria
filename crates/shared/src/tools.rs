@@ -18,8 +18,11 @@ pub fn in_reach(eyes: Vec3, target: Vec3) -> bool {
     eyes.distance(target) <= REACH
 }
 
-/// Radius of the sphere of ground a shovel digs or raises, in meters.
-pub const BRUSH_RADIUS: f32 = 1.3;
+/// Radius of the disc of ground a shovel lowers or raises, in meters.
+pub const BRUSH_RADIUS: f32 = 1.5;
+/// Height between the levels the shovel brings ground to, in meters. One
+/// use lowers or raises ground by at most this much.
+pub const SHOVEL_STEP: f32 = 0.5;
 /// Energy each shovel use costs.
 pub const SHOVEL_ENERGY: u16 = 2;
 /// Energy tilling one field costs.
@@ -53,8 +56,9 @@ pub fn shovel_brush(target: Vec3, action: ShovelAction) -> Brush {
     Brush {
         center: target,
         radius: BRUSH_RADIUS,
+        step: SHOVEL_STEP,
         mode: match action {
-            ShovelAction::Dig => BrushMode::Dig,
+            ShovelAction::Dig => BrushMode::Lower,
             ShovelAction::Raise => BrushMode::Raise(RAISED_MATERIAL),
         },
     }

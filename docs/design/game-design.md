@@ -38,7 +38,7 @@
 
 ### 3.1 Terrain
 - Stored as a **voxel grid** with a material per cell (soil, grass, stone, sand, ore…).
-- Rendered with **Surface Nets** (or Marching Cubes) → organic hills and caves, no cubes.
+- Rendered with **Surface Nets** → organic hills, no cubes. Flat-shaded low-poly facets.
 - Split into **chunks** (e.g. 32³) loaded based on player proximity.
 
 ### 3.2 Areas
@@ -87,6 +87,7 @@ Hoe, watering can, axe, pickaxe, shovel (terraforming), scythe, basic weapon. Up
 - Hotbar (10 slots) + expandable backpack (20 slots to start), chests for storage. The held hotbar item decides what the mouse buttons do.
 - **Perishable items expire:** each item has a shelf life in in-game days; spoiled items become trash or compost. Stacking perishables averages their freshness by count.
 - Digging with the shovel yields the dug material (soil, stone, sand); raising the ground uses soil.
+- The shovel moves the ground in a small circle down or up to the next level; levels are half a meter apart and shared by the whole world, so neighboring digs join into flat ground and digging along a slope cuts terraces.
 - Preservation: **[OPEN]** fridge/cellar, and processing (jam, pickles, wine) to extend shelf life and add value.
 
 ### 5.4 Energy

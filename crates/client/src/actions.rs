@@ -189,21 +189,20 @@ fn draw_aim(
     let (Some(hit), Ok(belongings)) = (aim.0, player.single()) else {
         return;
     };
+    // Gizmo shapes are drawn facing +Z; this lays them on the ground.
+    let flat = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
     match held_handling(&content, &held, belongings) {
         Some(Handling::Shovel) => {
-            let facing = Quat::from_rotation_arc(Vec3::Z, hit.normal);
             gizmos.circle(
-                Isometry3d::new(hit.point + hit.normal * AIM_LIFT, facing),
+                Isometry3d::new(hit.point + Vec3::Y * AIM_LIFT, flat),
                 tools::BRUSH_RADIUS,
                 AIM_COLOR,
             );
         }
         Some(Handling::FieldTool | Handling::FieldSupply) => {
             let center = tile_center(tile_at(hit.point));
-            let square = Isometry3d::new(
-                Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y),
-                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            );
+            let square =
+                Isometry3d::new(Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y), flat);
             gizmos.rect(square, Vec2::ONE, AIM_COLOR);
         }
         Some(Handling::Consumable) | None => {}

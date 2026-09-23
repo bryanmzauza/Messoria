@@ -1,6 +1,7 @@
 # 0004 — Terrain as signed distances, meshed with Surface Nets
 
-**Status:** accepted
+**Status:** accepted. The edit shape and shading are superseded by
+[ADR 0005](0005-terrain-edits-and-shading.md).
 
 ## Context
 

@@ -6,11 +6,12 @@ use messoria_content::Quality;
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    movement::{BODY_HEIGHT, BODY_RADIUS, EYE_HEIGHT},
+    movement::{BODY_RADIUS, EYE_HEIGHT},
     protocol::{Asleep, Belongings, PlayerId, Position, WorldClock},
     terrain::{ChunkChanged, Terrain},
     tools::{self, ShovelAction},
 };
+use messoria_voxel::Brush;
 
 use super::{GroundReshaped, TerrainEdited, editable};
 use crate::inventory::{ItemUseSystems, ShovelUse};
@@ -83,10 +84,7 @@ fn apply_shovel_uses(
             chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
             edited.write(TerrainEdited(changes));
         }
-        reshaped.write(GroundReshaped {
-            center: brush.center,
-            radius: brush.radius,
-        });
+        reshaped.write(GroundReshaped(brush));
     }
 }
 
@@ -109,38 +107,46 @@ fn validate(
     {
         return Err("target is not on the terrain surface");
     }
-    if shovel_use.action == ShovelAction::Raise
-        && characters
+    if shovel_use.action == ShovelAction::Raise {
+        let brush = tools::shovel_brush(target, shovel_use.action);
+        if characters
             .iter()
-            .any(|character| body_overlaps_brush(character.0, target))
-    {
-        return Err("raising would bury a player");
+            .any(|character| lifts_body(&brush, character.0))
+        {
+            return Err("raising would bury a player");
+        }
     }
     Ok(())
 }
 
-/// Whether the brush sphere at `center` intersects a body standing at `feet`,
-/// treating the body as a capsule around its vertical axis.
-fn body_overlaps_brush(feet: Vec3, center: Vec3) -> bool {
-    let nearest_on_axis = feet.with_y(center.y.clamp(feet.y, feet.y + BODY_HEIGHT));
-    nearest_on_axis.distance(center) < tools::BRUSH_RADIUS + BODY_RADIUS
+/// Whether `brush` would lift the ground under any part of a body standing
+/// at `feet`. The ground moves most at the point of the body's footprint
+/// nearest the brush's middle.
+fn lifts_body(brush: &Brush, feet: Vec3) -> bool {
+    let middle = brush.center.xz();
+    let nearest = feet.xz() + (middle - feet.xz()).clamp_length_max(BODY_RADIUS);
+    brush.shift(nearest, feet.y) > 0.0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn raising_next_to_a_body_overlaps_it() {
-        let feet = Vec3::new(0.0, 10.0, 0.0);
-        assert!(body_overlaps_brush(feet, Vec3::new(1.0, 10.0, 0.0)));
-        assert!(body_overlaps_brush(feet, Vec3::new(0.0, 12.5, 0.0)));
+    fn raise_at(x: f32, y: f32) -> Brush {
+        tools::shovel_brush(Vec3::new(x, y, 0.0), ShovelAction::Raise)
     }
 
     #[test]
-    fn raising_at_arms_length_does_not() {
+    fn raising_next_to_a_body_lifts_it() {
         let feet = Vec3::new(0.0, 10.0, 0.0);
-        assert!(!body_overlaps_brush(feet, Vec3::new(2.5, 10.0, 0.0)));
-        assert!(!body_overlaps_brush(feet, Vec3::new(0.0, 8.0, 0.0)));
+        assert!(lifts_body(&raise_at(1.0, 10.0), feet));
+        assert!(lifts_body(&raise_at(tools::BRUSH_RADIUS, 10.2), feet));
+    }
+
+    #[test]
+    fn raising_at_arms_length_or_below_the_feet_does_not() {
+        let feet = Vec3::new(0.0, 10.0, 0.0);
+        assert!(!lifts_body(&raise_at(2.5, 10.0), feet));
+        assert!(!lifts_body(&raise_at(0.5, 8.0), feet));
     }
 }

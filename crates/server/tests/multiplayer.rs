@@ -35,7 +35,7 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 fn client_controls_its_own_predicted_character() {
     let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
     let mut server = server_app(server_addr);
-    let mut client = client_app(server_addr, Behavior::WalkForward);
+    let mut client = client_app(server_addr, Behavior::Walk);
 
     run_until(
         &mut server,
@@ -66,6 +66,46 @@ fn client_controls_its_own_predicted_character() {
                 .query::<&Position>()
                 .iter(server.world())
                 .any(|position| position.0.z < start.z - 1.0)
+        },
+    );
+}
+
+/// Once a character stops, its owner must see it exactly where the server
+/// has it, even if the server did not act on every input the client
+/// predicted with.
+#[test]
+fn prediction_settles_where_the_server_has_the_character() {
+    let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
+    let mut server = server_app(server_addr);
+    let mut client = client_app(server_addr, Behavior::Walk);
+
+    run_until(
+        &mut server,
+        &mut client,
+        "client to control a character",
+        |_, client| local_character_if_any(client).is_some(),
+    );
+    let start = local_character(&mut client);
+    run_until(
+        &mut server,
+        &mut client,
+        "client to walk a few meters",
+        |_, client| local_character(client).distance(start) > 3.0,
+    );
+    client.world_mut().resource_mut::<Walking>().0 = false;
+
+    run_until(
+        &mut server,
+        &mut client,
+        "the predicted character to settle where the server has it",
+        |server, client| {
+            let authoritative = server
+                .world_mut()
+                .query_filtered::<&Position, With<PlayerId>>()
+                .single(server.world())
+                .expect("one character")
+                .0;
+            local_character(client).distance(authoritative) < 0.05
         },
     );
 }
@@ -179,8 +219,13 @@ fn sleeping_through_the_night_starts_a_new_day() {
 
 enum Behavior {
     StandStill,
-    WalkForward,
+    /// Walk forward until [`Walking`] says otherwise.
+    Walk,
 }
+
+/// Whether a client with [`Behavior::Walk`] walks.
+#[derive(Resource)]
+struct Walking(bool);
 
 fn server_app(bind_addr: SocketAddr) -> App {
     server_app_starting_at(bind_addr, WorldTime::FIRST_DAWN)
@@ -213,12 +258,14 @@ fn client_app(server_addr: SocketAddr, behavior: Behavior) -> App {
             content: load_content().expect("the shipped content is valid"),
         },
     ));
-    if let Behavior::WalkForward = behavior {
-        app.add_systems(
-            FixedPreUpdate,
-            walk_forward.in_set(InputSystems::WriteClientInputs),
-        );
+    if let Behavior::Walk = behavior {
+        app.insert_resource(Walking(true));
     }
+    app.add_systems(
+        FixedPreUpdate,
+        walk.run_if(resource_exists::<Walking>)
+            .in_set(InputSystems::WriteClientInputs),
+    );
 
     let client = app
         .world_mut()
@@ -238,10 +285,13 @@ fn ready(mut app: App) -> App {
     app
 }
 
-fn walk_forward(mut inputs: Query<&mut ActionState<PlayerInput>, With<InputMarker<PlayerInput>>>) {
+fn walk(
+    walking: Res<Walking>,
+    mut inputs: Query<&mut ActionState<PlayerInput>, With<InputMarker<PlayerInput>>>,
+) {
     for mut input in &mut inputs {
         input.0 = PlayerInput {
-            movement: Vec2::Y,
+            movement: if walking.0 { Vec2::Y } else { Vec2::ZERO },
             ..default()
         };
     }

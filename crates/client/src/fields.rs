@@ -17,6 +17,9 @@ use messoria_shared::{
 const SOIL_SIZE: f32 = 0.92;
 /// Lifts the soil above the terrain so it is not hidden inside it.
 const SOIL_LIFT: f32 = 0.04;
+/// How far the soil reaches down into the ground, so that it still meets the
+/// terrain where the ground around the field slopes away.
+const SOIL_DEPTH: f32 = 0.2;
 const DRY_SOIL: Color = Color::srgb(0.42, 0.3, 0.2);
 const WET_SOIL: Color = Color::srgb(0.25, 0.17, 0.11);
 const LEAF_COLOR: Color = Color::srgb(0.32, 0.62, 0.25);
@@ -75,7 +78,7 @@ fn load_field_art(
         })
         .collect();
     commands.insert_resource(FieldArt {
-        soil: meshes.add(Plane3d::default().mesh().size(SOIL_SIZE, SOIL_SIZE)),
+        soil: meshes.add(Cuboid::new(SOIL_SIZE, SOIL_DEPTH, SOIL_SIZE)),
         dry_soil: materials.add(matte(DRY_SOIL)),
         wet_soil: materials.add(matte(WET_SOIL)),
         stem: meshes.add(Cylinder::new(0.025, 1.0)),
@@ -100,7 +103,7 @@ fn show_field(
         .spawn((
             Mesh3d(art.soil.clone()),
             MeshMaterial3d(soil_material(&art, watered)),
-            Transform::from_xyz(0.0, SOIL_LIFT, 0.0),
+            Transform::from_xyz(0.0, SOIL_LIFT - SOIL_DEPTH / 2.0, 0.0),
         ))
         .id();
     commands

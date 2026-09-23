@@ -47,7 +47,13 @@ impl Plugin for SharedPlugin {
         let tick_duration = tick::tick_duration();
         match self.role {
             NetworkRole::Server => app.add_plugins(ServerPlugins { tick_duration }),
-            NetworkRole::Client => app.add_plugins(ClientPlugins { tick_duration }),
+            // Prediction only records history and rolls back to the server's
+            // state when this resource is present. Without it, a remote
+            // client's character would drift from the server's for good as
+            // soon as one input went unapplied.
+            NetworkRole::Client => app
+                .add_plugins(ClientPlugins { tick_duration })
+                .insert_resource(PredictionManager::default()),
             NetworkRole::Host => app.add_plugins((
                 ServerPlugins { tick_duration },
                 ClientPlugins { tick_duration },

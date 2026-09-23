@@ -7,7 +7,7 @@ mod streaming;
 
 use bevy::{ecs::message::Message, prelude::*};
 use messoria_shared::terrain::{ChunkChanged, Terrain};
-use messoria_voxel::ChunkChanges;
+use messoria_voxel::{Brush, ChunkChanges};
 
 use generation::editable;
 pub(crate) use generation::ground_height;
@@ -27,13 +27,10 @@ impl Plugin for TerrainPlugin {
 #[derive(Message, Clone, Debug)]
 struct TerrainEdited(ChunkChanges);
 
-/// The ground within `radius` of `center` was dug or raised, so anything
-/// resting on it there is disturbed.
+/// The ground was moved by `Brush`, so anything resting on it may be
+/// disturbed.
 #[derive(Message, Clone, Copy, Debug)]
-pub(crate) struct GroundReshaped {
-    pub center: Vec3,
-    pub radius: f32,
-}
+pub(crate) struct GroundReshaped(pub Brush);
 
 fn generate_world(mut terrain: ResMut<Terrain>, mut chunk_changed: MessageWriter<ChunkChanged>) {
     **terrain = generation::farm();

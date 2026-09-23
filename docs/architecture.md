@@ -87,21 +87,29 @@ which groups are added.
   `ControlledBy` ties the character's lifetime to the connection.
 - Clients send one `PlayerInput` per tick. The server treats input as
   untrusted and sanitizes it in the shared movement code.
+- A remote client inserts lightyear's `PredictionManager`. Without it,
+  lightyear neither records prediction history nor rolls back to the server's
+  state, and a predicted character drifts from the server's for good once one
+  input goes unapplied.
 - lightyear drops messages left unread at the end of a frame, so systems that
   receive messages run every frame (`PreUpdate`), never in `FixedUpdate`.
 
 ## Terrain
 
-See [ADR 0004](adr/0004-terrain-representation.md).
+See [ADR 0004](adr/0004-terrain-representation.md) and
+[ADR 0005](adr/0005-terrain-edits-and-shading.md).
 
 - The server generates the farm valley at startup and owns the authoritative
   `Terrain` resource. A client's `Terrain` holds only the chunks streamed to it.
   A hosted world shares one `Terrain` between its server and client.
 - Chunks within a client's view radius are streamed nearest first, a few per
   tick; chunks beyond a wider radius are unloaded.
-- Clients ask to dig or raise with a `ShovelRequest`. The server checks reach,
-  rate, the target and nearby players, applies the brush and forwards the
-  changed voxels to every client holding the chunk.
+- Clients dig or raise by using the shovel (`UseItem`). The server checks
+  reach, rate, the target and nearby players, applies the brush and forwards
+  the changed voxels to every client holding the chunk.
+- A brush moves the ground within a disc to the next level, a multiple of its
+  step, below or above the target. The client draws terrain flat-shaded, one
+  material per facet.
 - Any change to `Terrain` emits `ChunkChanged` for each chunk whose mesh
   depends on it; the client remeshes those under a per-frame time budget.
 

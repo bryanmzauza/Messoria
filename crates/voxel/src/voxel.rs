@@ -14,6 +14,16 @@ pub enum Material {
 
 impl Material {
     pub const ALL: [Self; 4] = [Self::Grass, Self::Soil, Self::Stone, Self::Sand];
+
+    /// What this ground shows once its surface is dug away. Grass is only a
+    /// layer over soil.
+    #[must_use]
+    pub fn exposed(self) -> Self {
+        match self {
+            Self::Grass => Self::Soil,
+            other => other,
+        }
+    }
 }
 
 impl TryFrom<u8> for Material {

@@ -10,6 +10,8 @@ use bevy::prelude::*;
 use messoria_calendar::Weather;
 use messoria_shared::protocol::CurrentWeather;
 
+use crate::noise::unit_noise;
+
 const DROPS: u32 = 500;
 /// Half the width and the height of the box drops fall through, in meters.
 const BOX_RADIUS: f32 = 14.0;
@@ -71,15 +73,4 @@ fn draw_precipitation(
             + Vec3::new(precipitation.slant.x, 1.0, precipitation.slant.y) * precipitation.length;
         gizmos.line(head, tail, precipitation.color);
     }
-}
-
-/// A fixed pseudo-random number in `0..1` for `index`.
-fn unit_noise(index: u32) -> f32 {
-    let mut value = index.wrapping_mul(0x9e37_79b9);
-    value ^= value >> 16;
-    value = value.wrapping_mul(0x85eb_ca6b);
-    value ^= value >> 13;
-    #[expect(clippy::cast_precision_loss, reason = "only the top bits matter")]
-    let unit = (value >> 8) as f32 / (1 << 24) as f32;
-    unit
 }

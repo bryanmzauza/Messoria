@@ -15,6 +15,7 @@ mod fields;
 mod hud;
 mod input;
 mod inventory;
+mod noise;
 mod sleep;
 mod terrain;
 mod weather;

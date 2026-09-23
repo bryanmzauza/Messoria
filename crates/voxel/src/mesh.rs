@@ -58,11 +58,12 @@ const AXES: [IVec3; 3] = [IVec3::X, IVec3::Y, IVec3::Z];
 
 /// A triangle mesh in the chunk's local space, where `(0, 0, 0)` is the
 /// chunk's origin. Front faces wind counter-clockwise and face the air.
+///
+/// There are no normals: how the surface is shaded, smooth or faceted, is
+/// the renderer's choice, and triangle winding gives each face's direction.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SurfaceMesh {
     pub positions: Vec<[f32; 3]>,
-    /// Unit normals pointing out of the ground.
-    pub normals: Vec<[f32; 3]>,
     /// Ground material at each vertex, for coloring or texturing.
     pub materials: Vec<Material>,
     pub indices: Vec<u32>,
@@ -205,31 +206,11 @@ fn place_vertices(samples: &Samples, mesh: &mut SurfaceMesh) -> Vec<u32> {
                 let index = u32::try_from(mesh.positions.len()).expect("fewer than 2³² vertices");
                 vertices[cell_index(cell)] = index;
                 mesh.positions.push((cell.as_vec3() + offset).to_array());
-                mesh.normals.push(gradient(&distances, offset).to_array());
                 mesh.materials.push(material);
             }
         }
     }
     vertices
-}
-
-/// Direction of steepest distance increase within a cell at `offset`, by
-/// differentiating the trilinear interpolation of its corners.
-fn gradient(distances: &[f32; 8], offset: Vec3) -> Vec3 {
-    let mut gradient = Vec3::ZERO;
-    for (corner, &distance) in distances.iter().enumerate() {
-        let position = CORNERS[corner].as_vec3();
-        // Weight of this corner along each axis, and the sign of its slope.
-        let weight = Vec3::ONE - (position - offset).abs();
-        let slope = position * 2.0 - Vec3::ONE;
-        gradient += distance
-            * Vec3::new(
-                slope.x * weight.y * weight.z,
-                slope.y * weight.x * weight.z,
-                slope.z * weight.x * weight.y,
-            );
-    }
-    gradient.normalize_or(Vec3::Y)
 }
 
 /// Emits a quad for every edge that starts at one of the chunk's own samples
@@ -299,9 +280,8 @@ mod tests {
         let mesh = mesh_chunk(&map, ChunkPos(IVec3::ZERO)).unwrap();
 
         assert!(!mesh.is_empty());
-        for (position, normal) in mesh.positions.iter().zip(&mesh.normals) {
+        for position in &mesh.positions {
             assert!((position[1] - 10.3).abs() < 0.02, "vertex at {position:?}");
-            assert!(Vec3::from(*normal).abs_diff_eq(Vec3::Y, 1e-4));
         }
         assert!(triangles(&mesh).all(|triangle| facing(triangle).y > 0.0));
     }

@@ -2,22 +2,28 @@
 //!
 //! Meshing runs on the main thread under a per-frame time budget, nearest
 //! chunks first, so loading a whole area never stalls a frame.
+//!
+//! Terrain is flat-shaded, low-poly style: every triangle is lit as one facet
+//! and colored by one material, with a slight brightness difference from its
+//! neighbors. Faces too steep to hold grass show the soil beneath it.
 
 use std::{
     collections::{HashMap, HashSet},
     time::{Duration, Instant},
 };
 
-use bevy::{
-    asset::RenderAssetUsages,
-    mesh::{Indices, PrimitiveTopology},
-    prelude::*,
-};
+use bevy::{asset::RenderAssetUsages, mesh::PrimitiveTopology, prelude::*};
 use messoria_shared::terrain::{ChunkChanged, Terrain};
 use messoria_voxel::{ChunkPos, Material, SurfaceMesh, mesh_chunk};
 
+use crate::noise::unit_noise;
+
 /// Time per frame spent rebuilding chunk meshes.
 const MESHING_BUDGET: Duration = Duration::from_millis(4);
+/// Largest brightness difference between facets, as a share of their color.
+const FACET_VARIATION: f32 = 0.03;
+/// Least upward component of a facet's normal for it to show grass.
+const GRASS_FLATNESS: f32 = 0.6;
 
 pub(crate) struct TerrainPlugin;
 
@@ -80,20 +86,21 @@ fn rebuild_meshes(
         }
         stale.0.remove(&chunk);
 
+        let origin = chunk.origin().as_vec3();
         let surface = mesh_chunk(&terrain, chunk).filter(|surface| !surface.is_empty());
         match (surface, chunk_meshes.0.get(&chunk).copied()) {
             (Some(surface), Some(entity)) => {
                 commands
                     .entity(entity)
-                    .insert(Mesh3d(meshes.add(to_render_mesh(surface))));
+                    .insert(Mesh3d(meshes.add(to_render_mesh(&surface, origin))));
             }
             (Some(surface), None) => {
                 let entity = commands
                     .spawn((
                         Name::new(format!("Terrain chunk {}", chunk.0)),
-                        Mesh3d(meshes.add(to_render_mesh(surface))),
+                        Mesh3d(meshes.add(to_render_mesh(&surface, origin))),
                         MeshMaterial3d(material.0.clone()),
-                        Transform::from_translation(chunk.origin().as_vec3()),
+                        Transform::from_translation(origin),
                     ))
                     .id();
                 chunk_meshes.0.insert(chunk, entity);
@@ -107,23 +114,72 @@ fn rebuild_meshes(
     }
 }
 
-fn to_render_mesh(surface: SurfaceMesh) -> Mesh {
-    let colors: Vec<[f32; 4]> = surface.materials.iter().map(|&m| ground_color(m)).collect();
+/// A flat-shaded mesh of a chunk's surface, whose origin is at `origin` in
+/// the world. Every triangle gets vertices of its own, so that it can carry
+/// its own normal and color.
+fn to_render_mesh(surface: &SurfaceMesh, origin: Vec3) -> Mesh {
+    let vertex_count = surface.indices.len();
+    let mut positions = Vec::with_capacity(vertex_count);
+    let mut normals = Vec::with_capacity(vertex_count);
+    let mut colors = Vec::with_capacity(vertex_count);
+    for triangle in surface.indices.as_chunks::<3>().0 {
+        let corners = triangle.map(|vertex| Vec3::from(surface.positions[vertex as usize]));
+        let normal = (corners[1] - corners[0])
+            .cross(corners[2] - corners[0])
+            .normalize_or(Vec3::Y);
+        let material = facet_material(triangle.map(|vertex| surface.materials[vertex as usize]));
+        let material = if normal.y < GRASS_FLATNESS {
+            material.exposed()
+        } else {
+            material
+        };
+        let middle = origin + (corners[0] + corners[1] + corners[2]) / 3.0;
+        let color = facet_color(material, middle);
+        for corner in corners {
+            positions.push(corner.to_array());
+            normals.push(normal.to_array());
+            colors.push(color);
+        }
+    }
     Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
     )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, surface.positions)
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, surface.normals)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
     .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
-    .with_inserted_indices(Indices::U32(surface.indices))
+}
+
+/// The material most of a triangle's corners share, or its first corner's
+/// if they all differ.
+fn facet_material([first, second, third]: [Material; 3]) -> Material {
+    if second == third { second } else { first }
+}
+
+/// The color of a facet whose middle is at `middle` in the world. The
+/// brightness difference depends only on where the facet is, so it stays
+/// the same when the chunk is remeshed.
+fn facet_color(material: Material, middle: Vec3) -> [f32; 4] {
+    let cell = (middle * 4.0).round().as_ivec3().to_array();
+    #[expect(clippy::cast_sign_loss, reason = "only the bits matter")]
+    let key = (cell[0] as u32).wrapping_mul(0x8da6_b343)
+        ^ (cell[1] as u32).wrapping_mul(0xd816_3841)
+        ^ (cell[2] as u32).wrapping_mul(0xcb1a_b31f);
+    let brightness = 1.0 + FACET_VARIATION * (2.0 * unit_noise(key) - 1.0);
+    let [red, green, blue, alpha] = ground_color(material);
+    [
+        red * brightness,
+        green * brightness,
+        blue * brightness,
+        alpha,
+    ]
 }
 
 /// Vertex color of each ground material, in linear space.
 fn ground_color(material: Material) -> [f32; 4] {
     let color = match material {
         Material::Grass => Color::srgb(0.36, 0.52, 0.28),
-        Material::Soil => Color::srgb(0.45, 0.33, 0.22),
+        Material::Soil => Color::srgb(0.4, 0.29, 0.2),
         Material::Stone => Color::srgb(0.52, 0.5, 0.47),
         Material::Sand => Color::srgb(0.82, 0.74, 0.52),
     };
