@@ -43,6 +43,7 @@ impl Plugin for CameraPlugin {
             .add_systems(
                 PostUpdate,
                 (follow_player, show_own_avatar)
+                    .in_set(CameraPlacement)
                     .after(AvatarSystems)
                     .before(TransformSystems::Propagate),
             );
@@ -52,6 +53,10 @@ impl Plugin for CameraPlugin {
 /// Updates the view from the mouse and keyboard.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct LookSystems;
+
+/// Places the camera for the frame; whatever follows the camera runs after.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct CameraPlacement;
 
 /// Where the player is looking, and from where.
 #[derive(Resource, Debug, Default)]

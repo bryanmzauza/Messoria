@@ -2,6 +2,7 @@
 
 use std::{io, path::PathBuf};
 
+use messoria_calendar::Season;
 use messoria_voxel::Material;
 use thiserror::Error;
 
@@ -61,6 +62,20 @@ pub enum Problem {
     InvalidShop { shop: String, reason: String },
     #[error("the market rules are invalid: {0}")]
     InvalidMarket(String),
+    #[error("prop `{0}` is defined more than once")]
+    DuplicateProp(String),
+    #[error("prop `{prop}` is invalid: {reason}")]
+    InvalidProp { prop: String, reason: String },
+    #[error("ground cover {index} is invalid: {reason}")]
+    InvalidCover { index: usize, reason: String },
+    #[error("model `{0}` is not in the models folder")]
+    MissingModel(String),
+    #[error("color `{0}` has a channel outside 0 to 1")]
+    InvalidColor(String),
+    #[error("the palette has no color for `{0}`")]
+    UncoloredGround(String),
+    #[error("{season:?} changes color `{name}`, which the palette does not define")]
+    UnknownColor { season: Season, name: String },
 }
 
 impl From<ron::error::SpannedError> for Problem {

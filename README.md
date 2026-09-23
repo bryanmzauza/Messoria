@@ -9,13 +9,14 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 ## Status
 
-Early development. Players share a farm valley over the network, hosted from
-the game or on a dedicated server, reshape its smooth voxel terrain with a
-shovel, farm crops through the seasons, sell their harvests at the village
-grocer, whose prices respond to what everyone sells, and live through days and
-nights that end when they go to sleep. Worlds are saved and resume where they
-stopped. Opening a world to friends with an access code is next. See the
-[roadmap](docs/ROADMAP.md) for what is done and what comes next.
+Early development. Players share a wooded farm valley over the network,
+hosted from the game or on a dedicated server, reshape its smooth voxel
+terrain with a shovel, farm crops through the seasons, sell their harvests at
+the village grocer, whose prices respond to what everyone sells, and live
+through days and nights that end when they go to sleep, under a sky that
+turns with the hours and a valley that turns with the seasons. Worlds are
+saved and resume where they stopped. Making every action feel responsive is
+next. See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -81,9 +82,12 @@ Sundays.
 
 Game content lives in `assets/data/`: items in
 [`items.ron`](assets/data/items.ron), crops in
-[`crops.ron`](assets/data/crops.ron), and shops and market prices in
-[`shops.ron`](assets/data/shops.ron). The game refuses to start, naming the
-problem, if a data file is invalid.
+[`crops.ron`](assets/data/crops.ron), shops and market prices in
+[`shops.ron`](assets/data/shops.ron), trees, rocks and ground cover in
+[`scenery.ron`](assets/data/scenery.ron), and the colors of everything, season
+by season, in [`palette.ron`](assets/data/palette.ron). The game refuses to
+start, naming the problem, if a data file is invalid. Models come from CC0 art
+packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
 
 ## Repository layout
 

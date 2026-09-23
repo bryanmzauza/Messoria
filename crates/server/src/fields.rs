@@ -13,7 +13,7 @@ use messoria_farming::{Overnight, Planting, harvest_quality};
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    fields::{tile_at, tillable_ground},
+    fields::{tile_at, tile_center, tillable_ground},
     movement::EYE_HEIGHT,
     protocol::{
         Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, HarvestRequest, Position,
@@ -29,6 +29,7 @@ use crate::{
     day_cycle::{ClockSystems, DayStarted},
     inventory::{FieldTask, FieldWork, ItemUseSystems},
     players::ControlledCharacter,
+    scenery::Scenery,
     terrain::GroundReshaped,
 };
 
@@ -95,6 +96,7 @@ fn field_bundle(tile: IVec2, height: f32) -> impl Bundle {
 fn work_fields(
     content: Res<Content>,
     terrain: Res<Terrain>,
+    scenery: Res<Scenery>,
     clock: Single<&WorldClock>,
     mut work: MessageReader<FieldWork>,
     characters: Query<&Position>,
@@ -119,7 +121,10 @@ fn work_fields(
 
         match (job.task, field, state) {
             (FieldTask::Till, None, _) => {
-                if village::reaches(job.target, 0.0) {
+                // A tile reaches about 0.7 m from its middle to its corners.
+                let middle = tile_center(tile);
+                let middle = Vec3::new(middle.x, job.target.y, middle.y);
+                if village::reaches(job.target, 0.0) || scenery.blocks(middle, 0.71) {
                     continue;
                 }
                 let Some(height) = tillable_ground(&terrain, tile, job.target.y) else {

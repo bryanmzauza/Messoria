@@ -6,10 +6,12 @@
 //! predicts the local player's movement through shared code.
 
 mod actions;
+mod art;
 mod avatars;
 mod camera;
 mod clock;
 mod connection;
+mod cover;
 mod environment;
 mod fields;
 mod hud;
@@ -17,7 +19,9 @@ mod input;
 mod inventory;
 mod noise;
 mod panels;
+mod scenery;
 mod shops;
+mod sky;
 mod sleep;
 mod terrain;
 mod ui;
@@ -52,6 +56,10 @@ impl Plugin for ClientPlugin {
             hud::HudPlugin,
         ))
         .add_plugins((
+            art::ArtPlugin,
+            scenery::SceneryPlugin,
+            cover::CoverPlugin,
+            sky::SkyPlugin,
             ui::UiPlugin,
             panels::PanelsPlugin,
             shops::ShopsPlugin,

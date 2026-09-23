@@ -11,6 +11,8 @@ use crate::{
     crop::{CropDef, CropId, Crops, CropsFile},
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Items, ItemsFile},
+    palette::{Palette, PaletteFile},
+    scenery::{CoverDef, PropDef, PropId, Scenery, SceneryFile},
     shop::{MarketRules, ShopDef, ShopId, Shops, ShopsFile},
 };
 
@@ -18,6 +20,20 @@ use crate::{
 const ITEMS_FILE: &str = "items.ron";
 const CROPS_FILE: &str = "crops.ron";
 const SHOPS_FILE: &str = "shops.ron";
+const SCENERY_FILE: &str = "scenery.ron";
+const PALETTE_FILE: &str = "palette.ron";
+/// Folder of the models, next to the data folder.
+const MODELS_FOLDER: &str = "models";
+
+/// The text of every content file.
+#[derive(Clone, Copy, Debug)]
+pub struct Sources<'a> {
+    pub items: &'a str,
+    pub crops: &'a str,
+    pub shops: &'a str,
+    pub scenery: &'a str,
+    pub palette: &'a str,
+}
 
 /// All loaded content, with every cross-reference checked.
 #[derive(Clone, Debug)]
@@ -35,10 +51,15 @@ pub struct Catalog {
     market: MarketRules,
     shops: Vec<ShopDef>,
     shop_keys: HashMap<String, ShopId>,
+    props: Vec<PropDef>,
+    prop_keys: HashMap<String, PropId>,
+    cover: Vec<CoverDef>,
+    palette: Palette,
 }
 
 impl Catalog {
-    /// Loads content from the data folder at `data_dir`.
+    /// Loads content from the data folder at `data_dir`, and checks that
+    /// every model it refers to is in the models folder beside it.
     ///
     /// # Errors
     ///
@@ -47,56 +68,72 @@ impl Catalog {
     pub fn load(data_dir: &Path) -> Result<Self, ContentError> {
         let read = |file: &str| {
             let path = data_dir.join(file);
-            fs::read_to_string(&path)
-                .map(|source| (source, path.clone()))
-                .map_err(|error| ContentError {
-                    file: path,
-                    problem: error.into(),
-                })
+            fs::read_to_string(&path).map_err(|error| ContentError {
+                file: path,
+                problem: error.into(),
+            })
         };
-        let items = read(ITEMS_FILE)?;
-        let crops = read(CROPS_FILE)?;
-        let shops = read(SHOPS_FILE)?;
-        Self::build(
-            (&items.0, &items.1),
-            (&crops.0, &crops.1),
-            (&shops.0, &shops.1),
-        )
+        let (items, crops, shops) = (read(ITEMS_FILE)?, read(CROPS_FILE)?, read(SHOPS_FILE)?);
+        let (scenery, palette) = (read(SCENERY_FILE)?, read(PALETTE_FILE)?);
+        let sources = Sources {
+            items: &items,
+            crops: &crops,
+            shops: &shops,
+            scenery: &scenery,
+            palette: &palette,
+        };
+        let catalog = Self::build(sources, data_dir)?;
+
+        let models = data_dir.parent().unwrap_or(data_dir).join(MODELS_FOLDER);
+        let models_used = catalog
+            .props
+            .iter()
+            .flat_map(|prop| &prop.models)
+            .chain(catalog.cover.iter().flat_map(|cover| &cover.models));
+        for model in models_used {
+            if !models.join(model).is_file() {
+                return Err(ContentError {
+                    file: data_dir.join(SCENERY_FILE),
+                    problem: Problem::MissingModel(model.clone()),
+                });
+            }
+        }
+        Ok(catalog)
     }
 
-    /// Builds a catalog from the text of the content files.
+    /// Builds a catalog from the text of the content files. Models are not
+    /// looked for.
     ///
     /// # Errors
     ///
     /// Fails if any text is malformed or inconsistent.
-    pub fn from_sources(items: &str, crops: &str, shops: &str) -> Result<Self, ContentError> {
-        Self::build(
-            (items, Path::new(ITEMS_FILE)),
-            (crops, Path::new(CROPS_FILE)),
-            (shops, Path::new(SHOPS_FILE)),
-        )
+    pub fn from_sources(sources: Sources<'_>) -> Result<Self, ContentError> {
+        Self::build(sources, Path::new(""))
     }
 
-    /// Builds a catalog from each file's text and path.
-    fn build(
-        (items, items_path): (&str, &Path),
-        (crops, crops_path): (&str, &Path),
-        (shops, shops_path): (&str, &Path),
-    ) -> Result<Self, ContentError> {
-        let in_file = |file: &Path| {
-            let file = file.to_path_buf();
+    /// Builds a catalog from the files' text, naming them as found in
+    /// `folder` in errors.
+    fn build(sources: Sources<'_>, folder: &Path) -> Result<Self, ContentError> {
+        let in_file = |file: &str| {
+            let file = folder.join(file);
             move |problem| ContentError { file, problem }
         };
-        let items: Items = parse::<ItemsFile>(items)
+        let items: Items = parse::<ItemsFile>(sources.items)
             .and_then(ItemsFile::resolve)
-            .map_err(in_file(items_path))?;
-        let dug_items = dug_items(&items.definitions).map_err(in_file(items_path))?;
-        let crops: Crops = parse::<CropsFile>(crops)
+            .map_err(in_file(ITEMS_FILE))?;
+        let dug_items = dug_items(&items.definitions).map_err(in_file(ITEMS_FILE))?;
+        let crops: Crops = parse::<CropsFile>(sources.crops)
             .and_then(|file| file.resolve(&items))
-            .map_err(in_file(crops_path))?;
-        let shops: Shops = parse::<ShopsFile>(shops)
+            .map_err(in_file(CROPS_FILE))?;
+        let shops: Shops = parse::<ShopsFile>(sources.shops)
             .and_then(|file| file.resolve(&items))
-            .map_err(in_file(shops_path))?;
+            .map_err(in_file(SHOPS_FILE))?;
+        let scenery: Scenery = parse::<SceneryFile>(sources.scenery)
+            .and_then(SceneryFile::resolve)
+            .map_err(in_file(SCENERY_FILE))?;
+        let palette = parse::<PaletteFile>(sources.palette)
+            .and_then(PaletteFile::resolve)
+            .map_err(in_file(PALETTE_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();
         for crop in &crops.definitions {
@@ -121,6 +158,10 @@ impl Catalog {
             market: shops.market,
             shops: shops.definitions,
             shop_keys: shops.by_key,
+            props: scenery.props,
+            prop_keys: scenery.by_key,
+            cover: scenery.cover,
+            palette,
         })
     }
 
@@ -214,6 +255,35 @@ impl Catalog {
     pub fn shop_id(&self, key: &str) -> Option<ShopId> {
         self.shop_keys.get(key).copied()
     }
+
+    /// The definition of `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` came from a different catalog with more props.
+    pub fn prop(&self, id: PropId) -> &PropDef {
+        &self.props[usize::from(id.0)]
+    }
+
+    /// Every prop, with its id.
+    pub fn props(&self) -> impl Iterator<Item = (PropId, &PropDef)> {
+        (0..=u16::MAX).map(PropId).zip(&self.props)
+    }
+
+    /// The prop a data file calls `key`.
+    pub fn prop_id(&self, key: &str) -> Option<PropId> {
+        self.prop_keys.get(key).copied()
+    }
+
+    /// The plants covering grassy ground.
+    pub fn cover(&self) -> &[CoverDef] {
+        &self.cover
+    }
+
+    /// The colors everything is drawn in.
+    pub fn palette(&self) -> &Palette {
+        &self.palette
+    }
 }
 
 /// Parses a content file, allowing optional fields to be written as plain
@@ -255,6 +325,7 @@ mod tests {
     use messoria_calendar::WorldTime;
 
     use super::*;
+    use crate::{Rgb, Sources};
 
     const ITEMS: &str = r#"(
         items: [
@@ -297,27 +368,172 @@ mod tests {
         ],
     )"#;
 
+    const SCENERY: &str = r#"(
+        props: [
+            (
+                id: "oak", name: "Oak", models: ["nature/oak.glb"], scale: (3.0, 4.0),
+                radius: 0.2, spacing: 10.0, density: 0.5, clustering: 0.5, max_slope: 0.6,
+                grows_on: [Grass],
+            ),
+        ],
+        cover: [(models: ["nature/grass.glb"], per_square_meter: 0.2, scale: (1.0, 1.5), seasons: [Spring])],
+    )"#;
+
+    const PALETTE: &str = r#"(
+        colors: {
+            "terrain_grass": (0.3, 0.5, 0.2),
+            "terrain_soil": (0.4, 0.3, 0.2),
+            "terrain_stone": (0.5, 0.5, 0.5),
+            "terrain_sand": (0.8, 0.7, 0.5),
+            "leaves": (0.2, 0.5, 0.2),
+        },
+        seasons: {Autumn: {"leaves": (0.8, 0.4, 0.1)}},
+    )"#;
+
+    fn catalog(
+        items: &str,
+        crops: &str,
+        shops: &str,
+        scenery: &str,
+        palette: &str,
+    ) -> Result<Catalog, ContentError> {
+        Catalog::from_sources(Sources {
+            items,
+            crops,
+            shops,
+            scenery,
+            palette,
+        })
+    }
+
+    fn valid() -> Catalog {
+        catalog(ITEMS, CROPS, SHOPS, SCENERY, PALETTE).expect("the test content is valid")
+    }
+
+    fn rejection(result: Result<Catalog, ContentError>) -> String {
+        result.expect_err("content should be rejected").to_string()
+    }
+
     fn problem_with_items(items: &str) -> String {
-        Catalog::from_sources(items, CROPS, SHOPS)
-            .expect_err("content should be rejected")
-            .to_string()
+        rejection(catalog(items, CROPS, SHOPS, SCENERY, PALETTE))
     }
 
     fn problem_with_crops(crops: &str) -> String {
-        Catalog::from_sources(ITEMS, crops, SHOPS)
-            .expect_err("content should be rejected")
-            .to_string()
+        rejection(catalog(ITEMS, crops, SHOPS, SCENERY, PALETTE))
     }
 
     fn problem_with_shops(shops: &str) -> String {
-        Catalog::from_sources(ITEMS, CROPS, shops)
-            .expect_err("content should be rejected")
-            .to_string()
+        rejection(catalog(ITEMS, CROPS, shops, SCENERY, PALETTE))
+    }
+
+    fn problem_with_scenery(scenery: &str) -> String {
+        rejection(catalog(ITEMS, CROPS, SHOPS, scenery, PALETTE))
+    }
+
+    fn problem_with_palette(palette: &str) -> String {
+        rejection(catalog(ITEMS, CROPS, SHOPS, SCENERY, palette))
+    }
+
+    #[test]
+    fn scenery_and_palette_load() {
+        let catalog = valid();
+        let oak = catalog.prop(catalog.prop_id("oak").unwrap());
+        assert_eq!(oak.models, ["nature/oak.glb"]);
+        assert_eq!(oak.grows_on, [Material::Grass]);
+        assert!(catalog.cover()[0].shows_in(Season::Spring));
+        assert!(!catalog.cover()[0].shows_in(Season::Winter));
+
+        let palette = catalog.palette();
+        let near = |color: Option<Rgb>, expected: Rgb| {
+            color.is_some_and(|color| {
+                color
+                    .iter()
+                    .zip(expected)
+                    .all(|(channel, expected)| (channel - expected).abs() < 1e-6)
+            })
+        };
+        assert!(near(
+            palette.color("leaves", Season::Spring),
+            [0.2, 0.5, 0.2]
+        ));
+        assert!(near(
+            palette.color("leaves", Season::Autumn),
+            [0.8, 0.4, 0.1]
+        ));
+        assert_eq!(palette.color("bark", Season::Spring), None);
+        assert!(near(
+            Some(palette.ground(Material::Soil, Season::Winter)),
+            [0.4, 0.3, 0.2]
+        ));
+    }
+
+    #[test]
+    fn inconsistent_scenery_is_rejected() {
+        let cases = [
+            (
+                SCENERY.replace("props: [", "props: [(id: \"oak\", name: \"Oak\", models: [\"a.glb\"], scale: (1.0, 1.0), radius: 0.1, spacing: 1.0, density: 1.0, max_slope: 1.0, grows_on: [Grass]),"),
+                "prop `oak` is defined more than once",
+            ),
+            (
+                SCENERY.replace("[\"nature/oak.glb\"]", "[\"../oak.glb\"]"),
+                "prop `oak` is invalid: `../oak.glb` is not a .glb file inside the models folder",
+            ),
+            (
+                SCENERY.replace("[\"nature/oak.glb\"]", "[]"),
+                "prop `oak` is invalid: it lists no model",
+            ),
+            (
+                SCENERY.replace("scale: (3.0, 4.0)", "scale: (4.0, 3.0)"),
+                "prop `oak` is invalid: its scale must be a positive range, smallest first",
+            ),
+            (
+                SCENERY.replace("density: 0.5", "density: 1.5"),
+                "prop `oak` is invalid: its density must be above 0 and at most 1",
+            ),
+            (
+                SCENERY.replace("grows_on: [Grass]", "grows_on: []"),
+                "prop `oak` is invalid: it grows on no ground",
+            ),
+            (
+                SCENERY.replace("per_square_meter: 0.2", "per_square_meter: 0.0"),
+                "ground cover 1 is invalid: it must grow somewhere: plants per square meter must be above 0",
+            ),
+        ];
+        for (source, expected) in cases {
+            assert_eq!(
+                problem_with_scenery(&source),
+                format!("scenery.ron: {expected}")
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_palettes_are_rejected() {
+        let cases = [
+            (
+                PALETTE.replace("\"terrain_sand\": (0.8, 0.7, 0.5),", ""),
+                "the palette has no color for `terrain_sand`",
+            ),
+            (
+                PALETTE.replace("(0.2, 0.5, 0.2)", "(0.2, 1.5, 0.2)"),
+                "color `leaves` has a channel outside 0 to 1",
+            ),
+            (
+                PALETTE.replace("{\"leaves\": (0.8", "{\"leafs\": (0.8"),
+                "Autumn changes color `leafs`, which the palette does not define",
+            ),
+        ];
+        for (source, expected) in cases {
+            assert_eq!(
+                problem_with_palette(&source),
+                format!("palette.ron: {expected}")
+            );
+        }
     }
 
     #[test]
     fn valid_content_loads_with_every_reference_resolved() {
-        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
+        let catalog = valid();
         let berries = catalog.id("berries").unwrap();
 
         assert_eq!(catalog.item(berries).name, "Berries");
@@ -337,7 +553,7 @@ mod tests {
 
     #[test]
     fn crops_link_their_seeds_and_produce() {
-        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
+        let catalog = valid();
         let turnip = catalog.crop_id("turnip").unwrap();
         let seeds = catalog.id("turnip_seeds").unwrap();
 
@@ -350,7 +566,7 @@ mod tests {
 
     #[test]
     fn shops_trade_on_their_days_and_hours() {
-        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
+        let catalog = valid();
         let grocer = catalog.shop(catalog.shop_id("grocer").unwrap());
         let at = |day, clock: &str| WorldTime::at(day, clock.parse().unwrap()).unwrap();
 
@@ -364,7 +580,7 @@ mod tests {
 
     #[test]
     fn shops_link_what_they_buy_and_sell() {
-        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
+        let catalog = valid();
         let grocer = catalog.shop(catalog.shop_id("grocer").unwrap());
         let (turnip, seeds, compost) = (
             catalog.id("turnip").unwrap(),

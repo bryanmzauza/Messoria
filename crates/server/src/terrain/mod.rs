@@ -18,7 +18,7 @@ use messoria_voxel::{Brush, ChunkChanges, ChunkPos};
 use crate::{Beginning, WorldStart};
 
 use generation::editable;
-pub(crate) use generation::ground_height;
+pub(crate) use generation::{farm, ground_height, half_width};
 
 pub(crate) struct TerrainPlugin;
 
@@ -56,7 +56,7 @@ fn generate_world(
     mut edited: ResMut<EditedChunks>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
 ) {
-    **terrain = generation::farm();
+    **terrain = farm();
     if let WorldStart::Resume(saved) = &beginning.0 {
         for (position, chunk) in &saved.terrain {
             terrain.insert(*position, chunk.clone());

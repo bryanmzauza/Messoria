@@ -13,10 +13,18 @@ use std::{
 };
 
 use bevy::{asset::RenderAssetUsages, mesh::PrimitiveTopology, prelude::*};
-use messoria_shared::terrain::{ChunkChanged, Terrain};
+use messoria_calendar::Season;
+use messoria_content::Palette;
+use messoria_shared::{
+    content::Content,
+    terrain::{ChunkChanged, Terrain},
+};
 use messoria_voxel::{ChunkPos, Material, SurfaceMesh, mesh_chunk};
 
-use crate::noise::unit_noise;
+use crate::{
+    art::{DrawnSeason, srgb},
+    noise::unit_noise,
+};
 
 /// Time per frame spent rebuilding chunk meshes.
 const MESHING_BUDGET: Duration = Duration::from_millis(4);
@@ -59,12 +67,24 @@ fn create_terrain_material(
     })));
 }
 
-fn collect_stale_chunks(mut changes: MessageReader<ChunkChanged>, mut stale: ResMut<StaleChunks>) {
+/// Chunks go stale when their voxels change, and all of them when the season
+/// turns, since the ground's colors change with it.
+fn collect_stale_chunks(
+    mut changes: MessageReader<ChunkChanged>,
+    season: Res<DrawnSeason>,
+    chunk_meshes: Res<ChunkMeshes>,
+    mut stale: ResMut<StaleChunks>,
+) {
     stale.0.extend(changes.read().map(|changed| changed.0));
+    if season.is_changed() {
+        stale.0.extend(chunk_meshes.0.keys().copied());
+    }
 }
 
 fn rebuild_meshes(
     terrain: Res<Terrain>,
+    content: Res<Content>,
+    season: Res<DrawnSeason>,
     material: Res<TerrainMaterial>,
     camera: Single<&Transform, With<Camera3d>>,
     mut stale: ResMut<StaleChunks>,
@@ -76,6 +96,7 @@ fn rebuild_meshes(
         return;
     }
     let started = Instant::now();
+    let colors = GroundColors::new(content.palette(), season.0);
     let viewer = ChunkPos::containing(camera.translation.floor().as_ivec3());
     let mut queue: Vec<ChunkPos> = stale.0.iter().copied().collect();
     queue.sort_unstable_by_key(|chunk| (chunk.0 - viewer.0).length_squared());
@@ -90,15 +111,15 @@ fn rebuild_meshes(
         let surface = mesh_chunk(&terrain, chunk).filter(|surface| !surface.is_empty());
         match (surface, chunk_meshes.0.get(&chunk).copied()) {
             (Some(surface), Some(entity)) => {
-                commands
-                    .entity(entity)
-                    .insert(Mesh3d(meshes.add(to_render_mesh(&surface, origin))));
+                commands.entity(entity).insert(Mesh3d(
+                    meshes.add(to_render_mesh(&surface, origin, &colors)),
+                ));
             }
             (Some(surface), None) => {
                 let entity = commands
                     .spawn((
                         Name::new(format!("Terrain chunk {}", chunk.0)),
-                        Mesh3d(meshes.add(to_render_mesh(&surface, origin))),
+                        Mesh3d(meshes.add(to_render_mesh(&surface, origin, &colors))),
                         MeshMaterial3d(material.0.clone()),
                         Transform::from_translation(origin),
                     ))
@@ -117,7 +138,7 @@ fn rebuild_meshes(
 /// A flat-shaded mesh of a chunk's surface, whose origin is at `origin` in
 /// the world. Every triangle gets vertices of its own, so that it can carry
 /// its own normal and color.
-fn to_render_mesh(surface: &SurfaceMesh, origin: Vec3) -> Mesh {
+fn to_render_mesh(surface: &SurfaceMesh, origin: Vec3, ground: &GroundColors) -> Mesh {
     let vertex_count = surface.indices.len();
     let mut positions = Vec::with_capacity(vertex_count);
     let mut normals = Vec::with_capacity(vertex_count);
@@ -134,7 +155,7 @@ fn to_render_mesh(surface: &SurfaceMesh, origin: Vec3) -> Mesh {
             material
         };
         let middle = origin + (corners[0] + corners[1] + corners[2]) / 3.0;
-        let color = facet_color(material, middle);
+        let color = facet_color(ground.of(material), middle);
         for corner in corners {
             positions.push(corner.to_array());
             normals.push(normal.to_array());
@@ -156,17 +177,17 @@ fn facet_material([first, second, third]: [Material; 3]) -> Material {
     if second == third { second } else { first }
 }
 
-/// The color of a facet whose middle is at `middle` in the world. The
-/// brightness difference depends only on where the facet is, so it stays
-/// the same when the chunk is remeshed.
-fn facet_color(material: Material, middle: Vec3) -> [f32; 4] {
+/// The color of a facet of `ground` color whose middle is at `middle` in the
+/// world. The brightness difference depends only on where the facet is, so
+/// it stays the same when the chunk is remeshed.
+fn facet_color(ground: [f32; 4], middle: Vec3) -> [f32; 4] {
     let cell = (middle * 4.0).round().as_ivec3().to_array();
     #[expect(clippy::cast_sign_loss, reason = "only the bits matter")]
     let key = (cell[0] as u32).wrapping_mul(0x8da6_b343)
         ^ (cell[1] as u32).wrapping_mul(0xd816_3841)
         ^ (cell[2] as u32).wrapping_mul(0xcb1a_b31f);
     let brightness = 1.0 + FACET_VARIATION * (2.0 * unit_noise(key) - 1.0);
-    let [red, green, blue, alpha] = ground_color(material);
+    let [red, green, blue, alpha] = ground;
     [
         red * brightness,
         green * brightness,
@@ -175,13 +196,19 @@ fn facet_color(material: Material, middle: Vec3) -> [f32; 4] {
     ]
 }
 
-/// Vertex color of each ground material, in linear space.
-fn ground_color(material: Material) -> [f32; 4] {
-    let color = match material {
-        Material::Grass => Color::srgb(0.36, 0.52, 0.28),
-        Material::Soil => Color::srgb(0.4, 0.29, 0.2),
-        Material::Stone => Color::srgb(0.52, 0.5, 0.47),
-        Material::Sand => Color::srgb(0.82, 0.74, 0.52),
-    };
-    color.to_linear().to_f32_array()
+/// Vertex color of each ground material in one season, in linear space.
+struct GroundColors([[f32; 4]; Material::ALL.len()]);
+
+impl GroundColors {
+    fn new(palette: &Palette, season: Season) -> Self {
+        Self(Material::ALL.map(|material| {
+            srgb(palette.ground(material, season))
+                .to_linear()
+                .to_f32_array()
+        }))
+    }
+
+    fn of(&self, material: Material) -> [f32; 4] {
+        self.0[material as usize]
+    }
 }

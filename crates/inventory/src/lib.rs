@@ -256,6 +256,8 @@ fn blend_freshness(a: Option<u32>, a_count: u16, b: Option<u32>, b_count: u16) -
 
 #[cfg(test)]
 mod tests {
+    use messoria_content::Sources;
+
     use super::*;
 
     const ITEMS: &str = r#"(
@@ -270,6 +272,9 @@ mod tests {
     )"#;
     const CROPS: &str = "(crops: [])";
     /// Market rules and no shops.
+    /// No scenery, and a palette with only the ground colors.
+    const SCENERY: &str = "(props: [], cover: [])";
+    const PALETTE: &str = "(colors: {\"terrain_grass\": (0.3, 0.5, 0.2), \"terrain_soil\": (0.4, 0.3, 0.2), \"terrain_stone\": (0.5, 0.5, 0.5), \"terrain_sand\": (0.8, 0.7, 0.5)})";
     const SHOPS: &str = "(market: (off_season_markup: 1.5, halves_after: 100.0, daily_recovery: 0.25, silver_bonus: 1.25, gold_bonus: 1.5), shops: [])";
 
     struct Fixture {
@@ -281,7 +286,14 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
-        let catalog = Catalog::from_sources(ITEMS, CROPS, SHOPS).unwrap();
+        let catalog = Catalog::from_sources(Sources {
+            items: ITEMS,
+            crops: CROPS,
+            shops: SHOPS,
+            scenery: SCENERY,
+            palette: PALETTE,
+        })
+        .unwrap();
         let id = |key| catalog.id(key).unwrap();
         Fixture {
             shovel: id("shovel"),

@@ -16,6 +16,7 @@ mod inventory;
 mod market;
 mod players;
 mod saving;
+mod scenery;
 mod terrain;
 mod village;
 
@@ -122,6 +123,7 @@ impl Plugin for ServerPlugin {
                 fields::FieldsPlugin,
                 market::MarketPlugin,
                 village::VillagePlugin,
+                scenery::SceneryPlugin,
                 terrain::TerrainPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,

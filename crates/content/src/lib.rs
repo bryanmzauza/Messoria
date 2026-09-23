@@ -12,12 +12,16 @@ mod catalog;
 mod crop;
 mod error;
 mod item;
+mod palette;
+mod scenery;
 mod shop;
 
 pub use crate::{
-    catalog::Catalog,
+    catalog::{Catalog, Sources},
     crop::{CropDef, CropId},
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Quality, Tool},
+    palette::{Palette, Rgb},
+    scenery::{CoverDef, PropDef, PropId},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
 };

@@ -4,7 +4,7 @@
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, ShopId};
+use messoria_content::{ItemId, PropId, ShopId};
 use messoria_economy::{Market, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -181,6 +181,19 @@ pub enum Deal {
     Buy { item: ItemId, count: u16 },
 }
 
+/// A piece of scenery standing in the valley, such as a tree or a rock.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Prop {
+    pub kind: PropId,
+    /// Which of its kind's models it is drawn with.
+    pub model: u8,
+    /// The ground it stands on.
+    pub position: Vec3,
+    /// Rotation around the vertical axis, in radians.
+    pub turn: f32,
+    pub scale: f32,
+}
+
 /// A client giving money to another player.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GiveMoney {
@@ -273,6 +286,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<SoldToday>().replicate();
         app.component::<MarketState>().replicate();
         app.component::<Shopfront>().replicate();
+        app.component::<Prop>().replicate();
 
         app.component::<PlayerId>().replicate();
 

@@ -40,7 +40,7 @@ const TOPSOIL_DEPTH: f32 = 1.5;
 const SOIL_DEPTH: f32 = 4.0;
 
 /// Generates the whole farm valley.
-pub(super) fn farm() -> ChunkMap {
+pub(crate) fn farm() -> ChunkMap {
     let mut map = ChunkMap::default();
     for z in HORIZONTAL_CHUNKS {
         for x in HORIZONTAL_CHUNKS {
@@ -60,6 +60,11 @@ pub(crate) fn ground_height(terrain: &ChunkMap, x: f32, z: f32) -> Option<f32> {
     // the top and bottom of the world.
     let top = world(SKY_HEIGHT) - 1.5;
     terrain.surface_below(Vec3::new(x, top, z), top - world(BOTTOM_HEIGHT) - 1.0)
+}
+
+/// Half the width of the generated world, in meters, around the origin.
+pub(crate) fn half_width() -> f32 {
+    world(HALF_EXTENT)
 }
 
 /// Whether terrain at `point` may be edited.

@@ -19,6 +19,7 @@ messoria-farming.workspace = true
 messoria-inventory.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true
+rand.workspace = true
 
 [lints]
 workspace = true

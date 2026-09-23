@@ -119,43 +119,91 @@ Goal: nothing is lost when the server restarts.
 
 **Exit criterion:** stop and restart the server mid-day and resume without any difference.
 
-## M8 — Open to friends
+## M8 — The valley comes alive
 
-Goal: inviting a friend takes under a minute and needs no router setup.
+Goal: the valley looks like a cozy place worth farming in.
 
-- [ ] Rendezvous service issuing short access codes
-- [ ] Connect tokens issued by the rendezvous service, retiring self-issued tokens and the public key
-- [ ] UDP hole punching between host and guest
-- [ ] Relay fallback through the rendezvous host
-- [ ] "Open to friends" flow in the client
+- [x] Art from CC0 packs (Kenney), credited in `assets/CREDITS.md` and
+      recolored through a shared palette so every model matches the terrain
+- [x] Scenery defined in data: trees, bushes, rocks, logs and stumps scattered
+      across the valley from the world's seed, in groves and clearings
+- [x] Ground cover: grass tufts, flowers and mushrooms on grassy ground
+- [x] Seasons: trees and ground change color through the year; snow in winter
+- [x] Stylized sky: gradient dome, sun and moon, drifting clouds, soft shadows
 
-**Exit criterion:** two machines behind separate home routers connect by code.
+**Exit criterion:** the valley at dawn, noon, dusk and night in each season
+looks coherent in screenshots, and a release build keeps 60 frames per second
+with all scenery in view.
 
-## M9 — Scale
+## M9 — Feel
 
-Goal: a dedicated server holds 50 players comfortably.
+Goal: every action answers the player.
 
-- [ ] Extend `tools/loadtest` so bots farm and trade, not only walk
-- [ ] Interest management for entities and chunks
-- [ ] Server tick profiling and budgets
-- [ ] Low-frequency simulation for areas far from players
+- [ ] Sprinting, and collision with scenery and buildings
+- [ ] Sounds for footsteps, tools, harvests and trades
+- [ ] Particles: soil when digging, water when watering, leaves when
+      harvesting
+- [ ] On-screen notices for refused actions ("not enough energy", "the shop
+      is closed")
+- [ ] What the crosshair is on: crop, days to ripen, whether it needs water
 
-**Exit criterion:** 50 bots for 30 minutes with the tick budget met at the 99th percentile.
+**Exit criterion:** a new player can find out why an action did nothing
+without reading the code.
 
-## M10 — MVP playtest
+## M10 — Gathering
+
+Goal: the valley gives more than what is planted.
+
+- [ ] Axe and pickaxe; trees give wood, rocks give stone
+- [ ] Berry bushes to pick, regrowing every few days
+- [ ] Gathered scenery is kept in the save; trees grow back from stumps
+- [ ] A carpenter who buys wood and stone
+
+**Exit criterion:** a player can earn a day's money from gathering alone,
+and a restarted server keeps every cleared tree and rock.
+
+## M11 — Home and storage
+
+Goal: players have a place of their own.
+
+- [ ] A house for each player, with a bed; sleeping happens in bed
+- [ ] Chests that keep items, saved with the world
+
+**Exit criterion:** a player can store their harvest overnight and find it
+after a server restart.
+
+## M12 — Characters and village
+
+Goal: the people and the village look the part.
+
+- [ ] Animated low-poly characters: idle, walking, running, using tools,
+      with the held tool in hand
+- [ ] Village buildings around the square; the grocer in a proper shop
+- [ ] Crop models for every growth stage
+- [ ] Item icons in the hotbar, backpack and shop
+
+**Exit criterion:** the village square and a player at work look finished in
+screenshots.
+
+## M13 — MVP playtest
 
 Goal: the slice feels like a game.
 
-- [ ] Art pass with CC0 packs; crop stage meshes generated in code
 - [ ] Seasonal music and ambient audio
-- [ ] HUD: hotbar, clock, wallet, energy
 - [ ] Playtest: a group plays a full in-game week
 
-**Open:** fantasy sub-theme; farm plot count, size and sharing.
+**Open:** farm plot count, size and sharing.
 
 **Exit criterion:** the MVP success criteria in the design document are met.
 
 ## After the MVP
 
-Loans, combat and mines, procedural forest, villager schedules and friendship,
-crafting and buildings, fishing, animals, festivals.
+- **Open to friends:** a rendezvous service issuing short access codes and
+  connect tokens, UDP hole punching, relay fallback, and an "Open to friends"
+  flow in the client. Two machines behind separate home routers connect by
+  code.
+- **Scale:** bots that farm and trade, interest management for entities and
+  chunks, tick profiling and budgets, and low-frequency simulation far from
+  players, until 50 bots run for 30 minutes within the tick budget.
+- Loans, combat and mines, procedural forest, villager schedules and
+  friendship, crafting and buildings, fishing, animals, festivals.

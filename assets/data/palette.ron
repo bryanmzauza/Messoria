@@ -1,0 +1,57 @@
+// The colors everything is drawn in, by material name, in sRGB.
+//
+// Models name their materials, and every material with a name listed here is
+// drawn in its color, whichever art pack the model comes from, so they all
+// look like one world. The terrain's ground is colored through the names
+// `terrain_grass`, `terrain_soil`, `terrain_stone` and `terrain_sand`.
+//
+// `seasons` overrides colors for part of the year.
+(
+    colors: {
+        "terrain_grass": (0.36, 0.52, 0.28),
+        "terrain_soil": (0.4, 0.29, 0.2),
+        "terrain_stone": (0.52, 0.5, 0.47),
+        "terrain_sand": (0.82, 0.74, 0.52),
+
+        "grass": (0.4, 0.57, 0.29),
+        "leafsGreen": (0.33, 0.52, 0.23),
+        "leafsDark": (0.2, 0.38, 0.23),
+        "leafsFall": (0.86, 0.48, 0.18),
+        "woodBark": (0.42, 0.29, 0.19),
+        "woodBarkDark": (0.33, 0.23, 0.17),
+        "woodBirch": (0.86, 0.83, 0.76),
+        "woodInner": (0.8, 0.66, 0.47),
+        // The body of the rocky models.
+        "dirt": (0.55, 0.52, 0.47),
+        "stone": (0.62, 0.62, 0.6),
+        "_defaultMat": (0.9, 0.88, 0.82),
+
+        "colorRed": (0.8, 0.22, 0.22),
+        "colorYellow": (0.96, 0.78, 0.3),
+        "colorPurple": (0.62, 0.48, 0.86),
+        "colorTan": (0.86, 0.66, 0.46),
+    },
+
+    seasons: {
+        Summer: {
+            "terrain_grass": (0.34, 0.49, 0.23),
+            "grass": (0.37, 0.53, 0.24),
+            "leafsGreen": (0.28, 0.47, 0.19),
+        },
+        Autumn: {
+            "terrain_grass": (0.5, 0.5, 0.27),
+            "grass": (0.58, 0.54, 0.29),
+            "leafsGreen": (0.84, 0.52, 0.2),
+            "leafsFall": (0.76, 0.3, 0.13),
+        },
+        // Snow lies on the grass and on the leaves; evergreens stay dark.
+        Winter: {
+            "terrain_grass": (0.88, 0.9, 0.93),
+            "terrain_stone": (0.7, 0.72, 0.76),
+            "grass": (0.8, 0.84, 0.87),
+            "leafsGreen": (0.76, 0.82, 0.84),
+            "leafsFall": (0.76, 0.82, 0.84),
+            "leafsDark": (0.24, 0.35, 0.3),
+        },
+    },
+)

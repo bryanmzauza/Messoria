@@ -1,0 +1,141 @@
+// What grows and lies around the valley.
+//
+// `props` are objects standing in the world: the server scatters them from
+// the world's seed. Each kind is scattered over a grid of `spacing`-meter
+// cells, with one prop in a `density` share of the cells where it grows.
+// `clustering` gathers them into groves with clearings between. A prop grows
+// on the listed ground, no steeper than `max_slope` (rise over run), and
+// nobody can dig, raise or till the ground within its `radius`. Models are
+// relative to the models folder; each prop uses one of its models, drawn at
+// a scale between the two given.
+//
+// `cover` is the small plants on grassy ground, which only clients draw.
+(
+    props: [
+        (
+            id: "oak",
+            name: "Oak",
+            models: ["nature/tree_oak.glb", "nature/tree_fat.glb"],
+            scale: (3.2, 4.2),
+            radius: 0.12,
+            spacing: 11.0,
+            density: 0.35,
+            clustering: 0.8,
+            max_slope: 0.6,
+            grows_on: [Grass],
+        ),
+        (
+            id: "leafy_tree",
+            name: "Tree",
+            models: ["nature/tree_default.glb", "nature/tree_detailed.glb"],
+            scale: (3.0, 4.0),
+            radius: 0.12,
+            spacing: 12.0,
+            density: 0.3,
+            clustering: 0.7,
+            max_slope: 0.7,
+            grows_on: [Grass],
+        ),
+        (
+            id: "pine",
+            name: "Pine",
+            models: [
+                "nature/tree_pineTallA.glb",
+                "nature/tree_pineTallB.glb",
+                "nature/tree_pineRoundA.glb",
+                "nature/tree_pineRoundC.glb",
+            ],
+            scale: (3.5, 5.0),
+            radius: 0.1,
+            spacing: 7.0,
+            density: 0.45,
+            clustering: 0.9,
+            max_slope: 1.2,
+            grows_on: [Grass, Stone],
+        ),
+        (
+            id: "bush",
+            name: "Bush",
+            models: [
+                "nature/plant_bush.glb",
+                "nature/plant_bushLarge.glb",
+                "nature/plant_bushDetailed.glb",
+            ],
+            scale: (2.5, 3.5),
+            radius: 0.15,
+            spacing: 6.0,
+            density: 0.25,
+            clustering: 0.6,
+            max_slope: 0.8,
+            grows_on: [Grass],
+        ),
+        (
+            id: "boulder",
+            name: "Boulder",
+            models: ["nature/rock_largeA.glb", "nature/rock_largeB.glb", "nature/rock_largeC.glb"],
+            scale: (2.0, 3.2),
+            radius: 0.35,
+            spacing: 18.0,
+            density: 0.25,
+            clustering: 0.3,
+            max_slope: 1.5,
+            grows_on: [Grass, Stone],
+        ),
+        (
+            id: "standing_stone",
+            name: "Stone",
+            models: ["nature/stone_tallA.glb", "nature/stone_largeA.glb"],
+            scale: (1.2, 2.0),
+            radius: 0.4,
+            spacing: 22.0,
+            density: 0.15,
+            clustering: 0.2,
+            max_slope: 2.0,
+            grows_on: [Grass, Stone],
+        ),
+        (
+            id: "log",
+            name: "Fallen log",
+            models: ["nature/log.glb", "nature/log_large.glb"],
+            scale: (2.5, 3.0),
+            radius: 0.2,
+            spacing: 30.0,
+            density: 0.2,
+            clustering: 0.5,
+            max_slope: 0.4,
+            grows_on: [Grass],
+        ),
+        (
+            id: "stump",
+            name: "Stump",
+            models: ["nature/stump_round.glb", "nature/stump_old.glb"],
+            scale: (2.5, 3.2),
+            radius: 0.15,
+            spacing: 25.0,
+            density: 0.2,
+            clustering: 0.6,
+            max_slope: 0.6,
+            grows_on: [Grass],
+        ),
+    ],
+
+    cover: [
+        (
+            models: ["nature/grass.glb", "nature/grass_large.glb", "nature/grass_leafs.glb"],
+            per_square_meter: 0.2,
+            scale: (1.0, 1.6),
+        ),
+        (
+            models: ["nature/flower_redA.glb", "nature/flower_yellowA.glb", "nature/flower_purpleA.glb"],
+            per_square_meter: 0.04,
+            scale: (1.3, 1.8),
+            seasons: [Spring, Summer],
+        ),
+        (
+            models: ["nature/mushroom_red.glb", "nature/mushroom_tan.glb"],
+            per_square_meter: 0.01,
+            scale: (1.5, 2.2),
+            seasons: [Autumn],
+        ),
+    ],
+)

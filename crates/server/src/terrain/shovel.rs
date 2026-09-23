@@ -15,7 +15,10 @@ use messoria_shared::{
 use messoria_voxel::Brush;
 
 use super::{GroundReshaped, TerrainEdited, editable};
-use crate::inventory::{ItemUseSystems, ShovelUse};
+use crate::{
+    inventory::{ItemUseSystems, ShovelUse},
+    scenery::Scenery,
+};
 
 /// How far from the surface a target may be. Requests for points deep in the
 /// air or underground did not come from aiming at the terrain.
@@ -33,6 +36,7 @@ fn apply_shovel_uses(
     content: Res<Content>,
     clock: Single<&WorldClock>,
     mut uses: MessageReader<ShovelUse>,
+    scenery: Res<Scenery>,
     characters: Query<&Position, With<PlayerId>>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
@@ -47,7 +51,7 @@ fn apply_shovel_uses(
         ) else {
             continue;
         };
-        if let Err(reason) = validate(shovel_use, feet.0, &terrain, &characters) {
+        if let Err(reason) = validate(shovel_use, feet.0, &terrain, &scenery, &characters) {
             debug!("rejected {shovel_use:?}: {reason}");
             continue;
         }
@@ -93,6 +97,7 @@ fn validate(
     shovel_use: &ShovelUse,
     feet: Vec3,
     terrain: &Terrain,
+    scenery: &Scenery,
     characters: &Query<&Position, With<PlayerId>>,
 ) -> Result<(), &'static str> {
     let target = shovel_use.target;
@@ -104,6 +109,9 @@ fn validate(
     }
     if village::reaches(target, tools::BRUSH_RADIUS) {
         return Err("the village's ground is protected");
+    }
+    if scenery.blocks(target, tools::BRUSH_RADIUS) {
+        return Err("scenery stands on that ground");
     }
     if !terrain
         .distance(target)

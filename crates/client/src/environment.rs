@@ -1,8 +1,9 @@
-//! Sky, sunlight and atmosphere, following the time of day.
+//! Sunlight and the colors of the sky, following the time of day.
 //!
 //! One directional light plays the sun by day and the moon by night. Its
-//! color and strength, the sky color, the fog and the ambient light blend
-//! between keyframes through the day.
+//! color and strength, the sky's colors at the horizon and overhead, the fog
+//! and the ambient light blend between keyframes through the day. The sky
+//! itself is drawn by `sky`, from the [`Sky`] this module keeps.
 
 use std::f32::consts::PI;
 
@@ -18,16 +19,20 @@ const DEFAULT_HOUR: f32 = 12.0;
 /// The look of the sky at one hour of the day.
 struct SkyKey {
     hour: f32,
-    /// Horizon color, used for the clear color, the fog and ambient light.
-    sky: Color,
+    /// Color at the horizon, also used for the fog and ambient light.
+    horizon: Color,
+    /// Color straight overhead.
+    zenith: Color,
     light: Color,
     illuminance: f32,
     ambient_brightness: f32,
 }
 
-const NIGHT_SKY: Color = Color::srgb(0.05, 0.07, 0.15);
+const NIGHT_HORIZON: Color = Color::srgb(0.07, 0.09, 0.18);
+const NIGHT_ZENITH: Color = Color::srgb(0.01, 0.02, 0.06);
 const MOONLIGHT: Color = Color::srgb(0.55, 0.65, 1.0);
-const DAY_SKY: Color = Color::srgb(0.62, 0.76, 0.88);
+const DAY_HORIZON: Color = Color::srgb(0.7, 0.82, 0.9);
+const DAY_ZENITH: Color = Color::srgb(0.3, 0.52, 0.84);
 const SUNLIGHT: Color = Color::srgb(1.0, 0.95, 0.85);
 
 /// Keyframes in increasing hour order, covering the whole day so that
@@ -35,56 +40,64 @@ const SUNLIGHT: Color = Color::srgb(1.0, 0.95, 0.85);
 const SKY_KEYS: [SkyKey; 8] = [
     SkyKey {
         hour: 0.0,
-        sky: NIGHT_SKY,
+        horizon: NIGHT_HORIZON,
+        zenith: NIGHT_ZENITH,
         light: MOONLIGHT,
         illuminance: 1_200.0,
         ambient_brightness: 120.0,
     },
     SkyKey {
         hour: 5.0,
-        sky: NIGHT_SKY,
+        horizon: NIGHT_HORIZON,
+        zenith: NIGHT_ZENITH,
         light: MOONLIGHT,
         illuminance: 1_200.0,
         ambient_brightness: 120.0,
     },
     SkyKey {
         hour: 6.5,
-        sky: Color::srgb(0.92, 0.62, 0.45),
+        horizon: Color::srgb(0.95, 0.64, 0.45),
+        zenith: Color::srgb(0.42, 0.5, 0.74),
         light: Color::srgb(1.0, 0.72, 0.5),
         illuminance: 4_000.0,
         ambient_brightness: 220.0,
     },
     SkyKey {
         hour: 8.5,
-        sky: DAY_SKY,
+        horizon: DAY_HORIZON,
+        zenith: DAY_ZENITH,
         light: SUNLIGHT,
         illuminance: 12_000.0,
         ambient_brightness: 400.0,
     },
     SkyKey {
         hour: 17.5,
-        sky: DAY_SKY,
+        horizon: DAY_HORIZON,
+        zenith: DAY_ZENITH,
         light: SUNLIGHT,
         illuminance: 12_000.0,
         ambient_brightness: 400.0,
     },
     SkyKey {
         hour: 19.5,
-        sky: Color::srgb(0.9, 0.55, 0.38),
+        horizon: Color::srgb(0.95, 0.56, 0.38),
+        zenith: Color::srgb(0.34, 0.36, 0.62),
         light: Color::srgb(1.0, 0.6, 0.38),
         illuminance: 3_000.0,
         ambient_brightness: 200.0,
     },
     SkyKey {
         hour: 21.0,
-        sky: NIGHT_SKY,
+        horizon: NIGHT_HORIZON,
+        zenith: NIGHT_ZENITH,
         light: MOONLIGHT,
         illuminance: 1_200.0,
         ambient_brightness: 120.0,
     },
     SkyKey {
         hour: 24.0,
-        sky: NIGHT_SKY,
+        horizon: NIGHT_HORIZON,
+        zenith: NIGHT_ZENITH,
         light: MOONLIGHT,
         illuminance: 1_200.0,
         ambient_brightness: 120.0,
@@ -109,16 +122,46 @@ pub(crate) struct EnvironmentPlugin;
 
 impl Plugin for EnvironmentPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ClearColor(DAY_SKY))
+        app.insert_resource(ClearColor(DAY_HORIZON))
             .insert_resource(GlobalAmbientLight {
-                color: DAY_SKY,
+                color: DAY_HORIZON,
                 brightness: 400.0,
                 ..default()
             })
+            .init_resource::<Sky>()
             .add_systems(Startup, spawn_sky_light)
             .add_systems(Update, follow_time_of_day);
     }
 }
+
+/// How the sky looks now.
+#[derive(Resource)]
+pub(crate) struct Sky {
+    pub horizon: Color,
+    pub zenith: Color,
+    /// Direction toward the sun by day, or the moon by night.
+    pub toward_light: Vec3,
+    pub sun_up: bool,
+    pub overcast: bool,
+    /// How bright it is, from 0 at night to 1 on a clear day.
+    pub daylight: f32,
+}
+
+impl Default for Sky {
+    fn default() -> Self {
+        Self {
+            horizon: DAY_HORIZON,
+            zenith: DAY_ZENITH,
+            toward_light: toward_light(DEFAULT_HOUR),
+            sun_up: true,
+            overcast: false,
+            daylight: 1.0,
+        }
+    }
+}
+
+/// Illuminance of a clear day, which counts as full daylight.
+const FULL_DAYLIGHT: f32 = 12_000.0;
 
 #[derive(Component)]
 struct SkyLight;
@@ -142,49 +185,69 @@ fn spawn_sky_light(mut commands: Commands) {
 fn follow_time_of_day(
     clock: Res<LocalClock>,
     weather: Query<&CurrentWeather>,
+    mut sky: ResMut<Sky>,
     mut clear_color: ResMut<ClearColor>,
     mut ambient: ResMut<GlobalAmbientLight>,
     light: Single<(&mut DirectionalLight, &mut Transform), With<SkyLight>>,
     mut fog: Query<&mut DistanceFog>,
 ) {
     let hour = clock.hours().unwrap_or(DEFAULT_HOUR).rem_euclid(24.0);
-    let (mut sky, light_color, mut illuminance, mut ambient_brightness) = sky_at(hour);
+    let mut look = sky_at(hour);
     let overcast = weather
         .single()
         .is_ok_and(|weather| weather.0 != Weather::Clear);
     if overcast {
-        sky = sky.mix(&OVERCAST, OVERCAST_BLEND);
-        illuminance *= OVERCAST_LIGHT;
-        ambient_brightness *= 1.0 - OVERCAST_BLEND / 2.0;
+        look.horizon = look.horizon.mix(&OVERCAST, OVERCAST_BLEND);
+        look.zenith = look.zenith.mix(&OVERCAST, OVERCAST_BLEND);
+        look.illuminance *= OVERCAST_LIGHT;
+        look.ambient_brightness *= 1.0 - OVERCAST_BLEND / 2.0;
     }
 
-    clear_color.0 = sky;
-    ambient.color = sky;
-    ambient.brightness = ambient_brightness;
+    *sky = Sky {
+        horizon: look.horizon,
+        zenith: look.zenith,
+        toward_light: toward_light(hour),
+        sun_up: (SUNRISE..SUNSET).contains(&hour),
+        overcast,
+        daylight: (look.illuminance / FULL_DAYLIGHT).clamp(0.0, 1.0),
+    };
+    clear_color.0 = look.horizon;
+    ambient.color = look.horizon;
+    ambient.brightness = look.ambient_brightness;
     for mut fog in &mut fog {
-        fog.color = sky;
+        fog.color = look.horizon;
     }
 
     let (mut light, mut transform) = light.into_inner();
-    light.color = light_color;
-    light.illuminance = illuminance;
-    *transform = Transform::default().looking_to(-toward_light(hour), Vec3::Y);
+    light.color = look.light;
+    light.illuminance = look.illuminance;
+    *transform = Transform::default().looking_to(-sky.toward_light, Vec3::Y);
+}
+
+/// The sky's colors and light at one hour.
+struct SkyLook {
+    horizon: Color,
+    zenith: Color,
+    light: Color,
+    illuminance: f32,
+    ambient_brightness: f32,
 }
 
 /// Blends the keyframes around `hour`, which must be within `0..24`.
-fn sky_at(hour: f32) -> (Color, Color, f32, f32) {
+fn sky_at(hour: f32) -> SkyLook {
     let next = SKY_KEYS
         .iter()
         .position(|key| key.hour > hour)
         .unwrap_or(SKY_KEYS.len() - 1);
     let (from, to) = (&SKY_KEYS[next - 1], &SKY_KEYS[next]);
     let t = ((hour - from.hour) / (to.hour - from.hour)).clamp(0.0, 1.0);
-    (
-        from.sky.mix(&to.sky, t),
-        from.light.mix(&to.light, t),
-        from.illuminance.lerp(to.illuminance, t),
-        from.ambient_brightness.lerp(to.ambient_brightness, t),
-    )
+    SkyLook {
+        horizon: from.horizon.mix(&to.horizon, t),
+        zenith: from.zenith.mix(&to.zenith, t),
+        light: from.light.mix(&to.light, t),
+        illuminance: from.illuminance.lerp(to.illuminance, t),
+        ambient_brightness: from.ambient_brightness.lerp(to.ambient_brightness, t),
+    }
 }
 
 /// Direction from the ground toward the sun by day or the moon by night.
@@ -212,17 +275,19 @@ mod tests {
 
     #[test]
     fn noon_is_bright_and_midnight_is_dark() {
-        let (_, _, noon, _) = sky_at(12.0);
-        let (_, _, midnight, _) = sky_at(0.0);
-        assert!(noon > midnight * 5.0);
+        assert!(sky_at(12.0).illuminance > sky_at(0.0).illuminance * 5.0);
     }
 
     #[test]
     fn the_sky_blends_smoothly_through_midnight() {
-        let (before, ..) = sky_at(23.99);
-        let (after, ..) = sky_at(0.0);
-        let gap = before.to_linear().to_vec4() - after.to_linear().to_vec4();
-        assert!(gap.length() < 0.01);
+        let (before, after) = (sky_at(23.99), sky_at(0.0));
+        for (before, after) in [
+            (before.horizon, after.horizon),
+            (before.zenith, after.zenith),
+        ] {
+            let gap = before.to_linear().to_vec4() - after.to_linear().to_vec4();
+            assert!(gap.length() < 0.01);
+        }
     }
 
     #[test]

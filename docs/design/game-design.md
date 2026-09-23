@@ -20,7 +20,7 @@
 
 **Platform:** PC (Windows and Linux first; macOS later).
 
-**Setting:** fantasy village. **[OPEN]** sub-theme (cozy medieval fantasy? elven? light steampunk?).
+**Setting:** a cozy medieval fantasy village: timber and stone, thatched roofs, warm colors.
 
 ---
 
@@ -197,7 +197,6 @@ Principles:
 ## 10. MVP scope (vertical slice)
 
 - [ ] Headless server + client connecting by IP
-- [ ] "Open to friends" with access code (rendezvous + relay)
 - [ ] Smooth voxel farm terrain, deformable with the shovel
 - [ ] Movement, first/third-person camera, players see each other
 - [ ] Day cycle and sleep rules
@@ -206,9 +205,14 @@ Principles:
 - [ ] 1 village shop: buys crops (dynamic price + daily limit) and sells seeds
 - [ ] Individual wallet and transfers between players
 - [ ] Server-side save/load
+- [ ] A living valley: scenery, ground cover, seasons and a stylized sky
+- [ ] Responsive actions: sounds, particles, notices, collision
+- [ ] Gathering wood, stone and berries
+- [ ] A house with a bed, and chests
+- [ ] Animated characters and a village around the square
 - [ ] Load test with bots
 
-**Success criteria:** 2–8 friends play one in-game week together through an access code and want to keep going; the dedicated server handles 50 bots without degrading.
+**Success criteria:** 2–8 friends play one in-game week together and want to keep going. Access codes and 50-player servers follow the MVP.
 
 The milestone breakdown lives in [ROADMAP.md](../ROADMAP.md).
 
@@ -222,12 +226,13 @@ Combat and mines, fishing, animals, loans (right after the MVP), festivals, marr
 
 ## 12. Open decisions
 
-1. Fantasy sub-theme
-2. Farm plots: number, size, sharing
-3. Loan defaults
-4. Item preservation (fridge, processing)
+1. Farm plots: number, size, sharing
+2. Loan defaults
+3. Item preservation (fridge, processing)
 
 ### Resolved
+- **Fantasy sub-theme:** cozy medieval.
+- **Order of work:** opening worlds by access code and scaling to 50 players come after the MVP; gameplay and art come first.
 - **Sales limit:** per player; the market's saturation is shared by the whole server.
 - **Combat in the MVP:** no; it ships right after, together with the mines.
 - **Networking library:** lightyear ([ADR 0002](../adr/0002-networking-lightyear.md)).

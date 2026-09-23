@@ -155,8 +155,10 @@ remote characters are interpolated between server snapshots.
 
 ## Content
 
-Game content (items, crops, shops and the market's tuning) lives in RON files
-under `assets/data/`, never in code.
+Game content (items, crops, shops and the market's tuning, scenery and the
+palette) lives in RON files under `assets/data/`, never in code. Models live
+under `assets/models/`, and the catalog checks that every model it refers to
+is there.
 
 - Executables load the catalog before building the app. Any problem, from a
   syntax error to a reference to an item that does not exist, stops the
@@ -190,6 +192,23 @@ under `assets/data/`, never in code.
   waters every field.
 - Reshaping the ground under a field destroys it, which terrain edits report
   as `GroundReshaped`.
+
+## Scenery and art
+
+See [ADR 0008](adr/0008-scenery-and-art.md).
+
+- The server scatters props from the world's seed after startup and
+  replicates each as a `Prop` entity (kind, model, position, turn, scale). Its
+  `Scenery` resource keeps their footprints, where the shovel and the hoe
+  cannot work.
+- Clients draw props from their glTF models, and grow ground cover for the
+  chunks near the camera, merged into one mesh per palette material.
+- Every mesh whose material name is in the palette is drawn with a shared
+  material for that name. The client follows the world's season (`DrawnSeason`)
+  and recolors those materials, and remeshes the terrain, when it turns.
+- `environment` blends the sky's colors and the light through the day into
+  the `Sky` resource, and `sky` draws the dome, the sun or moon and the
+  clouds from it. Fog fades the land into the horizon's color.
 
 ## Village and economy
 
