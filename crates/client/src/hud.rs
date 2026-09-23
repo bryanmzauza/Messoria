@@ -2,10 +2,10 @@
 
 use bevy::prelude::*;
 use lightyear::prelude::input::native::InputMarker;
-use messoria_calendar::WorldTime;
+use messoria_calendar::{Weather, WorldTime};
 use messoria_shared::{
     energy::Energy,
-    protocol::{Asleep, PlayerInput, SleepTally},
+    protocol::{Asleep, CurrentWeather, PlayerInput, SleepTally},
 };
 
 use crate::{camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM, sleep::SLEEP_KEY_NAME};
@@ -136,11 +136,20 @@ fn show_crosshair(view: Res<View>, mut crosshair: Single<&mut Visibility, With<C
     crosshair.set_if_neq(visible_if(view.captured));
 }
 
-fn show_clock(clock: Res<LocalClock>, mut text: Single<&mut Text, With<ClockText>>) {
+fn show_clock(
+    clock: Res<LocalClock>,
+    weather: Query<&CurrentWeather>,
+    mut text: Single<&mut Text, With<ClockText>>,
+) {
     let Some(time) = clock.time() else {
         return;
     };
-    let shown = format!("{}\n{}", time.date(), time.clock());
+    let weather = match weather.single().map(|weather| weather.0) {
+        Ok(Weather::Rain) => ", rain",
+        Ok(Weather::Snow) => ", snow",
+        Ok(Weather::Clear) | Err(_) => "",
+    };
+    let shown = format!("{}\n{}{weather}", time.date(), time.clock());
     if text.0 != shown {
         text.0 = shown;
     }

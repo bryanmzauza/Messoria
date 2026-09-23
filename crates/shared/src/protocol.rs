@@ -1,9 +1,10 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! terrain, inventories and player actions.
+//! terrain, inventories, fields and player actions.
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
-use messoria_calendar::WorldTime;
+use messoria_calendar::{Weather, WorldTime};
+use messoria_farming::Planting;
 use messoria_inventory::Inventory;
 use messoria_voxel::{ChunkChanges, ChunkPos};
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,10 @@ pub struct Asleep;
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WorldClock(pub WorldTime);
 
+/// Today's weather, on the clock entity.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CurrentWeather(pub Weather);
+
 /// How many players are asleep, and how many must be for the day to end.
 /// Kept on the clock entity.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -63,6 +68,32 @@ pub struct SleepTally {
 pub enum SleepRequest {
     Sleep,
     Wake,
+}
+
+/// A square of tilled soil; see `fields`.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Field {
+    pub tile: IVec2,
+    /// Height of the ground in the middle of the square.
+    pub height: f32,
+}
+
+/// Marks a field watered for the day, by hand or by rain.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Watered;
+
+/// Marks a field spread with fertilizer, which improves its next harvest.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fertilized;
+
+/// The crop growing in a field.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Crop(pub Planting);
+
+/// A client asking to harvest the ripe crop in the field at `target`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct HarvestRequest {
+    pub target: Vec3,
 }
 
 /// Terrain streamed from the server to a client.
@@ -170,6 +201,8 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<MoveItem>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<HarvestRequest>()
+            .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<SleepRequest>()
             .add_direction(NetworkDirection::ClientToServer);
 
@@ -178,6 +211,11 @@ impl Plugin for ProtocolPlugin {
         app.component::<Energy>().replicate();
         app.component::<Asleep>().replicate();
         app.component::<Belongings>().replicate();
+        app.component::<CurrentWeather>().replicate();
+        app.component::<Field>().replicate();
+        app.component::<Watered>().replicate();
+        app.component::<Fertilized>().replicate();
+        app.component::<Crop>().replicate();
 
         app.component::<PlayerId>().replicate();
 

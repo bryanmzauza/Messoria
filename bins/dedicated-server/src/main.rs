@@ -1,8 +1,11 @@
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
 use clap::Parser;
-use messoria_calendar::{ClockTime, SleepRule, WorldTime};
+use messoria_calendar::{ClockTime, GAME_MINUTE, SleepRule, WorldTime};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
@@ -26,6 +29,11 @@ struct Args {
     /// Time of day the world starts at, between 06:00 and 01:59.
     #[arg(long, value_name = "HH:MM", default_value = "06:00", value_parser = parse_start_time)]
     start_time: WorldTime,
+
+    /// Real milliseconds one game minute lasts, to make days pass faster for
+    /// testing. Defaults to normal play.
+    #[arg(long, value_name = "MS")]
+    minute_length: Option<u64>,
 }
 
 fn main() -> AppExit {
@@ -53,6 +61,9 @@ fn main() -> AppExit {
                     percent: args.sleep_percent,
                 },
                 start_time: args.start_time,
+                minute_length: args
+                    .minute_length
+                    .map_or(GAME_MINUTE, Duration::from_millis),
             },
         ))
         .run()

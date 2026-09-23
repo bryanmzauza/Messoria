@@ -8,6 +8,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use lightyear::prelude::PeerId;
 use messoria_calendar::{GAME_MINUTE, MINUTES_PER_DAY, SleepRule, WorldTime};
+use messoria_content::Quality;
 use messoria_inventory::Inventory;
 use messoria_server::ServerPlugin;
 use messoria_shared::{
@@ -84,7 +85,7 @@ fn food_spoils_into_compost_at_dawn() {
 
     let mut world = World::new(SleepRule::Everyone);
     let mut basket = Inventory::default();
-    basket.add(&content, berries, 4, 0);
+    basket.add(&content, berries, Quality::Normal, 4, 0);
     let player = world.add_player(None, 0);
     world
         .app
@@ -139,6 +140,7 @@ impl World {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
                 sleep_rule,
                 start_time: WorldTime::FIRST_DAWN,
+                minute_length: GAME_MINUTE,
             },
         ))
         .insert_resource(TimeUpdateStrategy::FixedTimesteps(1));

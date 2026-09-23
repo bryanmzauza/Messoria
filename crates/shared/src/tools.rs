@@ -1,4 +1,5 @@
-//! Rules of the shovel, shared so clients aim exactly where the server allows.
+//! Rules for using tools, shared so clients aim exactly where the server
+//! allows.
 
 use std::time::Duration;
 
@@ -7,14 +8,24 @@ use messoria_voxel::{Brush, BrushMode, Material};
 
 use crate::protocol::ItemAction;
 
-/// How far from a character's eyes the shovel reaches, in meters.
+/// How far from a character's eyes tools reach, in meters.
 pub const REACH: f32 = 4.5;
-/// Radius of the sphere of ground dug or raised per use, in meters.
+/// Minimum time between two item uses by the same player.
+pub const USE_INTERVAL: Duration = Duration::from_millis(250);
+
+/// Whether a tool can reach `target` from eyes at `eyes`.
+pub fn in_reach(eyes: Vec3, target: Vec3) -> bool {
+    eyes.distance(target) <= REACH
+}
+
+/// Radius of the sphere of ground a shovel digs or raises, in meters.
 pub const BRUSH_RADIUS: f32 = 1.3;
-/// Minimum time between two uses by the same player.
-pub const COOLDOWN: Duration = Duration::from_millis(250);
-/// Energy each use costs.
-pub const ENERGY_COST: u16 = 2;
+/// Energy each shovel use costs.
+pub const SHOVEL_ENERGY: u16 = 2;
+/// Energy tilling one field costs.
+pub const HOE_ENERGY: u16 = 2;
+/// Energy watering one field costs.
+pub const WATERING_ENERGY: u16 = 1;
 
 /// What a shovel does with each of an item's actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,7 +49,7 @@ impl From<ItemAction> for ShovelAction {
 pub const RAISED_MATERIAL: Material = Material::Soil;
 
 /// The terrain edit a shovel use at `target` makes.
-pub fn brush(target: Vec3, action: ShovelAction) -> Brush {
+pub fn shovel_brush(target: Vec3, action: ShovelAction) -> Brush {
     Brush {
         center: target,
         radius: BRUSH_RADIUS,
@@ -47,9 +58,4 @@ pub fn brush(target: Vec3, action: ShovelAction) -> Brush {
             ShovelAction::Raise => BrushMode::Raise(RAISED_MATERIAL),
         },
     }
-}
-
-/// Whether the shovel can reach `target` from eyes at `eyes`.
-pub fn in_reach(eyes: Vec3, target: Vec3) -> bool {
-    eyes.distance(target) <= REACH
 }

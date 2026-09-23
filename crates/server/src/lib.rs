@@ -7,11 +7,12 @@
 
 mod connections;
 mod day_cycle;
+mod fields;
 mod inventory;
 mod players;
 mod terrain;
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use bevy::prelude::*;
 use messoria_calendar::{SleepRule, WorldTime};
@@ -23,6 +24,9 @@ pub struct ServerPlugin {
     pub sleep_rule: SleepRule,
     /// When the world's clock starts.
     pub start_time: WorldTime,
+    /// Real time one game minute lasts; `messoria_calendar::GAME_MINUTE` for
+    /// normal play, shorter to watch days go by quickly.
+    pub minute_length: Duration,
 }
 
 impl Plugin for ServerPlugin {
@@ -33,10 +37,12 @@ impl Plugin for ServerPlugin {
             },
             players::PlayersPlugin,
             inventory::InventoryPlugin,
+            fields::FieldsPlugin,
             terrain::TerrainPlugin,
             day_cycle::DayCyclePlugin {
                 sleep_rule: self.sleep_rule,
                 start_time: self.start_time,
+                minute_length: self.minute_length,
             },
         ));
     }

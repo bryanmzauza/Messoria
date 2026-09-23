@@ -1,24 +1,20 @@
 //! Carrying out shovel uses: validating them, reshaping the terrain, and
 //! moving ground between the terrain and the character's inventory.
 
-use std::{collections::HashSet, time::Duration};
-
 use bevy::prelude::*;
+use messoria_content::Quality;
 use messoria_shared::{
     content::Content,
     energy::Energy,
     movement::{BODY_HEIGHT, BODY_RADIUS, EYE_HEIGHT},
     protocol::{Asleep, Belongings, PlayerId, Position, WorldClock},
-    shovel::{self, ShovelAction},
     terrain::{ChunkChanged, Terrain},
+    tools::{self, ShovelAction},
 };
 
-use super::{TerrainEdited, editable};
-use crate::inventory::{self, ShovelUse};
+use super::{GroundReshaped, TerrainEdited, editable};
+use crate::inventory::{ItemUseSystems, ShovelUse};
 
-/// Clients pace their uses at `shovel::COOLDOWN`; network jitter can bunch
-/// them up in transit, so the server enforces a slightly shorter gap.
-const MIN_INTERVAL: Duration = shovel::COOLDOWN.saturating_sub(Duration::from_millis(50));
 /// How far from the surface a target may be. Requests for points deep in the
 /// air or underground did not come from aiming at the terrain.
 const MAX_SURFACE_DISTANCE: f32 = 1.0;
@@ -27,36 +23,22 @@ pub(super) struct ShovelPlugin;
 
 impl Plugin for ShovelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreUpdate, apply_shovel_uses.after(inventory::use_items));
+        app.add_systems(PreUpdate, apply_shovel_uses.after(ItemUseSystems));
     }
 }
 
-/// When the player behind a connection last used the shovel.
-#[derive(Component)]
-struct LastShovelUse(Duration);
-
 fn apply_shovel_uses(
-    time: Res<Time>,
     content: Res<Content>,
     clock: Single<&WorldClock>,
     mut uses: MessageReader<ShovelUse>,
-    last_uses: Query<&LastShovelUse>,
     characters: Query<&Position, With<PlayerId>>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
     mut edited: MessageWriter<TerrainEdited>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
-    mut commands: Commands,
+    mut reshaped: MessageWriter<GroundReshaped>,
 ) {
-    let now = time.elapsed();
-    let mut used_this_frame = HashSet::new();
     for shovel_use in uses.read() {
-        let resting = last_uses
-            .get(shovel_use.client)
-            .is_ok_and(|last| now.saturating_sub(last.0) < MIN_INTERVAL);
-        if resting || used_this_frame.contains(&shovel_use.client) {
-            continue;
-        }
         let (Ok(feet), Ok((mut energy, mut belongings))) = (
             characters.get(shovel_use.character),
             workers.get_mut(shovel_use.character),
@@ -67,24 +49,26 @@ fn apply_shovel_uses(
             debug!("rejected {shovel_use:?}: {reason}");
             continue;
         }
-        if energy.current() < shovel::ENERGY_COST {
+        if energy.current() < tools::SHOVEL_ENERGY {
             continue;
         }
 
         // Settle what moves between terrain and inventory before touching
         // either, so a use is carried out completely or not at all.
-        let soil = content.dug_item(shovel::RAISED_MATERIAL);
+        let soil = content.dug_item(tools::RAISED_MATERIAL);
         match shovel_use.action {
             ShovelAction::Dig => {
                 let Some(material) = terrain.surface_material(shovel_use.target) else {
                     continue;
                 };
                 let dug = content.dug_item(material);
-                if belongings.0.room_for(&content, dug) == 0 {
+                if belongings.0.room_for(&content, dug, Quality::Normal) == 0 {
                     debug!("rejected {shovel_use:?}: no room for what it digs up");
                     continue;
                 }
-                belongings.0.add(&content, dug, 1, clock.0.day());
+                belongings
+                    .0
+                    .add(&content, dug, Quality::Normal, 1, clock.0.day());
             }
             ShovelAction::Raise => {
                 if !belongings.0.remove(soil, 1) {
@@ -92,17 +76,17 @@ fn apply_shovel_uses(
                 }
             }
         }
-        energy.try_spend(shovel::ENERGY_COST);
+        energy.try_spend(tools::SHOVEL_ENERGY);
 
-        let brush = shovel::brush(shovel_use.target, shovel_use.action);
+        let brush = tools::shovel_brush(shovel_use.target, shovel_use.action);
         for changes in terrain.apply_brush(&brush) {
             chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
             edited.write(TerrainEdited(changes));
         }
-        used_this_frame.insert(shovel_use.client);
-        commands
-            .entity(shovel_use.client)
-            .insert(LastShovelUse(now));
+        reshaped.write(GroundReshaped {
+            center: brush.center,
+            radius: brush.radius,
+        });
     }
 }
 
@@ -116,7 +100,7 @@ fn validate(
     if !target.is_finite() || !editable(target) {
         return Err("target outside the editable world");
     }
-    if !shovel::in_reach(feet + Vec3::Y * EYE_HEIGHT, target) {
+    if !tools::in_reach(feet + Vec3::Y * EYE_HEIGHT, target) {
         return Err("target out of reach");
     }
     if !terrain
@@ -139,7 +123,7 @@ fn validate(
 /// treating the body as a capsule around its vertical axis.
 fn body_overlaps_brush(feet: Vec3, center: Vec3) -> bool {
     let nearest_on_axis = feet.with_y(center.y.clamp(feet.y, feet.y + BODY_HEIGHT));
-    nearest_on_axis.distance(center) < shovel::BRUSH_RADIUS + BODY_RADIUS
+    nearest_on_axis.distance(center) < tools::BRUSH_RADIUS + BODY_RADIUS
 }
 
 #[cfg(test)]

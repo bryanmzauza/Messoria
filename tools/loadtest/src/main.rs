@@ -1,9 +1,10 @@
-//! Connects headless bot players to a server that wander and, optionally,
-//! reshape the terrain.
+//! Connects headless bot players to a server. By default they wander; they
+//! can also reshape the terrain, or stay put and farm.
 //!
 //! Each bot is a complete client app running on its own thread, so the server
 //! sees exactly the traffic real players would produce.
 
+mod farm;
 mod reshape;
 mod wander;
 
@@ -37,8 +38,12 @@ struct Args {
     simulate_latency: Option<u64>,
 
     /// Make bots dig and raise the terrain as they wander.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "farm")]
     dig: bool,
+
+    /// Make bots stay put and farm a row of fields, logging each harvest.
+    #[arg(long)]
+    farm: bool,
 }
 
 fn main() -> AppExit {
@@ -52,12 +57,20 @@ fn main() -> AppExit {
         }
     };
 
+    let behavior = if args.farm {
+        Behavior::Farm
+    } else if args.dig {
+        Behavior::WanderAndDig
+    } else {
+        Behavior::Wander
+    };
+
     let bots: Vec<_> = (0..args.bots)
         .map(|index| {
             let content = content.clone();
             thread::Builder::new()
                 .name(format!("bot-{index}"))
-                .spawn(move || run_bot(index, args.server, simulated_latency, args.dig, content))
+                .spawn(move || run_bot(index, args.server, simulated_latency, behavior, content))
                 .expect("spawn bot thread")
         })
         .collect();
@@ -74,7 +87,7 @@ fn run_bot(
     index: u16,
     server_addr: SocketAddr,
     simulated_latency: Option<Duration>,
-    dig: bool,
+    behavior: Behavior,
     content: Catalog,
 ) -> AppExit {
     let mut app = App::new();
@@ -83,19 +96,26 @@ fn run_bot(
     if index == 0 {
         app.add_plugins(LogPlugin::default());
     }
-    app.add_plugins((
-        SharedPlugin {
-            role: NetworkRole::Client,
-            content,
-        },
-        wander::WanderPlugin {
-            seed: u64::from(index),
-        },
-    ));
-    if dig {
-        app.add_plugins(reshape::ReshapePlugin {
-            seed: u64::from(index),
-        });
+    app.add_plugins(SharedPlugin {
+        role: NetworkRole::Client,
+        content,
+    });
+    let seed = u64::from(index);
+    match behavior {
+        Behavior::Wander => {
+            app.add_plugins(wander::WanderPlugin { seed });
+        }
+        Behavior::WanderAndDig => {
+            app.add_plugins((
+                wander::WanderPlugin { seed },
+                reshape::ReshapePlugin { seed },
+            ));
+        }
+        Behavior::Farm => {
+            app.add_plugins(farm::FarmPlugin {
+                name: format!("bot {index}"),
+            });
+        }
     }
 
     let client_id = rand::random();
@@ -107,6 +127,13 @@ fn run_bot(
     });
 
     app.run()
+}
+
+#[derive(Clone, Copy)]
+enum Behavior {
+    Wander,
+    WanderAndDig,
+    Farm,
 }
 
 fn parse_server_addr(input: &str) -> Result<SocketAddr, String> {

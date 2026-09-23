@@ -1,13 +1,14 @@
 //! The items a character carries: slots, stacks and spoilage.
 //!
 //! An inventory has a hotbar, whose selected slot decides what the character
-//! holds, followed by a backpack. Slots hold stacks of one item each, up to
-//! that item's stack size. Perishable stacks remember the day they spoil on.
+//! holds, followed by a backpack. Slots hold stacks of one item of one
+//! quality each, up to that item's stack size. Perishable stacks remember the
+//! day they spoil on.
 //!
 //! This crate has no engine dependency; see
 //! `docs/adr/0003-pure-domain-crates.md`.
 
-use messoria_content::{Catalog, ItemId};
+use messoria_content::{Catalog, ItemId, Quality};
 use serde::{Deserialize, Serialize};
 
 /// Slots in the hotbar, which come first.
@@ -21,6 +22,7 @@ pub const SLOTS: usize = HOTBAR_SLOTS + BACKPACK_SLOTS;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Stack {
     pub item: ItemId,
+    pub quality: Quality,
     pub count: u16,
     /// Day the stack spoils on, for perishable items.
     pub spoils_on: Option<u32>,
@@ -47,23 +49,32 @@ impl Inventory {
             .sum()
     }
 
-    /// How many more of `item` fit.
-    pub fn room_for(&self, catalog: &Catalog, item: ItemId) -> u32 {
+    /// How many more of `item` in `quality` fit.
+    pub fn room_for(&self, catalog: &Catalog, item: ItemId, quality: Quality) -> u32 {
         let max = catalog.item(item).max_stack;
         self.slots
             .iter()
             .map(|slot| match slot {
                 None => u32::from(max),
-                Some(stack) if stack.item == item => u32::from(max - stack.count),
+                Some(stack) if stack.item == item && stack.quality == quality => {
+                    u32::from(max - stack.count)
+                }
                 Some(_) => 0,
             })
             .sum()
     }
 
-    /// Adds `count` of `item`, acquired on day `today`: first onto stacks of
-    /// the same item, then into empty slots, hotbar first. Returns how many
-    /// did not fit.
-    pub fn add(&mut self, catalog: &Catalog, item: ItemId, count: u16, today: u32) -> u16 {
+    /// Adds `count` of `item` in `quality`, acquired on day `today`: first
+    /// onto stacks of the same item and quality, then into empty slots,
+    /// hotbar first. Returns how many did not fit.
+    pub fn add(
+        &mut self,
+        catalog: &Catalog,
+        item: ItemId,
+        quality: Quality,
+        count: u16,
+        today: u32,
+    ) -> u16 {
         let definition = catalog.item(item);
         let spoils_on = definition.shelf_life.map(|days| today + u32::from(days));
         let mut left = count;
@@ -72,7 +83,7 @@ impl Inventory {
             if left == 0 {
                 break;
             }
-            if stack.item == item {
+            if stack.item == item && stack.quality == quality {
                 let moved = left.min(definition.max_stack - stack.count);
                 stack.spoils_on = blend_freshness(stack.spoils_on, stack.count, spoils_on, moved);
                 stack.count += moved;
@@ -86,6 +97,7 @@ impl Inventory {
             let moved = left.min(definition.max_stack);
             *slot = Some(Stack {
                 item,
+                quality,
                 count: moved,
                 spoils_on,
             });
@@ -94,8 +106,9 @@ impl Inventory {
         left
     }
 
-    /// Removes `count` of `item`, those closest to spoiling first. Removes
-    /// nothing and returns `false` if there are not enough.
+    /// Removes `count` of `item` of any quality, the lowest quality and then
+    /// those closest to spoiling first. Removes nothing and returns `false` if
+    /// there are not enough.
     pub fn remove(&mut self, item: ItemId, count: u16) -> bool {
         if self.count(item) < u32::from(count) {
             return false;
@@ -104,9 +117,7 @@ impl Inventory {
             .filter(|&index| self.slots[index].is_some_and(|stack| stack.item == item))
             .collect();
         order.sort_by_key(|&index| {
-            self.slots[index]
-                .and_then(|stack| stack.spoils_on)
-                .unwrap_or(u32::MAX)
+            self.slots[index].map(|stack| (stack.quality, stack.spoils_on.unwrap_or(u32::MAX)))
         });
 
         let mut left = count;
@@ -140,14 +151,16 @@ impl Inventory {
     }
 
     /// Moves the stack in slot `from` onto slot `to`. Stacks of the same item
-    /// merge as far as they fit; anything else swaps places. Returns `false`
-    /// if either slot does not exist.
+    /// and quality merge as far as they fit; anything else swaps places.
+    /// Returns `false` if either slot does not exist.
     pub fn move_stack(&mut self, catalog: &Catalog, from: usize, to: usize) -> bool {
         if from >= SLOTS || to >= SLOTS {
             return false;
         }
         match (self.slots[from], self.slots[to]) {
-            (Some(source), Some(target)) if from != to && source.item == target.item => {
+            (Some(source), Some(target))
+                if from != to && source.item == target.item && source.quality == target.quality =>
+            {
                 let room = catalog.item(target.item).max_stack - target.count;
                 let moved = room.min(source.count);
                 self.slots[to] = Some(Stack {
@@ -189,6 +202,7 @@ impl Inventory {
             let definition = catalog.item(remains);
             *slot = Some(Stack {
                 item: remains,
+                quality: Quality::Normal,
                 count: stack.count.min(definition.max_stack),
                 spoils_on: definition.shelf_life.map(|days| today + u32::from(days)),
             });
@@ -234,6 +248,7 @@ mod tests {
         ],
         starting_inventory: [],
     )"#;
+    const CROPS: &str = "(crops: [])";
 
     struct Fixture {
         catalog: Catalog,
@@ -244,7 +259,7 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
-        let catalog = Catalog::from_items_source(ITEMS).unwrap();
+        let catalog = Catalog::from_sources(ITEMS, CROPS).unwrap();
         let id = |key| catalog.id(key).unwrap();
         Fixture {
             shovel: id("shovel"),
@@ -259,8 +274,8 @@ mod tests {
     fn items_fill_existing_stacks_before_empty_slots() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        assert_eq!(inventory.add(&f.catalog, f.soil, 60, 0), 0);
-        assert_eq!(inventory.add(&f.catalog, f.soil, 60, 0), 0);
+        assert_eq!(inventory.add(&f.catalog, f.soil, Quality::Normal, 60, 0), 0);
+        assert_eq!(inventory.add(&f.catalog, f.soil, Quality::Normal, 60, 0), 0);
 
         assert_eq!(inventory.slot(0).unwrap().count, 99);
         assert_eq!(inventory.slot(1).unwrap().count, 21);
@@ -272,16 +287,22 @@ mod tests {
         let f = fixture();
         let mut inventory = Inventory::default();
         let capacity = u16::try_from(SLOTS * 99).unwrap();
-        assert_eq!(inventory.add(&f.catalog, f.soil, capacity + 5, 0), 5);
-        assert_eq!(inventory.room_for(&f.catalog, f.soil), 0);
-        assert_eq!(inventory.room_for(&f.catalog, f.berries), 0);
+        assert_eq!(
+            inventory.add(&f.catalog, f.soil, Quality::Normal, capacity + 5, 0),
+            5
+        );
+        assert_eq!(inventory.room_for(&f.catalog, f.soil, Quality::Normal), 0);
+        assert_eq!(
+            inventory.room_for(&f.catalog, f.berries, Quality::Normal),
+            0
+        );
     }
 
     #[test]
     fn tools_do_not_stack() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.shovel, 2, 0);
+        inventory.add(&f.catalog, f.shovel, Quality::Normal, 2, 0);
         assert_eq!(inventory.slot(0).unwrap().count, 1);
         assert_eq!(inventory.slot(1).unwrap().count, 1);
     }
@@ -290,9 +311,9 @@ mod tests {
     fn removing_takes_the_oldest_first_and_is_all_or_nothing() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.soil, 1, 0);
-        inventory.add(&f.catalog, f.berries, 20, 0);
-        inventory.add(&f.catalog, f.berries, 5, 2);
+        inventory.add(&f.catalog, f.soil, Quality::Normal, 1, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 20, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 5, 2);
         // Swap the fresh stack in front of the old one, so that slot order
         // and age disagree.
         inventory.move_stack(&f.catalog, 2, 0);
@@ -312,7 +333,7 @@ mod tests {
     fn taking_the_last_item_empties_the_slot() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.berries, 1, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 1, 0);
         assert_eq!(inventory.take_one(0), Some(f.berries));
         assert_eq!(inventory.slot(0), None);
         assert_eq!(inventory.take_one(0), None);
@@ -323,10 +344,10 @@ mod tests {
     fn moving_merges_the_same_item_and_swaps_different_ones() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.soil, 90, 0);
-        inventory.add(&f.catalog, f.shovel, 1, 0);
+        inventory.add(&f.catalog, f.soil, Quality::Normal, 90, 0);
+        inventory.add(&f.catalog, f.shovel, Quality::Normal, 1, 0);
         inventory.move_stack(&f.catalog, 0, 2);
-        inventory.add(&f.catalog, f.soil, 20, 0);
+        inventory.add(&f.catalog, f.soil, Quality::Normal, 20, 0);
 
         assert!(inventory.move_stack(&f.catalog, 0, 2));
         assert_eq!(inventory.slot(2).unwrap().count, 99);
@@ -343,8 +364,8 @@ mod tests {
     fn spoiled_stacks_turn_into_compost() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.berries, 7, 0);
-        inventory.add(&f.catalog, f.soil, 3, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 7, 0);
+        inventory.add(&f.catalog, f.soil, Quality::Normal, 3, 0);
 
         assert_eq!(inventory.spoil(&f.catalog, 2), 0);
         assert_eq!(inventory.spoil(&f.catalog, 3), 1);
@@ -358,11 +379,34 @@ mod tests {
     }
 
     #[test]
+    fn different_qualities_keep_separate_stacks() {
+        let f = fixture();
+        let mut inventory = Inventory::default();
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 2, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Gold, 2, 0);
+        assert_eq!(inventory.slot(1).unwrap().quality, Quality::Gold);
+
+        inventory.move_stack(&f.catalog, 1, 0);
+        assert_eq!(
+            inventory.slot(0).unwrap().quality,
+            Quality::Gold,
+            "unlike stacks swap"
+        );
+
+        assert!(inventory.remove(f.berries, 3));
+        assert_eq!(
+            inventory.slot(0).unwrap().quality,
+            Quality::Gold,
+            "normal ones go first"
+        );
+    }
+
+    #[test]
     fn merging_perishables_averages_their_freshness() {
         let f = fixture();
         let mut inventory = Inventory::default();
-        inventory.add(&f.catalog, f.berries, 3, 0);
-        inventory.add(&f.catalog, f.berries, 1, 4);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 3, 0);
+        inventory.add(&f.catalog, f.berries, Quality::Normal, 1, 4);
 
         let stack = inventory.slot(0).unwrap();
         assert_eq!(stack.count, 4);

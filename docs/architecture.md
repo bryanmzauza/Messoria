@@ -19,7 +19,8 @@ See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 crates/
   calendar/          messoria-calendar          Game time, dates, seasons, sleep rules
   content/           messoria-content           Content catalog loaded from data files, with validation
-  inventory/         messoria-inventory         Slots, stacks and spoilage
+  farming/           messoria-farming           Crop growth, withering, harvests and their quality
+  inventory/         messoria-inventory         Slots, stacks, quality and spoilage
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
@@ -48,7 +49,7 @@ starts, never ahead of time:
 
 ```
 bins, tools ──► client ──┐
-           └──► server ──┴──► shared ──► domain crates (calendar, content, inventory, voxel, economy)
+           └──► server ──┴──► shared ──► domain crates (calendar, content, farming, inventory, voxel, economy)
 ```
 
 - **Domain crates do not depend on Bevy.** They hold pure data structures and
@@ -106,8 +107,8 @@ See [ADR 0004](adr/0004-terrain-representation.md).
 
 ## Days
 
-- The server owns a single clock entity carrying `WorldClock` and
-  `SleepTally`, replicated to every client. It advances one game minute per
+- The server owns a single clock entity carrying `WorldClock`,
+  `CurrentWeather` and `SleepTally`, replicated to every client. It advances one game minute per
   real second, counted in whole ticks so it never drifts.
 - A day ends when the server's `SleepRule` is met or at 02:00. Sleepers wake
   rested; anyone still awake at 02:00 passes out and recovers only half their
@@ -145,6 +146,19 @@ files under `assets/data/`, never in code.
   replicated. Clients ask to `MoveItem` between slots and to `UseItem` from a
   hotbar slot; the item in the slot decides what the use does.
 - Tool uses that act on the world are handed to the system that owns that part
-  of the world as a Bevy message (`ShovelUse` for the terrain); eating is
-  handled by the inventory itself.
+  of the world as a Bevy message (`ShovelUse` for the terrain, `FieldWork` for
+  fields); eating is handled by the inventory itself. Every use counts against
+  one per-player rate limit.
 - At dawn every inventory spoils what has expired.
+
+## Fields
+
+- A field is a replicated entity per tilled square of the one-meter grid, not
+  a terrain change: `Field` holds its tile and ground height, with `Watered`,
+  `Fertilized` and `Crop` added as it is tended. The server indexes fields by
+  tile.
+- Crops grow once per night, in one batch at dawn, from whether their field
+  was watered during the day. The weather for the new day is chosen first; rain
+  waters every field.
+- Reshaping the ground under a field destroys it, which terrain edits report
+  as `GroundReshaped`.

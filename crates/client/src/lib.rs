@@ -11,11 +11,13 @@ mod camera;
 mod clock;
 mod connection;
 mod environment;
+mod fields;
 mod hud;
 mod input;
 mod inventory;
 mod sleep;
 mod terrain;
+mod weather;
 
 use bevy::prelude::*;
 
@@ -34,6 +36,8 @@ impl Plugin for ClientPlugin {
             clock::ClockPlugin,
             environment::EnvironmentPlugin,
             terrain::TerrainPlugin,
+            fields::FieldsPlugin,
+            weather::WeatherPlugin,
             avatars::AvatarPlugin,
             camera::CameraPlugin,
             input::InputPlugin,

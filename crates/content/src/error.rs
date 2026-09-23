@@ -41,6 +41,20 @@ pub enum Problem {
     },
     #[error("the starting inventory lists `{0}` with a count of 0")]
     EmptyStartingStack(String),
+    #[error("crop `{0}` is defined more than once")]
+    DuplicateCrop(String),
+    #[error("crop `{crop}` grows from `{item}`, which is not a seed")]
+    NotASeed { crop: String, item: String },
+    #[error("seed `{seed}` grows both `{first}` and `{second}`")]
+    SharedSeed {
+        seed: String,
+        first: String,
+        second: String,
+    },
+    #[error("seed `{0}` does not grow any crop")]
+    UnplantedSeed(String),
+    #[error("crop `{crop}` is invalid: {reason}")]
+    InvalidCrop { crop: String, reason: String },
 }
 
 impl From<ron::error::SpannedError> for Problem {

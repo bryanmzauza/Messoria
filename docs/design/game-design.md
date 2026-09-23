@@ -74,9 +74,11 @@ Waiting for everyone to sleep does not work with 50 players:
 
 ### 5.1 Farming
 - Hoe tills the soil → seed → water daily → grows through stages → harvest.
-- Each crop is defined in a data file (RON): season, days per stage, whether it regrows, produce shelf life, base price per season.
-- Harvest quality (normal / silver / gold) is influenced by fertilizer.
+- Fields are one-meter squares on a grid. Only grass or soil on gentle slopes can be tilled; digging or raising the ground under a field destroys it.
+- Each crop is defined in a data file (RON): seasons, days per stage, whether it regrows, how much it yields. Growth counts watered days only, resolved each night.
+- Harvest quality (normal / silver / gold) is influenced by fertilizer: compost, which is what spoiled food becomes. Fertilizer feeds one harvest.
 - Crops out of season die when the season changes.
+- Rain waters every field for the day.
 
 ### 5.2 Tools
 Hoe, watering can, axe, pickaxe, shovel (terraforming), scythe, basic weapon. Upgrade tiers (copper → iron → gold) increase area and efficiency.

@@ -11,9 +11,9 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 Early development. Players share a farm valley over the network, hosted from
 the game or on a dedicated server, reshape its smooth voxel terrain with a
-shovel, carry what they dig in their inventory, and live through days and
-nights that end when they go to sleep. Farming is next. See the
-[roadmap](docs/ROADMAP.md) for what is done and what comes next.
+shovel, farm crops through the seasons, and live through days and nights
+that end when they go to sleep. The village shop and its economy are next.
+See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -49,7 +49,9 @@ cargo client -- --connect 192.168.0.10       # join a hosted world or a dedicate
 cargo server -- --port 5717                  # dedicated server
 cargo server -- --sleep-percent 50           # share of players that must sleep to end the day
 cargo server -- --start-time 21:00           # start the world's clock at a given time
+cargo server -- --minute-length 20           # make days pass quickly, for testing
 cargo bots -- --server 127.0.0.1 --bots 4    # add simulated players
+cargo bots -- --bots 2 --farm                # bots that farm and log their harvests
 ```
 
 The host must allow the port through their firewall, and players outside the
@@ -59,19 +61,21 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Space` to jump, `1` to `0` or the mouse wheel to pick the held item, left and
-right mouse buttons to use it (the shovel digs and raises ground; food is
-eaten with the left button), `Tab` to open the backpack and click two slots to
-move items, `Z` to sleep or get up (from 18:00), `F5` to switch between first
-and third person, `Esc` to release the mouse.
+right mouse buttons to use it, `E` to harvest a ripe crop, `Tab` to open the
+backpack and click two slots to move items, `Z` to sleep or get up (from
+18:00), `F5` to switch between first and third person, `Esc` to release the
+mouse. The shovel digs and raises ground; the hoe tills a field, seeds are
+planted in it and the watering can waters it; food is eaten.
 
-Game content lives in `assets/data/`; items are defined in
-[`items.ron`](assets/data/items.ron). The game refuses to start, naming the
+Game content lives in `assets/data/`: items in
+[`items.ron`](assets/data/items.ron) and crops in
+[`crops.ron`](assets/data/crops.ron). The game refuses to start, naming the
 problem, if a data file is invalid.
 
 ## Repository layout
 
 ```
-crates/   libraries: domain rules (calendar, content, inventory, voxel), shared
+crates/   libraries: domain rules (calendar, content, farming, inventory, voxel), shared
           networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots

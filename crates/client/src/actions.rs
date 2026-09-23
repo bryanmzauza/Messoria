@@ -1,9 +1,12 @@
-//! Using the held item: the left mouse button for its main use, the right
-//! button for its second one.
+//! Using the held item and harvesting.
 //!
-//! A shovel aims at the terrain, shows where it will act and repeats while
-//! the button is held; food is eaten once per click. The server carries out
-//! every use, so the world changes when its update arrives.
+//! The left mouse button uses the held item and the right button uses it the
+//! other way, where it has one. Items that act on the world aim at the
+//! terrain under the crosshair: the shovel shows the ground it will move, and
+//! farming items the field square they work. Tools repeat while the button is
+//! held; seeds, fertilizer and food act once per click. `E` harvests the ripe
+//! crop under the crosshair. The server carries out every use, so the world
+//! changes when its update arrives.
 
 use std::time::Duration;
 
@@ -12,10 +15,13 @@ use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_content::{ItemKind, Tool};
 use messoria_shared::{
     content::Content,
+    fields::{tile_at, tile_center},
     movement::EYE_HEIGHT,
-    protocol::{ActionChannel, Belongings, ItemAction, PlayerInput, Position, UseItem},
-    shovel,
+    protocol::{
+        ActionChannel, Belongings, HarvestRequest, ItemAction, PlayerInput, Position, UseItem,
+    },
     terrain::Terrain,
+    tools,
 };
 use messoria_voxel::RayHit;
 
@@ -24,9 +30,10 @@ use crate::{
     inventory::HeldSlot,
 };
 
+const HARVEST_KEY: KeyCode = KeyCode::KeyE;
 const AIM_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
-/// Lifts the aim marker off the surface so it is not hidden inside it.
-const AIM_LIFT: f32 = 0.03;
+/// Lifts aim markers off the surface so they are not hidden inside it.
+const AIM_LIFT: f32 = 0.05;
 const BUTTONS: [(MouseButton, ItemAction); 2] = [
     (MouseButton::Left, ItemAction::Primary),
     (MouseButton::Right, ItemAction::Secondary),
@@ -41,7 +48,7 @@ impl Plugin for ActionsPlugin {
             (
                 aim,
                 // Before the cursor is captured, so the capturing click is not a use.
-                use_held_item.before(LookSystems),
+                (use_held_item, harvest).before(LookSystems),
                 draw_aim,
             )
                 .chain(),
@@ -49,48 +56,60 @@ impl Plugin for ActionsPlugin {
     }
 }
 
-/// Where a shovel would act, if the player holds one and aims at terrain in
-/// reach.
+/// The terrain under the crosshair, if it is within the character's reach.
 #[derive(Resource, Default)]
 struct Aim(Option<RayHit>);
 
-/// What the local player holds, if anything.
-fn held_item<'a>(
-    content: &'a Content,
-    held: &HeldSlot,
-    belongings: &Belongings,
-) -> Option<&'a ItemKind> {
+/// How the held item acts on the world, which decides how aiming looks and
+/// whether holding the button repeats the use.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Handling {
+    /// Digs or raises ground around the aimed point, repeatedly.
+    Shovel,
+    /// Works the aimed field square, repeatedly.
+    FieldTool,
+    /// Goes into the aimed field square, once per click.
+    FieldSupply,
+    /// Used on oneself, once per click.
+    Consumable,
+}
+
+fn handling(kind: &ItemKind) -> Option<Handling> {
+    match kind {
+        ItemKind::Tool(Tool::Shovel) => Some(Handling::Shovel),
+        ItemKind::Tool(Tool::Hoe | Tool::WateringCan) => Some(Handling::FieldTool),
+        ItemKind::Seed | ItemKind::Fertilizer => Some(Handling::FieldSupply),
+        ItemKind::Food { .. } => Some(Handling::Consumable),
+        ItemKind::Terrain { .. } | ItemKind::Goods => None,
+    }
+}
+
+fn held_handling(content: &Content, held: &HeldSlot, belongings: &Belongings) -> Option<Handling> {
     let stack = belongings.0.slot(held.0)?;
-    Some(&content.item(stack.item).kind)
+    handling(&content.item(stack.item).kind)
 }
 
 fn aim(
     view: Res<View>,
-    content: Res<Content>,
-    held: Res<HeldSlot>,
     terrain: Res<Terrain>,
     camera: Single<&Transform, With<Camera3d>>,
-    player: Query<(&Position, &Belongings), With<InputMarker<PlayerInput>>>,
+    player: Query<&Position, With<InputMarker<PlayerInput>>>,
     mut aim: ResMut<Aim>,
 ) {
     aim.0 = None;
-    let Ok((feet, belongings)) = player.single() else {
+    let Ok(feet) = player.single() else {
         return;
     };
-    let holding_shovel = matches!(
-        held_item(&content, &held, belongings),
-        Some(ItemKind::Tool(Tool::Shovel))
-    );
-    if !view.captured || !holding_shovel {
+    if !view.captured {
         return;
     }
     // Aim along the view, which in third person starts behind the character,
     // but measure reach from the character's eyes as the server does.
     let eyes = feet.0 + Vec3::Y * EYE_HEIGHT;
-    let max_distance = camera.translation.distance(eyes) + shovel::REACH;
+    let max_distance = camera.translation.distance(eyes) + tools::REACH;
     aim.0 = terrain
         .raycast(camera.translation, *camera.forward(), max_distance)
-        .filter(|hit| shovel::in_reach(eyes, hit.point));
+        .filter(|hit| tools::in_reach(eyes, hit.point));
 }
 
 fn use_held_item(
@@ -120,13 +139,16 @@ fn use_held_item(
     else {
         return;
     };
-    let (target, repeats) = match held_item(&content, &held, belongings) {
-        Some(ItemKind::Tool(Tool::Shovel)) => match aim.0 {
-            Some(hit) => (Some(hit.point), true),
+    let Some(handling) = held_handling(&content, &held, belongings) else {
+        return;
+    };
+    let target = match handling {
+        Handling::Consumable if action == ItemAction::Primary => None,
+        Handling::Consumable => return,
+        Handling::Shovel | Handling::FieldTool | Handling::FieldSupply => match aim.0 {
+            Some(hit) => Some(hit.point),
             None => return,
         },
-        Some(ItemKind::Food { .. }) if action == ItemAction::Primary => (None, false),
-        _ => return,
     };
     if time.elapsed() < *ready_at {
         return;
@@ -137,19 +159,53 @@ fn use_held_item(
         action,
         target,
     });
-    *ready_at = time.elapsed() + shovel::COOLDOWN;
-    if !repeats {
+    *ready_at = time.elapsed() + tools::USE_INTERVAL;
+    if matches!(handling, Handling::FieldSupply | Handling::Consumable) {
         *pressed = None;
     }
 }
 
-fn draw_aim(aim: Res<Aim>, mut gizmos: Gizmos) {
-    if let Some(hit) = aim.0 {
-        let facing = Quat::from_rotation_arc(Vec3::Z, hit.normal);
-        gizmos.circle(
-            Isometry3d::new(hit.point + hit.normal * AIM_LIFT, facing),
-            shovel::BRUSH_RADIUS,
-            AIM_COLOR,
-        );
+fn harvest(
+    keys: Res<ButtonInput<KeyCode>>,
+    view: Res<View>,
+    aim: Res<Aim>,
+    mut sender: Query<&mut MessageSender<HarvestRequest>, With<Client>>,
+) {
+    if !view.captured || !keys.just_pressed(HARVEST_KEY) {
+        return;
+    }
+    if let (Some(hit), Ok(mut sender)) = (aim.0, sender.single_mut()) {
+        sender.send::<ActionChannel>(HarvestRequest { target: hit.point });
+    }
+}
+
+fn draw_aim(
+    aim: Res<Aim>,
+    content: Res<Content>,
+    held: Res<HeldSlot>,
+    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
+    mut gizmos: Gizmos,
+) {
+    let (Some(hit), Ok(belongings)) = (aim.0, player.single()) else {
+        return;
+    };
+    match held_handling(&content, &held, belongings) {
+        Some(Handling::Shovel) => {
+            let facing = Quat::from_rotation_arc(Vec3::Z, hit.normal);
+            gizmos.circle(
+                Isometry3d::new(hit.point + hit.normal * AIM_LIFT, facing),
+                tools::BRUSH_RADIUS,
+                AIM_COLOR,
+            );
+        }
+        Some(Handling::FieldTool | Handling::FieldSupply) => {
+            let center = tile_center(tile_at(hit.point));
+            let square = Isometry3d::new(
+                Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y),
+                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            );
+            gizmos.rect(square, Vec2::ONE, AIM_COLOR);
+        }
+        Some(Handling::Consumable) | None => {}
     }
 }

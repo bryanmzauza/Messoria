@@ -83,11 +83,12 @@ inventory rules are covered by unit tests.
 
 Goal: the core farming loop works end to end.
 
-- [ ] Hoe tills terrain surface into farmland
-- [ ] Crop definitions in `messoria-content`; five crops defined in data
-- [ ] Watering can and rain
-- [ ] Batched growth resolved at day rollover
-- [ ] Harvest with quality tiers; crops die out of season
+- [x] Hoe tills terrain surface into farmland
+- [x] Crop definitions in `messoria-content`; five crops defined in data
+- [x] Watering can and rain (daily weather from the world seed)
+- [x] Batched growth resolved at day rollover (`messoria-farming`)
+- [x] Harvest with quality tiers, improved by fertilizer; crops die out of season
+- [x] Test playing a hosted world through a crop's growth; farming bots for live sessions
 
 **Exit criterion:** a crop planted on day 1 is harvested on the day its data file
 predicts, in a simulated run and in a live session.

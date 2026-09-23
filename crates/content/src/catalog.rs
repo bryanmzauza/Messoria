@@ -1,56 +1,31 @@
-//! Loading and validating the content catalog.
+//! Loading the content files and checking them against each other.
 
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs, path::Path};
 
 use messoria_voxel::Material;
 use ron::{Options, extensions::Extensions};
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::{
+    crop::{CropDef, CropId, Crops, CropsFile},
     error::{ContentError, Problem},
-    item::{ItemDef, ItemId, ItemKind},
+    item::{ItemDef, ItemId, ItemKind, Items, ItemsFile},
 };
 
-/// File within the data folder that defines items.
+/// Files within the data folder.
 const ITEMS_FILE: &str = "items.ron";
+const CROPS_FILE: &str = "crops.ron";
 
 /// All loaded content, with every cross-reference checked.
 #[derive(Clone, Debug)]
 pub struct Catalog {
     items: Vec<ItemDef>,
-    by_key: HashMap<String, ItemId>,
+    item_keys: HashMap<String, ItemId>,
     dug_items: HashMap<Material, ItemId>,
     starting_inventory: Vec<(ItemId, u16)>,
-}
-
-/// `items.ron` as written.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ItemsFile {
-    items: Vec<ItemEntry>,
-    starting_inventory: Vec<(String, u16)>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ItemEntry {
-    id: String,
-    name: String,
-    kind: ItemKind,
-    #[serde(default = "single")]
-    stack: u16,
-    #[serde(default)]
-    shelf_life: Option<u16>,
-    #[serde(default)]
-    spoils_into: Option<String>,
-}
-
-fn single() -> u16 {
-    1
+    crops: Vec<CropDef>,
+    crop_keys: HashMap<String, CropId>,
+    crops_by_seed: HashMap<ItemId, CropId>,
 }
 
 impl Catalog {
@@ -61,87 +36,55 @@ impl Catalog {
     /// Fails with the file and the problem if any file is missing, malformed
     /// or inconsistent.
     pub fn load(data_dir: &Path) -> Result<Self, ContentError> {
-        let path = data_dir.join(ITEMS_FILE);
-        let source = fs::read_to_string(&path).map_err(|error| ContentError {
-            file: path.clone(),
-            problem: error.into(),
-        })?;
-        Self::parse_items(&source).map_err(|problem| ContentError {
-            file: path,
-            problem,
-        })
+        let read = |file: &str| {
+            let path = data_dir.join(file);
+            fs::read_to_string(&path)
+                .map(|source| (source, path.clone()))
+                .map_err(|error| ContentError {
+                    file: path,
+                    problem: error.into(),
+                })
+        };
+        let (items, items_path) = read(ITEMS_FILE)?;
+        let (crops, crops_path) = read(CROPS_FILE)?;
+        Self::build(&items, &items_path, &crops, &crops_path)
     }
 
-    /// Builds a catalog from the text of an items file.
+    /// Builds a catalog from the text of the content files.
     ///
     /// # Errors
     ///
-    /// Fails if the text is malformed or inconsistent.
-    pub fn from_items_source(source: &str) -> Result<Self, ContentError> {
-        Self::parse_items(source).map_err(|problem| ContentError {
-            file: PathBuf::from(ITEMS_FILE),
-            problem,
-        })
+    /// Fails if any text is malformed or inconsistent.
+    pub fn from_sources(items: &str, crops: &str) -> Result<Self, ContentError> {
+        Self::build(items, Path::new(ITEMS_FILE), crops, Path::new(CROPS_FILE))
     }
 
-    fn parse_items(source: &str) -> Result<Self, Problem> {
-        // Implicit `Some` lets optional fields be written as plain values.
-        let file: ItemsFile = Options::default()
-            .with_default_extension(Extensions::IMPLICIT_SOME)
-            .from_str(source)?;
-
-        let mut by_key = HashMap::new();
-        for (index, entry) in file.items.iter().enumerate() {
-            let id = ItemId(u16::try_from(index).expect("fewer than 65536 items"));
-            if by_key.insert(entry.id.clone(), id).is_some() {
-                return Err(Problem::DuplicateItem(entry.id.clone()));
-            }
-        }
-        let resolve = |context: String, key: &str| {
-            by_key
-                .get(key)
-                .copied()
-                .ok_or_else(|| Problem::UnknownItem {
-                    context,
-                    item: key.to_owned(),
-                })
+    fn build(
+        items: &str,
+        items_path: &Path,
+        crops: &str,
+        crops_path: &Path,
+    ) -> Result<Self, ContentError> {
+        let in_file = |file: &Path| {
+            let file = file.to_path_buf();
+            move |problem| ContentError { file, problem }
         };
-
-        let mut items = Vec::with_capacity(file.items.len());
-        for entry in file.items {
-            let spoils_into = entry
-                .spoils_into
-                .as_deref()
-                .map(|key| resolve(format!("item `{}`", entry.id), key))
-                .transpose()?;
-            let item = ItemDef {
-                key: entry.id,
-                name: entry.name,
-                kind: entry.kind,
-                max_stack: entry.stack,
-                shelf_life: entry.shelf_life,
-                spoils_into,
-            };
-            validate_item(&item, &by_key)?;
-            items.push(item);
-        }
-
-        let starting_inventory = file
-            .starting_inventory
-            .iter()
-            .map(|(key, count)| {
-                if *count == 0 {
-                    return Err(Problem::EmptyStartingStack(key.clone()));
-                }
-                Ok((resolve("the starting inventory".to_owned(), key)?, *count))
-            })
-            .collect::<Result<_, _>>()?;
+        let items: Items = parse::<ItemsFile>(items)
+            .and_then(ItemsFile::resolve)
+            .map_err(in_file(items_path))?;
+        let dug_items = dug_items(&items.definitions).map_err(in_file(items_path))?;
+        let crops: Crops = parse::<CropsFile>(crops)
+            .and_then(|file| file.resolve(&items))
+            .map_err(in_file(crops_path))?;
 
         Ok(Self {
-            dug_items: dug_items(&items)?,
-            items,
-            by_key,
-            starting_inventory,
+            items: items.definitions,
+            item_keys: items.by_key,
+            dug_items,
+            starting_inventory: items.starting_inventory,
+            crops: crops.definitions,
+            crop_keys: crops.by_key,
+            crops_by_seed: crops.by_seed,
         })
     }
 
@@ -156,7 +99,7 @@ impl Catalog {
 
     /// The item a data file calls `key`.
     pub fn id(&self, key: &str) -> Option<ItemId> {
-        self.by_key.get(key).copied()
+        self.item_keys.get(key).copied()
     }
 
     /// Every item, with its id.
@@ -177,32 +120,47 @@ impl Catalog {
     pub fn starting_inventory(&self) -> &[(ItemId, u16)] {
         &self.starting_inventory
     }
+
+    /// The definition of `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` came from a different catalog with more crops.
+    pub fn crop(&self, id: CropId) -> &CropDef {
+        &self.crops[usize::from(id.0)]
+    }
+
+    /// Every crop, with its id.
+    pub fn crops(&self) -> impl Iterator<Item = (CropId, &CropDef)> {
+        (0..=u16::MAX).map(CropId).zip(&self.crops)
+    }
+
+    /// The crop a data file calls `key`.
+    pub fn crop_id(&self, key: &str) -> Option<CropId> {
+        self.crop_keys.get(key).copied()
+    }
+
+    /// The crop that grows from the seed item `seeds`.
+    pub fn crop_grown_from(&self, seeds: ItemId) -> Option<CropId> {
+        self.crops_by_seed.get(&seeds).copied()
+    }
 }
 
-fn validate_item(item: &ItemDef, by_key: &HashMap<String, ItemId>) -> Result<(), Problem> {
-    if item.max_stack == 0 {
-        return Err(Problem::EmptyStack(item.key.clone()));
-    }
-    if matches!(item.kind, ItemKind::Tool(_)) && item.max_stack > 1 {
-        return Err(Problem::StackedTool(item.key.clone()));
-    }
-    if item.shelf_life.is_some() && item.spoils_into.is_none() {
-        return Err(Problem::SpoilsIntoNothing(item.key.clone()));
-    }
-    if item.spoils_into.is_some() && item.spoils_into == by_key.get(&item.key).copied() {
-        return Err(Problem::SpoilsIntoItself(item.key.clone()));
-    }
-    Ok(())
+/// Parses a content file, allowing optional fields to be written as plain
+/// values rather than wrapped in `Some`.
+fn parse<T: DeserializeOwned>(source: &str) -> Result<T, Problem> {
+    Ok(Options::default()
+        .with_default_extension(Extensions::IMPLICIT_SOME)
+        .from_str(source)?)
 }
 
 /// Maps every terrain material to the one item digging it yields.
 fn dug_items(items: &[ItemDef]) -> Result<HashMap<Material, ItemId>, Problem> {
     let mut dug_items: HashMap<Material, ItemId> = HashMap::new();
-    for (index, item) in items.iter().enumerate() {
+    for (item, id) in items.iter().zip((0..=u16::MAX).map(ItemId)) {
         let ItemKind::Terrain { materials } = &item.kind else {
             continue;
         };
-        let id = ItemId(u16::try_from(index).expect("fewer than 65536 items"));
         for &material in materials {
             if let Some(first) = dug_items.insert(material, id) {
                 return Err(Problem::AmbiguousMaterial {
@@ -224,28 +182,47 @@ fn dug_items(items: &[ItemDef]) -> Result<HashMap<Material, ItemId>, Problem> {
 
 #[cfg(test)]
 mod tests {
+    use messoria_calendar::Season;
+
     use super::*;
 
-    const VALID: &str = r#"(
+    const ITEMS: &str = r#"(
         items: [
             (id: "shovel", name: "Shovel", kind: Tool(Shovel)),
             (id: "soil", name: "Soil", kind: Terrain(materials: [Grass, Soil]), stack: 99),
             (id: "stone", name: "Stone", kind: Terrain(materials: [Stone, Sand]), stack: 99),
             (id: "berries", name: "Berries", kind: Food(energy: 5), stack: 20, shelf_life: 3, spoils_into: "compost"),
-            (id: "compost", name: "Compost", kind: Goods, stack: 99),
+            (id: "compost", name: "Compost", kind: Fertilizer, stack: 99),
+            (id: "turnip_seeds", name: "Turnip seeds", kind: Seed, stack: 99),
+            (id: "turnip", name: "Turnip", kind: Food(energy: 10), stack: 99),
         ],
         starting_inventory: [("shovel", 1), ("berries", 4)],
     )"#;
 
-    fn problem(source: &str) -> String {
-        Catalog::from_items_source(source)
+    const CROPS: &str = r#"(
+        crops: [
+            (
+                id: "turnip", name: "Turnip", seeds: "turnip_seeds", produce: "turnip",
+                seasons: [Spring], stages: [1, 1, 2], color: (0.9, 0.8, 0.9),
+            ),
+        ],
+    )"#;
+
+    fn problem_with_items(items: &str) -> String {
+        Catalog::from_sources(items, CROPS)
+            .expect_err("content should be rejected")
+            .to_string()
+    }
+
+    fn problem_with_crops(crops: &str) -> String {
+        Catalog::from_sources(ITEMS, crops)
             .expect_err("content should be rejected")
             .to_string()
     }
 
     #[test]
     fn valid_content_loads_with_every_reference_resolved() {
-        let catalog = Catalog::from_items_source(VALID).unwrap();
+        let catalog = Catalog::from_sources(ITEMS, CROPS).unwrap();
         let berries = catalog.id("berries").unwrap();
 
         assert_eq!(catalog.item(berries).name, "Berries");
@@ -263,26 +240,48 @@ mod tests {
     }
 
     #[test]
+    fn crops_link_their_seeds_and_produce() {
+        let catalog = Catalog::from_sources(ITEMS, CROPS).unwrap();
+        let turnip = catalog.crop_id("turnip").unwrap();
+        let seeds = catalog.id("turnip_seeds").unwrap();
+
+        assert_eq!(catalog.crop_grown_from(seeds), Some(turnip));
+        assert_eq!(catalog.crop(turnip).produce, catalog.id("turnip").unwrap());
+        assert_eq!(catalog.crop(turnip).seasons, [Season::Spring]);
+        assert_eq!(catalog.crop(turnip).days_to_ripen(), 4);
+        assert_eq!(catalog.crop(turnip).regrows_after, None);
+    }
+
+    #[test]
     fn syntax_errors_name_the_file_and_position() {
-        let message =
-            problem("(items: [(id: \"a\", name: \"A\", kind: Toll)], starting_inventory: [])");
+        let message = problem_with_items(
+            "(items: [(id: \"a\", name: \"A\", kind: Toll)], starting_inventory: [])",
+        );
         assert!(message.starts_with("items.ron: 1:"), "{message}");
         assert!(message.contains("Toll"), "{message}");
     }
 
     #[test]
     fn unknown_references_are_named() {
-        let message =
-            problem(&VALID.replace("spoils_into: \"compost\"", "spoils_into: \"compot\""));
+        let message = problem_with_items(
+            &ITEMS.replace("spoils_into: \"compost\"", "spoils_into: \"compot\""),
+        );
         assert_eq!(
             message,
             "items.ron: item `berries` refers to unknown item `compot`"
         );
 
-        let message = problem(&VALID.replace("(\"berries\", 4)", "(\"beries\", 4)"));
+        let message = problem_with_items(&ITEMS.replace("(\"berries\", 4)", "(\"beries\", 4)"));
         assert_eq!(
             message,
             "items.ron: the starting inventory refers to unknown item `beries`"
+        );
+
+        let message =
+            problem_with_crops(&CROPS.replace("produce: \"turnip\"", "produce: \"tunrip\""));
+        assert_eq!(
+            message,
+            "crops.ron: crop `turnip` refers to unknown item `tunrip`"
         );
     }
 
@@ -290,46 +289,91 @@ mod tests {
     fn inconsistent_items_are_rejected() {
         let cases = [
             (
-                VALID.replace("(id: \"compost\"", "(id: \"soil\""),
+                ITEMS.replace("(id: \"compost\"", "(id: \"soil\""),
                 "item `soil` is defined more than once",
             ),
             (
-                VALID.replace("kind: Tool(Shovel))", "kind: Tool(Shovel), stack: 5)"),
+                ITEMS.replace("kind: Tool(Shovel))", "kind: Tool(Shovel), stack: 5)"),
                 "item `shovel` is a tool, and tools do not stack",
             ),
             (
-                VALID.replace("kind: Goods, stack: 99", "kind: Goods, stack: 0"),
+                ITEMS.replace("kind: Fertilizer, stack: 99", "kind: Fertilizer, stack: 0"),
                 "item `compost` has a stack size of 0",
             ),
             (
-                VALID.replace(", spoils_into: \"compost\"", ""),
+                ITEMS.replace(", spoils_into: \"compost\"", ""),
                 "item `berries` has a shelf life but does not say what it spoils into",
             ),
             (
-                VALID.replace("spoils_into: \"compost\"", "spoils_into: \"berries\""),
+                ITEMS.replace("spoils_into: \"compost\"", "spoils_into: \"berries\""),
                 "item `berries` spoils into itself",
             ),
             (
-                VALID.replace("[Stone, Sand]", "[Stone]"),
+                ITEMS.replace("[Stone, Sand]", "[Stone]"),
                 "no item is dug from Sand",
             ),
             (
-                VALID.replace("[Stone, Sand]", "[Stone, Sand, Soil]"),
+                ITEMS.replace("[Stone, Sand]", "[Stone, Sand, Soil]"),
                 "Soil is dug as both `soil` and `stone`",
             ),
             (
-                VALID.replace("(\"berries\", 4)", "(\"berries\", 0)"),
+                ITEMS.replace("(\"berries\", 4)", "(\"berries\", 0)"),
                 "the starting inventory lists `berries` with a count of 0",
             ),
         ];
         for (source, expected) in cases {
-            assert_eq!(problem(&source), format!("items.ron: {expected}"));
+            assert_eq!(
+                problem_with_items(&source),
+                format!("items.ron: {expected}")
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_crops_are_rejected() {
+        let duplicate = CROPS.replace(
+            "crops: [",
+            "crops: [(id: \"turnip\", name: \"Again\", seeds: \"turnip_seeds\", produce: \"turnip\", seasons: [Spring], stages: [1], color: (0, 0, 0)),",
+        );
+        let cases = [
+            (duplicate, "crop `turnip` is defined more than once"),
+            (
+                CROPS.replace("seeds: \"turnip_seeds\"", "seeds: \"berries\""),
+                "crop `turnip` grows from `berries`, which is not a seed",
+            ),
+            (
+                CROPS.replace("seasons: [Spring]", "seasons: []"),
+                "crop `turnip` is invalid: it grows in no season",
+            ),
+            (
+                CROPS.replace("stages: [1, 1, 2]", "stages: [1, 0]"),
+                "crop `turnip` is invalid: every crop needs at least one stage, and every stage at least one day",
+            ),
+            (
+                CROPS.replace("stages: [1, 1, 2],", "stages: [1, 1, 2], regrows_after: 9,"),
+                "crop `turnip` is invalid: it must take between one day and its full growth to regrow",
+            ),
+            (
+                CROPS.replace("stages: [1, 1, 2],", "stages: [1, 1, 2], harvest: 0,"),
+                "crop `turnip` is invalid: a harvest must yield something",
+            ),
+            (
+                "(crops: [])".to_owned(),
+                "seed `turnip_seeds` does not grow any crop",
+            ),
+        ];
+        for (source, expected) in cases {
+            assert_eq!(
+                problem_with_crops(&source),
+                format!("crops.ron: {expected}")
+            );
         }
     }
 
     #[test]
     fn unknown_fields_are_rejected() {
-        let message = problem(&VALID.replace("stack: 20,", "stack: 20, colour: \"red\","));
+        let message =
+            problem_with_items(&ITEMS.replace("stack: 20,", "stack: 20, colour: \"red\","));
         assert!(message.contains("colour"), "{message}");
     }
 

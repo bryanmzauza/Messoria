@@ -2,13 +2,15 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Days in a year.
 pub const DAYS_PER_YEAR: u32 = 365;
 
 /// Length of each season in days, in calendar order. They add up to a year.
 const SEASON_DAYS: [u16; 4] = [91, 91, 91, 92];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Season {
     Spring,
     Summer,

@@ -147,6 +147,9 @@ fn spawn_slot(parent: &mut ChildSpawnerCommands, slot: usize) {
                 height: px(SLOT_SIZE),
                 padding: UiRect::all(px(4)),
                 border: UiRect::all(px(2)),
+                // Names too long for the slot are cut at its edge rather than
+                // spilling into the next one.
+                overflow: Overflow::clip(),
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::SpaceBetween,
                 ..default()

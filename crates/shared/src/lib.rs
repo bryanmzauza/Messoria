@@ -7,12 +7,13 @@
 
 pub mod content;
 pub mod energy;
+pub mod fields;
 pub mod movement;
 pub mod network;
 pub mod protocol;
-pub mod shovel;
 pub mod terrain;
 pub mod tick;
+pub mod tools;
 
 use bevy::{prelude::*, state::app::StatesPlugin};
 use lightyear::prelude::{

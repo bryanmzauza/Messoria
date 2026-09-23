@@ -14,9 +14,11 @@ bevy = { workspace = true, features = ["std", "bevy_log"] }
 lightyear.workspace = true
 messoria-calendar.workspace = true
 messoria-content.workspace = true
+messoria-farming.workspace = true
 messoria-inventory.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true
+rand.workspace = true
 
 
 [lints]

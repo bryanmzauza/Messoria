@@ -7,6 +7,8 @@
 use std::f32::consts::PI;
 
 use bevy::{light::CascadeShadowConfigBuilder, pbr::DistanceFog, prelude::*};
+use messoria_calendar::Weather;
+use messoria_shared::protocol::CurrentWeather;
 
 use crate::clock::LocalClock;
 
@@ -89,6 +91,11 @@ const SKY_KEYS: [SkyKey; 8] = [
     },
 ];
 
+/// Overcast skies turn toward this gray and let through this share of light.
+const OVERCAST: Color = Color::srgb(0.45, 0.48, 0.52);
+const OVERCAST_BLEND: f32 = 0.6;
+const OVERCAST_LIGHT: f32 = 0.35;
+
 /// When the sun is up; the moon has the rest of the day.
 const SUNRISE: f32 = 6.0;
 const SUNSET: f32 = 20.0;
@@ -134,13 +141,22 @@ fn spawn_sky_light(mut commands: Commands) {
 
 fn follow_time_of_day(
     clock: Res<LocalClock>,
+    weather: Query<&CurrentWeather>,
     mut clear_color: ResMut<ClearColor>,
     mut ambient: ResMut<GlobalAmbientLight>,
     light: Single<(&mut DirectionalLight, &mut Transform), With<SkyLight>>,
     mut fog: Query<&mut DistanceFog>,
 ) {
     let hour = clock.hours().unwrap_or(DEFAULT_HOUR).rem_euclid(24.0);
-    let (sky, light_color, illuminance, ambient_brightness) = sky_at(hour);
+    let (mut sky, light_color, mut illuminance, mut ambient_brightness) = sky_at(hour);
+    let overcast = weather
+        .single()
+        .is_ok_and(|weather| weather.0 != Weather::Clear);
+    if overcast {
+        sky = sky.mix(&OVERCAST, OVERCAST_BLEND);
+        illuminance *= OVERCAST_LIGHT;
+        ambient_brightness *= 1.0 - OVERCAST_BLEND / 2.0;
+    }
 
     clear_color.0 = sky;
     ambient.color = sky;

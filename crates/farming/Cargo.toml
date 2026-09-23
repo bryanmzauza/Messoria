@@ -1,6 +1,6 @@
 [package]
-name = "messoria-content"
-description = "Game content loaded from data files, validated on load."
+name = "messoria-farming"
+description = "How crops grow, wither and yield."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,10 +11,8 @@ publish.workspace = true
 
 [dependencies]
 messoria-calendar.workspace = true
-messoria-voxel.workspace = true
-ron.workspace = true
+messoria-content.workspace = true
 serde.workspace = true
-thiserror.workspace = true
 
 [lints]
 workspace = true

@@ -10,8 +10,8 @@ use messoria_shared::{
     content::Content,
     movement::EYE_HEIGHT,
     protocol::{ActionChannel, Belongings, Heading, ItemAction, PlayerInput, Position, UseItem},
-    shovel,
     terrain::Terrain,
+    tools,
 };
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
@@ -65,7 +65,7 @@ fn reshape(
     };
     let eyes = feet.0 + Vec3::Y * EYE_HEIGHT;
     let direction = (Quat::from_rotation_y(heading.0) * AIM).normalize();
-    let Some(hit) = terrain.raycast(eyes, direction, shovel::REACH) else {
+    let Some(hit) = terrain.raycast(eyes, direction, tools::REACH) else {
         return;
     };
     let action = if state.rng.random_bool(0.5) {

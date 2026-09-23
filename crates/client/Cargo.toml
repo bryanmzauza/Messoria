@@ -14,6 +14,7 @@ bevy = { workspace = true, features = ["3d", "ui"] }
 lightyear.workspace = true
 messoria-calendar.workspace = true
 messoria-content.workspace = true
+messoria-farming.workspace = true
 messoria-inventory.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true

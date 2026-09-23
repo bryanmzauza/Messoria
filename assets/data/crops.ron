@@ -1,0 +1,63 @@
+// Every crop that can be planted.
+//
+// A crop grows from its `seeds` item and yields `harvest` of its `produce`
+// item. It grows only in its `seasons` and withers outside them. `stages`
+// lists how many watered days each growth stage takes, so a crop planted and
+// watered every day ripens as many days later as its stages add up to. Crops
+// with `regrows_after` keep producing, ripening again that many watered days
+// after each harvest. `color` is the ripe produce's color, in sRGB.
+(
+    crops: [
+        (
+            id: "turnip",
+            name: "Turnip",
+            seeds: "turnip_seeds",
+            produce: "turnip",
+            seasons: [Spring],
+            stages: [1, 1, 2],
+            color: (0.93, 0.82, 0.9),
+        ),
+        (
+            id: "potato",
+            name: "Potato",
+            seeds: "potato_seeds",
+            produce: "potato",
+            seasons: [Spring],
+            stages: [2, 2, 2],
+            harvest: 2,
+            color: (0.72, 0.56, 0.36),
+        ),
+        (
+            id: "strawberry",
+            name: "Strawberry",
+            seeds: "strawberry_seeds",
+            produce: "strawberry",
+            seasons: [Spring],
+            stages: [2, 2, 2, 2],
+            regrows_after: 3,
+            harvest: 2,
+            color: (0.9, 0.15, 0.2),
+        ),
+        (
+            id: "tomato",
+            name: "Tomato",
+            seeds: "tomato_seeds",
+            produce: "tomato",
+            seasons: [Summer],
+            stages: [2, 2, 3, 3],
+            regrows_after: 4,
+            harvest: 2,
+            color: (0.92, 0.25, 0.15),
+        ),
+        (
+            id: "wheat",
+            name: "Wheat",
+            seeds: "wheat_seeds",
+            produce: "wheat",
+            seasons: [Summer, Autumn],
+            stages: [2, 3, 3],
+            harvest: 3,
+            color: (0.9, 0.78, 0.4),
+        ),
+    ],
+)

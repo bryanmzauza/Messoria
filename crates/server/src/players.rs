@@ -4,6 +4,7 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 use lightyear::prelude::{server::*, *};
+use messoria_content::Quality;
 use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
@@ -45,7 +46,7 @@ fn spawn_player(
 
     let mut starting_kit = Inventory::default();
     for &(item, count) in content.starting_inventory() {
-        let left = starting_kit.add(&content, item, count, clock.0.day());
+        let left = starting_kit.add(&content, item, Quality::Normal, count, clock.0.day());
         if left > 0 {
             warn!("the starting inventory does not fit; {left} of it is left out");
         }

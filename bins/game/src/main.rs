@@ -5,7 +5,7 @@ use std::{
 
 use bevy::prelude::*;
 use clap::Parser;
-use messoria_calendar::{SleepRule, WorldTime};
+use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_client::{ClientPlugin, Session};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
@@ -84,6 +84,7 @@ fn main() -> AppExit {
                 bind_addr,
                 sleep_rule: SleepRule::Everyone,
                 start_time: WorldTime::FIRST_DAWN,
+                minute_length: GAME_MINUTE,
             },
             ClientPlugin {
                 session: Session::Host,

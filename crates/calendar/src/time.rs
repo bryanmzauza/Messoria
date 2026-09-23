@@ -5,7 +5,7 @@ use std::{fmt, str::FromStr, time::Duration};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::date::Date;
+use crate::date::{Date, Season};
 
 /// Real time that one game minute lasts.
 pub const GAME_MINUTE: Duration = Duration::from_secs(1);
@@ -58,6 +58,10 @@ impl WorldTime {
 
     pub fn date(self) -> Date {
         Date::from_day(self.day)
+    }
+
+    pub fn season(self) -> Season {
+        self.date().season
     }
 
     /// The time shown on a wall clock.

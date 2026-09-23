@@ -13,7 +13,7 @@ use lightyear::prelude::{
     input::native::{ActionState, InputMarker},
     *,
 };
-use messoria_calendar::{SleepRule, WorldTime};
+use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_server::ServerPlugin;
 use messoria_shared::{
     SharedPlugin,
@@ -25,8 +25,8 @@ use messoria_shared::{
         ActionChannel, Asleep, Belongings, ItemAction, PlayerId, PlayerInput, Position,
         SleepRequest, UseItem, WorldClock,
     },
-    shovel,
     terrain::Terrain,
+    tools,
 };
 
 const TIMEOUT: Duration = Duration::from_secs(20);
@@ -198,6 +198,7 @@ fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
             bind_addr,
             sleep_rule: SleepRule::Everyone,
             start_time,
+            minute_length: GAME_MINUTE,
         },
     ));
     ready(app)
@@ -268,7 +269,7 @@ fn aim_ahead(client: &mut App) -> Option<Vec3> {
     let hit = client
         .world()
         .resource::<Terrain>()
-        .raycast(eyes, direction, shovel::REACH)?;
+        .raycast(eyes, direction, tools::REACH)?;
     Some(hit.point)
 }
 

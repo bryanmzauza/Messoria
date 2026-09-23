@@ -6,12 +6,27 @@
 (
     items: [
         (id: "shovel", name: "Shovel", kind: Tool(Shovel)),
+        (id: "hoe", name: "Hoe", kind: Tool(Hoe)),
+        (id: "watering_can", name: "Watering can", kind: Tool(WateringCan)),
 
         // Digging yields the item listing the dug material; raising the
         // ground uses soil.
         (id: "soil", name: "Soil", kind: Terrain(materials: [Grass, Soil]), stack: 99),
         (id: "stone", name: "Stone", kind: Terrain(materials: [Stone]), stack: 99),
         (id: "sand", name: "Sand", kind: Terrain(materials: [Sand]), stack: 99),
+
+        // What each seed grows into is set in crops.ron.
+        (id: "turnip_seeds", name: "Turnip seeds", kind: Seed, stack: 99),
+        (id: "potato_seeds", name: "Potato seeds", kind: Seed, stack: 99),
+        (id: "strawberry_seeds", name: "Strawberry seeds", kind: Seed, stack: 99),
+        (id: "tomato_seeds", name: "Tomato seeds", kind: Seed, stack: 99),
+        (id: "wheat_seeds", name: "Wheat seeds", kind: Seed, stack: 99),
+
+        (id: "turnip", name: "Turnip", kind: Food(energy: 12), stack: 99, shelf_life: 6, spoils_into: "compost"),
+        (id: "potato", name: "Potato", kind: Food(energy: 15), stack: 99, shelf_life: 10, spoils_into: "compost"),
+        (id: "strawberry", name: "Strawberry", kind: Food(energy: 6), stack: 99, shelf_life: 3, spoils_into: "compost"),
+        (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost"),
+        (id: "wheat", name: "Wheat", kind: Goods, stack: 99),
 
         (
             id: "wild_berries",
@@ -21,11 +36,17 @@
             shelf_life: 3,
             spoils_into: "compost",
         ),
-        (id: "compost", name: "Compost", kind: Goods, stack: 99),
+        // Spoiled food; spread on tilled soil, it improves harvests.
+        (id: "compost", name: "Compost", kind: Fertilizer, stack: 99),
     ],
 
     starting_inventory: [
         ("shovel", 1),
+        ("hoe", 1),
+        ("watering_can", 1),
+        ("turnip_seeds", 15),
+        ("potato_seeds", 10),
+        ("strawberry_seeds", 5),
         ("wild_berries", 10),
     ],
 )
