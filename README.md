@@ -76,13 +76,13 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
-held item, left and right mouse buttons to use it, `F` to harvest a ripe
-crop, pick berries, open a chest, go to bed (from 18:00) or get up, or at a
-stall open its shop, `E` to open the backpack (click a stack to pick it up
-and a slot to put it down, and give money to other players beside it), `F5`
-to switch between first and third person, `Esc` for the game menu (options,
-and saving and quitting). What the crosshair is on is named under it, and
-the game says why when an action does nothing.
+held item, left and right mouse buttons to use it, `F` to harvest a ripe crop,
+pick berries, open a chest, go to bed (from 18:00) or get up, or at a stall
+open its shop, `E` to open the backpack (click a stack to pick it up and a
+slot to put it down, and give money to other players beside it), `F5` to cycle
+between first person, third person from behind and from the front, `Esc` for
+the game menu (options, and saving and quitting). What the crosshair is on is
+named under it, and the game says why when an action does nothing.
 
 Every newcomer is given a cabin deed: used on open ground, aimed where the
 door should be, it builds their cabin, with a bed and a chest inside. The

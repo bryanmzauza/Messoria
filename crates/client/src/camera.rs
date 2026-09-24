@@ -1,10 +1,10 @@
-//! The player's view: mouse look, and first- or third-person framing of the
-//! local character.
+//! The player's view: mouse look, and framing of the local character from
+//! its eyes, from behind or from the front.
 //!
 //! Clicking the window captures the cursor for mouse look; Escape releases it.
-//! F5 switches perspective. The camera is also where the player hears from.
+//! F5 cycles through the perspectives. The camera is also where the player hears from.
 
-use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::{
     audio::SpatialListener,
@@ -79,11 +79,25 @@ pub(crate) struct View {
     pub captured: bool,
 }
 
+/// Where the view is from: the character's eyes, or behind or ahead of the
+/// character, looking at it.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Perspective {
     #[default]
     FirstPerson,
-    ThirdPerson,
+    Behind,
+    Front,
+}
+
+impl Perspective {
+    /// The next one, as the key cycles through them.
+    fn next(self) -> Self {
+        match self {
+            Self::FirstPerson => Self::Behind,
+            Self::Behind => Self::Front,
+            Self::Front => Self::FirstPerson,
+        }
+    }
 }
 
 impl View {
@@ -152,10 +166,7 @@ fn look(
 
 fn toggle_perspective(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {
     if keys.just_pressed(PERSPECTIVE_TOGGLE) {
-        view.perspective = match view.perspective {
-            Perspective::FirstPerson => Perspective::ThirdPerson,
-            Perspective::ThirdPerson => Perspective::FirstPerson,
-        };
+        view.perspective = view.perspective.next();
     }
 }
 
@@ -169,11 +180,18 @@ fn follow_player(
     };
     let eye = player.translation + Vec3::Y * EYE_HEIGHT;
     let rotation = view.rotation();
-    camera.rotation = rotation;
-    camera.translation = match view.perspective {
-        Perspective::FirstPerson => eye,
-        Perspective::ThirdPerson => eye + rotation * Vec3::Z * THIRD_PERSON_DISTANCE,
+    let (facing, place) = match view.perspective {
+        Perspective::FirstPerson => (rotation, eye),
+        Perspective::Behind => (rotation, eye + rotation * Vec3::Z * THIRD_PERSON_DISTANCE),
+        Perspective::Front => {
+            // Turned around, ahead of the character and looking back at it;
+            // the mouse still turns the character.
+            let facing = Quat::from_euler(EulerRot::YXZ, view.yaw + PI, -view.pitch, 0.0);
+            (facing, eye + facing * Vec3::Z * THIRD_PERSON_DISTANCE)
+        }
     };
+    camera.rotation = facing;
+    camera.translation = place;
 }
 
 /// Hides the local character's body in first person, where it would block the view.
@@ -184,7 +202,7 @@ fn show_own_avatar(
     if let Ok(mut visibility) = player.single_mut() {
         visibility.set_if_neq(match view.perspective {
             Perspective::FirstPerson => Visibility::Hidden,
-            Perspective::ThirdPerson => Visibility::Inherited,
+            Perspective::Behind | Perspective::Front => Visibility::Inherited,
         });
     }
 }

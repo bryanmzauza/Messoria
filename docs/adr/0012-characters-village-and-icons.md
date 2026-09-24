@@ -29,8 +29,8 @@ models used everywhere else, including models that later packs add.
   over a third of the height, a torso a fifth of it wide, slim arms and
   long legs. Clients build the meshes
   from that data. The figure has boxes for everything any outfit or
-  hairstyle may need (a hood, a pouch, sleeves, boot cuffs, curls, a bun, a
-  beard); each layer paints the ones it uses and leaves the rest clear.
+  hairstyle may need (a hood, a pouch, sleeves, boot cuffs, tufts of hair
+  standing out of the head's outline, a bun, a beard); each layer paints the ones it uses and leaves the rest clear.
 - The front of the head is also painted elsewhere in the skin for each
   expression: blinking, smiling, surprise and effort. A figure's face swaps
   between them by what the character does, with nothing replicated.
