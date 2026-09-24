@@ -26,9 +26,10 @@ pub struct Characters {
     pub wardrobe: Wardrobe,
 }
 
-/// The limbs of a figure. The body and the legs turn at the hips, measured
-/// from the feet; the head and the arms at the neck and the shoulders,
-/// measured from the body's joint.
+/// The limbs of a figure. The body and the thighs turn at the hips, measured
+/// from the feet; the head and the upper arms at the neck and the shoulders,
+/// measured from the body's joint; the forearms at the elbows, measured from
+/// the shoulders, and the shins at the knees, measured from the hips.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limbs {
@@ -38,11 +39,15 @@ pub struct Limbs {
     pub left_arm: Limb,
     pub right_leg: Limb,
     pub left_leg: Limb,
+    pub right_forearm: Limb,
+    pub left_forearm: Limb,
+    pub right_shin: Limb,
+    pub left_shin: Limb,
 }
 
 impl Limbs {
     /// Every limb, in the order of [`Limbs`]'s fields.
-    pub fn all(&self) -> [&Limb; 6] {
+    pub fn all(&self) -> [&Limb; 10] {
         [
             &self.body,
             &self.head,
@@ -50,6 +55,10 @@ impl Limbs {
             &self.left_arm,
             &self.right_leg,
             &self.left_leg,
+            &self.right_forearm,
+            &self.left_forearm,
+            &self.right_shin,
+            &self.left_shin,
         ]
     }
 }
@@ -108,8 +117,8 @@ impl Cube {
     }
 }
 
-/// Where a held item sits in the right hand, from the arm's joint, and how
-/// large it is drawn there.
+/// Where a held item sits in the right hand, from the forearm's joint, and
+/// how large it is drawn there.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Grip {
@@ -325,7 +334,11 @@ mod tests {
                 right_arm: limb.clone(),
                 left_arm: limb.clone(),
                 right_leg: limb.clone(),
-                left_leg: limb,
+                left_leg: limb.clone(),
+                right_forearm: limb.clone(),
+                left_forearm: limb.clone(),
+                right_shin: limb.clone(),
+                left_shin: limb,
             },
             expressions: Expressions {
                 blink: (0, 8),

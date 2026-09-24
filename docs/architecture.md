@@ -295,8 +295,9 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
   falling and close in sleep, by swapping the head's front for another
   painted expression.
 - `avatars` poses figures every frame rather than playing recorded clips:
-  legs and arms swing with the distance walked, figures lean into a run and
-  spread their arms in the air, and sleepers lie in the nearest bed.
+  legs and arms swing with the distance walked, knees and elbows bending,
+  figures lean into a run, tuck their legs in a jump, crouch on landing,
+  and sleepers lie in the nearest bed.
   Happenings name who caused them (`Happening::by`), and that character acts
   them out: chopping, digging, bending down to plant, watering, eating.
 - What a character holds is fitted to its hand by the size of its model.

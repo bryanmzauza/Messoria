@@ -31,25 +31,37 @@ use messoria_shared::{
 use crate::{
     art::Models,
     feedback::Witnessed,
-    figures::{Expression, Figure, FigureMeshes, Part, in_hand, spawn_figure},
+    figures::{Expression, Figure, FigureMeshes, HAND, Part, in_hand, spawn_figure},
     inventory::HeldSlot,
     skins::Tailor,
 };
 
 /// How far a stride carries a figure, in radians of leg swing per meter.
-const STRIDE: f32 = 4.2;
-/// How far legs and arms swing at a walk and at a run, in radians.
-const WALK_SWING: f32 = 0.55;
-const RUN_SWING: f32 = 0.95;
+const STRIDE: f32 = 4.6;
+/// How far legs swing at a walk and at a run, in radians, and how far the
+/// knees bend as a leg swings through.
+const WALK_SWING: f32 = 0.6;
+const RUN_SWING: f32 = 1.0;
+const WALK_KNEE: f32 = 0.75;
+const RUN_KNEE: f32 = 1.5;
+/// How much the elbows bend at a walk and at a run, in radians.
+const WALK_ELBOW: f32 = 0.3;
+const RUN_ELBOW: f32 = 1.5;
 /// How far a running figure leans forward, in radians.
-const RUN_LEAN: f32 = 0.2;
-/// How high a figure bobs with each step, in meters.
-const BOB: f32 = 0.035;
+const RUN_LEAN: f32 = 0.28;
+/// How high a figure bobs with each step, walking and running, in meters.
+const WALK_BOB: f32 = 0.03;
+const RUN_BOB: f32 = 0.06;
 /// Vertical speeds beyond which a figure is jumping, or falling.
 const RISING: f32 = 1.5;
 const FALLING: f32 = -3.0;
-/// How far forward the arm holding something is raised, in radians.
-const HOLDING: f32 = 0.35;
+/// A figure that stops falling this fast lands with a crouch, for this long.
+const LANDING_SPEED: f32 = -2.0;
+const LANDING: Duration = Duration::from_millis(320);
+/// How far forward the arm holding something is raised, in radians, and how
+/// much its elbow bends.
+const HOLDING: f32 = 0.25;
+const HOLDING_ELBOW: f32 = 0.45;
 /// How quickly limbs turn toward their pose, per second, and faster while
 /// acting something out so that strikes land on time.
 const EASING: f32 = 12.0;
@@ -97,6 +109,10 @@ pub(crate) struct Pose {
     /// Radians of leg swing walked so far.
     stride: f32,
     acting: Option<(Act, Duration)>,
+    /// Vertical speed last frame, to notice a landing.
+    vertical: f32,
+    /// When the figure last landed from a fall.
+    landed: Option<Duration>,
     /// Keeps figures standing idle, or blinking, from all moving as one.
     offset: f32,
     expression: Expression,
@@ -157,44 +173,88 @@ impl Act {
         let t = progress;
         match self {
             Self::Chop => {
-                angles.right_arm.x = along(&[(0.0, 0.4), (0.4, 3.0), (0.62, 0.6), (1.0, 0.5)], t);
-                angles.left_arm.x = along(&[(0.0, 0.2), (0.4, 0.8), (0.62, 0.3), (1.0, 0.2)], t);
-                angles.body.x = along(&[(0.0, 0.0), (0.4, 0.08), (0.62, -0.28), (1.0, -0.1)], t);
+                // Both hands raise the tool over the head, elbows bent, and
+                // bring it down straightening; the body follows through.
+                let raise = along(&[(0.0, 0.4), (0.4, 2.9), (0.62, 0.7), (1.0, 0.5)], t);
+                angles.right_arm.x = raise;
+                angles.left_arm.x = raise * 0.85;
+                angles.left_arm.z = -0.3;
+                let elbow = along(&[(0.0, 0.3), (0.4, 1.3), (0.62, 0.2), (1.0, 0.4)], t);
+                angles.right_forearm.x = elbow;
+                angles.left_forearm.x = elbow;
+                angles.body.x = along(&[(0.0, 0.0), (0.4, 0.15), (0.62, -0.35), (1.0, -0.1)], t);
+                angles.head.x = -angles.body.x * 0.6;
+                let step = along(&[(0.0, 0.0), (0.4, 0.0), (0.62, 1.0), (1.0, 0.6)], t);
+                angles.left_leg.x = 0.45 * step;
+                angles.right_leg.x = -0.3 * step;
+                angles.left_shin.x = -0.5 * step;
             }
             Self::Dig => {
-                let arms = along(&[(0.0, 0.5), (0.35, 1.4), (0.6, 0.7), (1.0, 0.6)], t);
+                // The shovel goes in with the weight of the body over it,
+                // knees bending, and lifts.
+                let arms = along(&[(0.0, 0.5), (0.35, 1.3), (0.6, 0.6), (1.0, 0.6)], t);
                 angles.right_arm.x = arms;
-                angles.left_arm.x = arms * 0.85;
-                angles.body.x = along(&[(0.0, 0.0), (0.35, 0.05), (0.6, -0.45), (1.0, -0.2)], t);
-                angles.head.x = -angles.body.x * 0.5;
+                angles.left_arm.x = arms * 0.8;
+                angles.right_forearm.x =
+                    along(&[(0.0, 0.4), (0.35, 0.2), (0.6, 1.0), (1.0, 0.5)], t);
+                angles.left_forearm.x = angles.right_forearm.x * 0.8;
+                let crouch = along(&[(0.0, 0.0), (0.35, 0.2), (0.6, 1.0), (1.0, 0.4)], t);
+                angles.body.x = -0.5 * crouch;
+                angles.head.x = 0.3 * crouch;
+                angles.right_leg.x = 0.55 * crouch;
+                angles.left_leg.x = 0.55 * crouch;
+                angles.right_shin.x = -0.9 * crouch;
+                angles.left_shin.x = -0.9 * crouch;
+                angles.root_lift = -0.1 * crouch;
             }
             Self::Pick => {
-                angles.body.x = along(&[(0.0, 0.0), (0.35, -0.75), (0.7, -0.75), (1.0, -0.2)], t);
-                let arms = along(&[(0.0, 0.2), (0.35, 1.1), (0.7, 1.1), (1.0, 0.3)], t);
-                angles.right_arm.x = arms;
-                angles.left_arm.x = arms * 0.9;
-                angles.head.x = along(&[(0.0, 0.0), (0.35, 0.3), (1.0, 0.0)], t);
+                // A squat down to the ground and back up.
+                let squat = along(&[(0.0, 0.0), (0.35, 1.0), (0.7, 1.0), (1.0, 0.0)], t);
+                angles.body.x = -0.55 * squat;
+                angles.head.x = 0.35 * squat;
+                angles.right_leg.x = 1.3 * squat;
+                angles.left_leg.x = 1.3 * squat;
+                angles.right_shin.x = -2.3 * squat;
+                angles.left_shin.x = -2.3 * squat;
+                angles.root_lift = -0.24 * squat;
+                let reach = along(&[(0.0, 0.2), (0.35, 0.9), (0.7, 1.1), (1.0, 0.3)], t);
+                angles.right_arm.x = reach;
+                angles.left_arm.x = reach * 0.9;
+                angles.right_forearm.x = 0.4 * squat;
+                angles.left_forearm.x = 0.4 * squat;
             }
             Self::Water => {
-                angles.right_arm.x = along(&[(0.0, 0.4), (0.25, 1.2), (0.8, 1.2), (1.0, 0.5)], t);
+                angles.right_arm.x = along(&[(0.0, 0.4), (0.25, 0.9), (0.8, 0.9), (1.0, 0.5)], t);
                 let pouring = along(&[(0.0, 0.0), (0.25, 1.0), (0.8, 1.0), (1.0, 0.0)], t);
+                angles.right_forearm.x = 0.5 * pouring;
                 angles.right_arm.z = -0.25 * pouring + 0.06 * (clock * 18.0).sin() * pouring;
-                angles.body.x = -0.1 * pouring;
+                angles.body.x = -0.12 * pouring;
+                angles.right_leg.x = 0.2 * pouring;
+                angles.right_shin.x = -0.25 * pouring;
             }
             Self::Reach => {
-                angles.right_arm.x = along(&[(0.0, 0.3), (0.4, 1.4), (1.0, 0.4)], t);
+                angles.right_arm.x = along(&[(0.0, 0.3), (0.4, 1.2), (1.0, 0.4)], t);
+                angles.right_forearm.x = along(&[(0.0, 0.3), (0.4, 0.6), (1.0, 0.4)], t);
+                angles.body.y = along(&[(0.0, 0.0), (0.4, -0.15), (1.0, 0.0)], t);
             }
             Self::Eat => {
-                angles.right_arm.x = along(&[(0.0, 0.3), (0.3, 2.2), (0.8, 2.2), (1.0, 0.4)], t);
+                // The forearm folds up to the mouth, and the head bobs
+                // chewing.
+                angles.right_arm.x = along(&[(0.0, 0.3), (0.3, 0.7), (0.8, 0.7), (1.0, 0.4)], t);
+                angles.right_forearm.x =
+                    along(&[(0.0, 0.4), (0.3, 2.1), (0.8, 2.1), (1.0, 0.5)], t);
                 angles.right_arm.z =
-                    along(&[(0.0, 0.0), (0.3, -0.55), (0.8, -0.55), (1.0, 0.0)], t);
+                    along(&[(0.0, 0.0), (0.3, -0.35), (0.8, -0.35), (1.0, 0.0)], t);
                 let chewing = along(&[(0.0, 0.0), (0.3, 1.0), (0.8, 1.0), (1.0, 0.0)], t);
-                angles.head.x = 0.1 * (clock * 18.0).sin() * chewing;
+                angles.head.x = 0.08 * (clock * 18.0).sin() * chewing - 0.1 * chewing;
             }
             Self::Greet => {
+                // The arm goes up and the forearm waves.
                 let raised = along(&[(0.0, 0.0), (0.2, 1.0), (0.8, 1.0), (1.0, 0.0)], t);
-                angles.right_arm.z = 0.1 + raised * (2.6 + 0.35 * (clock * 12.0).sin());
+                angles.right_arm.z = 0.1 + raised * 2.4;
                 angles.right_arm.x = 0.1;
+                angles.right_forearm.x = 0.5 * raised;
+                angles.right_forearm.z = raised * 0.5 * (clock * 12.0).sin();
                 angles.head.z = -0.12 * raised;
             }
         }
@@ -220,9 +280,12 @@ fn along(keys: &[(f32, f32)], t: f32) -> f32 {
     previous.1
 }
 
-/// How a figure's limbs are turned, around x, y and z. A limb turned
-/// forward around x swings toward -z, the way figures face; an arm turned
-/// around z swings out from the body on the right and in on the left.
+/// How a figure's limbs are turned, around x, y and z. A limb hanging
+/// down turned forward around x swings toward -z, the way figures face,
+/// and the body and the head lean back; a forearm turned forward bends at
+/// the elbow, a shin turned back at the knee. An arm turned around z swings
+/// out from the body on the right and in on the left. `root_lift` moves the
+/// whole figure up or down, for crouching and bobbing.
 #[derive(Default)]
 struct Angles {
     body: Vec3,
@@ -231,6 +294,11 @@ struct Angles {
     left_arm: Vec3,
     right_leg: Vec3,
     left_leg: Vec3,
+    right_forearm: Vec3,
+    left_forearm: Vec3,
+    right_shin: Vec3,
+    left_shin: Vec3,
+    root_lift: f32,
 }
 
 impl Angles {
@@ -242,6 +310,10 @@ impl Angles {
             Part::LeftArm => self.left_arm,
             Part::RightLeg => self.right_leg,
             Part::LeftLeg => self.left_leg,
+            Part::RightForearm => self.right_forearm,
+            Part::LeftForearm => self.left_forearm,
+            Part::RightShin => self.right_shin,
+            Part::LeftShin => self.left_shin,
         }
     }
 }
@@ -377,6 +449,10 @@ fn pose_figures(
         let velocity = velocity.map_or(Vec3::ZERO, |velocity| velocity.0);
         let speed = velocity.xz().length();
         pose.stride += speed * STRIDE * dt;
+        if pose.vertical < LANDING_SPEED && velocity.y > LANDING_SPEED / 2.0 {
+            pose.landed = Some(now);
+        }
+        pose.vertical = velocity.y;
         let holding = held.is_some_and(|held| held.item.is_some());
 
         let mut angles = Angles::default();
@@ -384,14 +460,20 @@ fn pose_figures(
         if asleep {
             root = lying(placed, &content, &beds);
         } else {
-            moving(&mut angles, &mut root, &pose, velocity, clock + pose.offset);
+            moving(&mut angles, &pose, velocity, clock + pose.offset);
+            if let Some(landed) = pose.landed {
+                let progress = now.saturating_sub(landed).as_secs_f32() / LANDING.as_secs_f32();
+                landing(progress, &mut angles);
+            }
             if holding {
                 angles.right_arm.x += HOLDING;
+                angles.right_forearm.x += HOLDING_ELBOW;
             }
             if let Some((act, since)) = pose.acting {
                 let progress = now.saturating_sub(since).as_secs_f32() / act.length().as_secs_f32();
                 act.pose(progress, clock, &mut angles);
             }
+            root.translation.y = angles.root_lift;
         }
 
         let expression = expression(&pose, asleep, velocity, clock);
@@ -446,39 +528,101 @@ fn expression(pose: &Pose, asleep: bool, velocity: Vec3, clock: f32) -> Expressi
 
 /// Poses a figure for how it moves: standing, walking, running or in the
 /// air.
-fn moving(angles: &mut Angles, root: &mut Transform, pose: &Pose, velocity: Vec3, clock: f32) {
+fn moving(angles: &mut Angles, pose: &Pose, velocity: Vec3, clock: f32) {
     let run_speed = WALK_SPEED * (1.0 + SPRINT_FACTOR);
     let speed = velocity.xz().length();
     let walking = (speed / WALK_SPEED).min(1.0);
     let running = ((speed - WALK_SPEED) / (run_speed - WALK_SPEED)).clamp(0.0, 1.0);
-    let swing = pose.stride.sin() * (WALK_SWING + (RUN_SWING - WALK_SWING) * running) * walking;
+    let stride = pose.stride;
+    let swing = stride.sin() * (WALK_SWING + (RUN_SWING - WALK_SWING) * running) * walking;
+
+    // Legs swing from the hips; each knee bends as its leg comes forward
+    // and straightens as the foot is planted.
+    let knee = (WALK_KNEE + (RUN_KNEE - WALK_KNEE) * running) * walking;
+    let bend = |phase: f32| -knee * (0.5 + 0.5 * (phase - 1.2).sin()).powi(2);
     angles.right_leg.x = swing;
     angles.left_leg.x = -swing;
+    angles.right_shin.x = bend(stride);
+    angles.left_shin.x = bend(stride + std::f32::consts::PI);
+
+    // Arms swing against the legs, elbows bent, pumping at a run.
+    let elbow = (WALK_ELBOW + (RUN_ELBOW - WALK_ELBOW) * running) * walking;
     angles.right_arm.x = -swing * 0.9;
     angles.left_arm.x = swing * 0.9;
-    angles.body.x = -RUN_LEAN * running;
-    angles.head.x = RUN_LEAN * 0.5 * running;
-    root.translation.y = pose.stride.sin().abs() * BOB * walking;
+    angles.right_forearm.x = elbow + 0.3 * (-stride.sin()).max(0.0) * walking;
+    angles.left_forearm.x = elbow + 0.3 * stride.sin().max(0.0) * walking;
 
-    // Standing still, a figure breathes and looks about.
+    // The torso leans into a run and twists a little against the hips,
+    // which sway with each step; the head stays level.
+    angles.body.x = -RUN_LEAN * running - 0.04 * walking;
+    angles.body.y = 0.08 * stride.sin() * walking;
+    angles.body.z = 0.04 * stride.cos() * walking;
+    angles.head.x = RUN_LEAN * 0.6 * running;
+    angles.head.z = -angles.body.z * 0.5;
+    let bob = WALK_BOB + (RUN_BOB - WALK_BOB) * running;
+    angles.root_lift = (2.0 * stride).sin().abs() * bob * walking;
+
+    // Standing still, a figure breathes, shifts its weight and looks about.
     let idle = 1.0 - walking;
     let breath = (clock * 1.7).sin();
-    angles.right_arm.z = (0.06 + 0.025 * breath) * idle.max(0.4);
+    let shift = (clock * 0.45).sin();
+    angles.body.x += -0.025 * breath * idle;
+    angles.body.z += 0.03 * shift * idle;
+    angles.right_arm.z = (0.08 + 0.02 * breath) * idle.max(0.4);
     angles.left_arm.z = -angles.right_arm.z;
-    angles.head.y = 0.2 * (clock * 0.37).sin() * idle;
+    angles.right_forearm.x += 0.12 * idle;
+    angles.left_forearm.x += 0.12 * idle;
+    angles.right_leg.z = 0.05 * idle;
+    angles.left_leg.z = -0.05 * idle;
+    angles.right_leg.x += -0.04 * shift * idle;
+    angles.left_leg.x += 0.04 * shift * idle;
+    angles.head.y = 0.25 * (clock * 0.37).sin() * idle;
     angles.head.x += 0.05 * (clock * 0.53).sin() * idle;
 
     if velocity.y > RISING {
+        // Springing up: arms back and out, knees tucked.
+        angles.right_arm.x = -0.5;
+        angles.left_arm.x = -0.5;
         angles.right_arm.z = 0.5;
         angles.left_arm.z = -0.5;
-        angles.right_leg.x = 0.6;
-        angles.left_leg.x = -0.2;
+        angles.right_forearm.x = 0.8;
+        angles.left_forearm.x = 0.8;
+        angles.right_leg.x = 0.9;
+        angles.left_leg.x = 0.3;
+        angles.right_shin.x = -1.3;
+        angles.left_shin.x = -0.8;
+        angles.body.x = -0.15;
     } else if velocity.y < FALLING {
-        angles.right_arm.z = 1.1;
-        angles.left_arm.z = -1.1;
-        angles.right_leg.x = 0.3;
-        angles.left_leg.x = -0.3;
+        // Falling: arms up and out, legs reaching for the ground.
+        angles.right_arm.x = -0.2;
+        angles.left_arm.x = -0.2;
+        angles.right_arm.z = 1.3;
+        angles.left_arm.z = -1.3;
+        angles.right_forearm.x = 0.5;
+        angles.left_forearm.x = 0.5;
+        angles.right_leg.x = 0.35;
+        angles.left_leg.x = -0.25;
+        angles.right_shin.x = -0.4;
+        angles.left_shin.x = -0.3;
+        angles.body.x = 0.1;
     }
+}
+
+/// Bends the figure into a crouch on landing and straightens it up again,
+/// `progress` of the way through the landing.
+fn landing(progress: f32, angles: &mut Angles) {
+    let crouch = along(&[(0.0, 0.3), (0.25, 1.0), (1.0, 0.0)], progress);
+    angles.body.x -= 0.35 * crouch;
+    angles.head.x += 0.25 * crouch;
+    angles.right_leg.x += 0.6 * crouch;
+    angles.left_leg.x += 0.6 * crouch;
+    angles.right_shin.x -= 1.1 * crouch;
+    angles.left_shin.x -= 1.1 * crouch;
+    angles.right_arm.x += 0.6 * crouch;
+    angles.left_arm.x += 0.6 * crouch;
+    angles.right_forearm.x += 0.4 * crouch;
+    angles.left_forearm.x += 0.4 * crouch;
+    angles.root_lift -= 0.12 * crouch;
 }
 
 /// Where a sleeper's figure lies, in its character's frame: in the nearest
@@ -539,7 +683,7 @@ fn hold_items(
         }
         let model = item.and_then(|item| {
             let scene = models.scene(content.item(item).model.as_deref()?)?;
-            let hand = figure.limb(Part::RightArm);
+            let hand = figure.limb(HAND);
             Some(
                 commands
                     .spawn((scene, in_hand(&content, item), ChildOf(hand)))

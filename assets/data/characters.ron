@@ -1,8 +1,10 @@
 // How characters are built and dressed.
 //
 // A character is a figure of boxes, each limb turning at its joint: the body
-// and the legs at the hips, measured from the feet, and the head and the arms
-// at the neck and the shoulders, measured from the body's joint. Lengths are
+// and the thighs at the hips, measured from the feet; the head and the upper
+// arms at the neck and the shoulders, measured from the body's joint; the
+// forearms at the elbows, measured from the shoulders, and the shins at the
+// knees, measured from the hips. Lengths are
 // in figure pixels of `pixel` meters, and the figure faces -z. Each of a
 // limb's `boxes` spans `size` from `from`, relative to its joint; `inflate`
 // grows a box on every side, as hair grows over a head.
@@ -18,135 +20,163 @@
 // and hair over both, painted in grays and tinted with a hair color (sRGB).
 // Every player is dressed from the `wardrobe`, one of each, picked from who
 // they are so they look the same on every screen. What a character holds sits
-// in the right hand, placed by `grip` from the arm's joint, its model fitted so
+// in the right hand, placed by `grip` from the elbow, its model fitted so
 // that its longest side is `tool_size` meters for tools and `item_size` for
 // anything else. Tools are turned by `turn` (degrees around x, y and z);
 // anything else is held upright.
 (
-    pixel: 0.068,
+    pixel: 0.0567,
     texels: 2,
     skin_size: (256, 256),
     limbs: (
         body: (
-            joint: (0.0, 8.0, 0.0),
+            joint: (0.0, 12.0, 0.0),
             boxes: [
                 // torso
-                (from: (-4.5, 0.0, -2.5), size: (9.0, 7.0, 5.0), uv: (92, 40)),
+                (from: (-3.25, 0.0, -1.75), size: (6.5, 8.0, 3.5), uv: (184, 0)),
                 // jacket
-                (from: (-4.5, 0.0, -2.5), size: (9.0, 7.0, 5.0), uv: (148, 40), inflate: 0.25),
+                (from: (-3.25, 0.0, -1.75), size: (6.5, 8.0, 3.5), uv: (0, 31), inflate: 0.25),
                 // skirt
-                (from: (-4.75, -2.0, -2.75), size: (9.5, 2.5, 5.5), uv: (62, 89)),
+                (from: (-3.5, -2.0, -2.0), size: (7.0, 2.5, 4.0), uv: (144, 54)),
                 // belt
-                (from: (-5.0, 0.5, -3.0), size: (10.0, 1.0, 6.0), uv: (98, 106)),
+                (from: (-3.5, 0.5, -2.0), size: (7.0, 1.0, 4.0), uv: (198, 70)),
                 // collar
-                (from: (-4.5, 5.5, -3.25), size: (9.0, 2.0, 6.5), uv: (0, 89)),
+                (from: (-3.0, 6.5, -2.25), size: (6.0, 2.0, 4.5), uv: (188, 54)),
                 // hood
-                (from: (-3.5, 2.5, 2.75), size: (7.0, 4.5, 1.5), uv: (0, 134)),
+                (from: (-2.5, 3.0, 1.9), size: (5.0, 4.5, 1.25), uv: (64, 70)),
                 // pack
-                (from: (-2.25, -0.5, 2.8), size: (4.5, 3.0, 2.0), uv: (138, 134)),
+                (from: (-1.75, -0.5, 1.9), size: (3.5, 2.5, 1.5), uv: (0, 92)),
             ],
         ),
         head: (
-            joint: (0.0, 7.0, 0.0),
+            joint: (0.0, 8.0, 0.0),
             boxes: [
                 // head
-                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (0, 0)),
+                (from: (-4.0, 0.5, -3.75), size: (8.0, 8.0, 7.5), uv: (0, 0)),
                 // nose
-                (from: (-0.75, 3.0, -5.5), size: (1.5, 1.0, 0.5), uv: (54, 146)),
+                (from: (-0.5, 3.0, -4.25), size: (1.0, 1.0, 0.5), uv: (92, 92)),
                 // shell
-                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (84, 0), inflate: 0.8),
+                (from: (-4.0, 0.5, -3.75), size: (8.0, 8.0, 7.5), uv: (62, 0), inflate: 0.6),
                 // crown
-                (from: (-6.0, 10.0, -5.5), size: (12.0, 1.5, 11.0), uv: (0, 40)),
+                (from: (-4.5, 8.5, -4.25), size: (9.0, 1.5, 8.5), uv: (40, 31)),
                 // back
-                (from: (-6.0, 1.5, 4.5), size: (12.0, 8.5, 1.5), uv: (32, 65)),
+                (from: (-4.5, 1.5, 3.4), size: (9.0, 7.0, 1.25), uv: (198, 31)),
                 // fringe
-                (from: (-6.0, 7.5, -6.0), size: (12.0, 2.5, 1.5), uv: (0, 146)),
+                (from: (-4.5, 6.5, -4.6), size: (9.0, 2.5, 1.25), uv: (52, 92)),
                 // side_r
-                (from: (5.5, 2.5, -4.5), size: (1.0, 7.0, 8.5), uv: (168, 0)),
+                (from: (4.1, 2.5, -3.5), size: (1.0, 6.0, 6.5), uv: (124, 0)),
                 // side_l
-                (from: (-6.5, 2.5, -4.5), size: (1.0, 7.0, 8.5), uv: (206, 0)),
+                (from: (-5.1, 2.5, -3.5), size: (1.0, 6.0, 6.5), uv: (154, 0)),
                 // bun
-                (from: (-2.0, 7.5, 5.0), size: (4.0, 3.5, 3.0), uv: (80, 121)),
+                (from: (-1.5, 6.5, 3.75), size: (3.0, 3.0, 2.5), uv: (136, 70)),
                 // tail
-                (from: (-1.5, -1.5, 5.5), size: (3.0, 6.0, 1.5), uv: (80, 106)),
+                (from: (-1.25, -1.5, 4.0), size: (2.5, 5.5, 1.25), uv: (230, 54)),
                 // curl_a
-                (from: (-5.0, 11.5, -3.5), size: (3.5, 1.5, 3.5), uv: (82, 134)),
+                (from: (-3.75, 9.5, -2.5), size: (3.0, 1.5, 3.0), uv: (136, 82)),
                 // curl_b
-                (from: (1.5, 11.5, -1.0), size: (3.5, 1.5, 3.5), uv: (110, 134)),
+                (from: (1.0, 9.5, -0.5), size: (3.0, 1.5, 3.0), uv: (160, 82)),
                 // curl_c
-                (from: (-2.0, 11.5, 2.0), size: (3.5, 1.5, 3.0), uv: (208, 134)),
+                (from: (-1.5, 9.5, 1.5), size: (3.0, 1.5, 2.5), uv: (232, 82)),
                 // curl_d
-                (from: (5.8, 4.0, -2.5), size: (1.5, 3.5, 4.0), uv: (36, 106)),
+                (from: (4.3, 3.5, -2.0), size: (1.25, 3.0, 3.0), uv: (0, 70)),
                 // curl_e
-                (from: (-7.3, 4.0, -2.5), size: (1.5, 3.5, 4.0), uv: (58, 106)),
+                (from: (-5.55, 3.5, -2.0), size: (1.25, 3.0, 3.0), uv: (16, 70)),
                 // curl_f
-                (from: (-4.5, 5.0, 5.8), size: (4.0, 3.5, 1.5), uv: (164, 134)),
+                (from: (-3.5, 4.0, 4.3), size: (3.0, 3.0, 1.25), uv: (20, 92)),
                 // curl_g
-                (from: (0.5, 2.5, 5.8), size: (4.0, 3.5, 1.5), uv: (186, 134)),
+                (from: (0.5, 2.0, 4.3), size: (3.0, 3.0, 1.25), uv: (36, 92)),
                 // curl_h
-                (from: (-6.8, 8.5, 1.0), size: (3.0, 2.5, 4.0), uv: (108, 121)),
+                (from: (-5.0, 7.0, 0.5), size: (2.5, 2.0, 3.0), uv: (0, 82)),
                 // curl_i
-                (from: (3.8, 8.5, 2.5), size: (3.0, 2.5, 4.0), uv: (136, 121)),
+                (from: (2.75, 7.0, 1.5), size: (2.5, 2.0, 3.0), uv: (22, 82)),
                 // beard
-                (from: (-5.5, -0.5, -5.75), size: (11.0, 4.0, 1.0), uv: (34, 134)),
+                (from: (-4.0, 0.0, -4.4), size: (8.0, 3.5, 1.0), uv: (44, 82)),
             ],
         ),
         right_arm: (
-            joint: (6.25, 6.0, 0.0),
+            joint: (4.5, 7.5, 0.0),
             boxes: [
                 // rarm
-                (from: (-1.75, -5.5, -1.75), size: (3.5, 6.5, 3.5), uv: (86, 65)),
+                (from: (-1.25, -4.5, -1.25), size: (2.5, 4.5, 2.5), uv: (104, 54)),
                 // rsleeve
-                (from: (-1.75, -2.5, -1.75), size: (3.5, 3.5, 3.5), uv: (162, 106), inflate: 0.35),
-                // rhand
-                (from: (-2.25, -8.0, -2.25), size: (4.5, 3.0, 4.5), uv: (198, 89)),
-                // rcuff
-                (from: (-2.5, -6.0, -2.5), size: (5.0, 1.5, 5.0), uv: (0, 121)),
+                (from: (-1.25, -2.25, -1.25), size: (2.5, 2.75, 2.5), uv: (158, 70), inflate: 0.3),
             ],
         ),
         left_arm: (
-            joint: (-6.25, 6.0, 0.0),
+            joint: (-4.5, 7.5, 0.0),
             boxes: [
                 // larm
-                (from: (-1.75, -5.5, -1.75), size: (3.5, 6.5, 3.5), uv: (114, 65)),
+                (from: (-1.25, -4.5, -1.25), size: (2.5, 4.5, 2.5), uv: (124, 54)),
                 // lsleeve
-                (from: (-1.75, -2.5, -1.75), size: (3.5, 3.5, 3.5), uv: (190, 106), inflate: 0.35),
-                // lhand
-                (from: (-2.25, -8.0, -2.25), size: (4.5, 3.0, 4.5), uv: (0, 106)),
-                // lcuff
-                (from: (-2.5, -6.0, -2.5), size: (5.0, 1.5, 5.0), uv: (40, 121)),
+                (from: (-1.25, -2.25, -1.25), size: (2.5, 2.75, 2.5), uv: (178, 70), inflate: 0.3),
             ],
         ),
         right_leg: (
-            joint: (2.25, 8.0, 0.0),
+            joint: (1.6, 12.0, 0.0),
             boxes: [
                 // rleg
-                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (204, 40)),
-                // rboot
-                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (122, 89)),
-                // rbootcuff
-                (from: (-2.5, -5.5, -2.5), size: (5.0, 1.0, 5.0), uv: (164, 121)),
+                (from: (-1.38, -5.5, -1.38), size: (2.75, 5.5, 2.75), uv: (150, 31)),
             ],
         ),
         left_leg: (
-            joint: (-2.25, 8.0, 0.0),
+            joint: (-1.6, 12.0, 0.0),
             boxes: [
                 // lleg
-                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (0, 65)),
+                (from: (-1.38, -5.5, -1.38), size: (2.75, 5.5, 2.75), uv: (174, 31)),
+            ],
+        ),
+        right_forearm: (
+            joint: (0.0, -4.5, 0.0),
+            boxes: [
+                // rforearm
+                (from: (-1.12, -4.0, -1.12), size: (2.25, 4.0, 2.25), uv: (32, 70)),
+                // rcuff
+                (from: (-1.5, -4.0, -1.5), size: (3.0, 1.25, 3.0), uv: (184, 82)),
+                // rhand
+                (from: (-1.5, -6.5, -1.5), size: (3.0, 2.5, 3.0), uv: (88, 70)),
+            ],
+        ),
+        left_forearm: (
+            joint: (0.0, -4.5, 0.0),
+            boxes: [
+                // lforearm
+                (from: (-1.12, -4.0, -1.12), size: (2.25, 4.0, 2.25), uv: (48, 70)),
+                // lcuff
+                (from: (-1.5, -4.0, -1.5), size: (3.0, 1.25, 3.0), uv: (208, 82)),
+                // lhand
+                (from: (-1.5, -6.5, -1.5), size: (3.0, 2.5, 3.0), uv: (112, 70)),
+            ],
+        ),
+        right_shin: (
+            joint: (0.0, -5.5, 0.0),
+            boxes: [
+                // rshin
+                (from: (-1.25, -6.5, -1.25), size: (2.5, 6.5, 2.5), uv: (110, 31)),
+                // rboot
+                (from: (-1.62, -6.5, -2.0), size: (3.25, 3.0, 4.0), uv: (48, 54)),
+                // rbootcuff
+                (from: (-1.75, -4.0, -1.75), size: (3.5, 1.0, 3.5), uv: (80, 82)),
+            ],
+        ),
+        left_shin: (
+            joint: (0.0, -5.5, 0.0),
+            boxes: [
+                // lshin
+                (from: (-1.25, -6.5, -1.25), size: (2.5, 6.5, 2.5), uv: (130, 31)),
                 // lboot
-                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (160, 89)),
+                (from: (-1.62, -6.5, -2.0), size: (3.25, 3.0, 4.0), uv: (76, 54)),
                 // lbootcuff
-                (from: (-2.5, -5.5, -2.5), size: (5.0, 1.0, 5.0), uv: (204, 121)),
+                (from: (-1.75, -4.0, -1.75), size: (3.5, 1.0, 3.5), uv: (108, 82)),
             ],
         ),
     ),
     expressions: (
-        blink: (142, 65),
-        smile: (164, 65),
-        surprise: (186, 65),
-        effort: (208, 65),
+        blink: (238, 31),
+        smile: (0, 54),
+        surprise: (16, 54),
+        effort: (32, 54),
     ),
-    grip: (at: (0.0, -6.6, 0.0), turn: (-70.0, 0.0, 0.0), tool_size: 0.95, item_size: 0.35),
+    grip: (at: (0.0, -5.5, 0.0), turn: (-70.0, 0.0, 0.0), tool_size: 0.95, item_size: 0.35),
     wardrobe: (
         bodies: ["body-fair.png", "body-light.png", "body-tan.png", "body-brown.png", "body-dark.png"],
         outfits: [

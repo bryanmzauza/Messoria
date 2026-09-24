@@ -22,9 +22,12 @@ models used everywhere else, including models that later packs add.
 
 ## Decision
 
-- A character is a figure of six limbs, each a few boxes turning at a
-  joint, described in `characters.ron`: sizes in figure pixels and where
-  each box's faces are painted from in a skin. Clients build the meshes
+- A character is a figure of ten limbs, each a few boxes turning at a
+  joint (hips, neck, shoulders, elbows and knees), described in
+  `characters.ron`: sizes in figure pixels and where each box's faces are
+  painted from in a skin. Its proportions follow a character sheet: a head
+  over a third of the height, a torso a fifth of it wide, slim arms and
+  long legs. Clients build the meshes
   from that data. The figure has boxes for everything any outfit or
   hairstyle may need (a hood, a pouch, sleeves, boot cuffs, curls, a bun, a
   beard); each layer paints the ones it uses and leaves the rest clear.
@@ -38,8 +41,9 @@ models used everywhere else, including models that later packs add.
   the same player without choosing or sending it; shopkeepers' looks are
   data in `shops.ron`.
 - Figures are posed in code rather than played from recorded animations:
-  limbs swing with the distance walked, figures lean into a run and spread
-  their arms in the air, sleepers lie in the nearest bed, and happenings,
+  limbs swing with the distance walked, knees and elbows bending, figures
+  lean into a run, tuck their legs in a jump and crouch on landing, sleepers
+  lie in the nearest bed, and happenings,
   which now name the player who caused them, are acted out. Nothing about
   animation is replicated. The one addition is `Holding`, the item a
   character holds, which the server derives from the held slot sent with

@@ -66,11 +66,16 @@ struct ArmCamera;
 #[derive(Component)]
 struct ArmLight;
 
-/// The arm in view: whether it is dressed yet, what it holds and how it
-/// moves.
+/// How much the elbow bends at rest, in radians, and how far it bends
+/// further through a swing.
+const ELBOW: f32 = 0.55;
+const ELBOW_SWING: f32 = 0.5;
+
+/// The arm in view: its forearm once it is dressed, what it holds and how
+/// it moves.
 #[derive(Component)]
 struct ArmInView {
-    dressed: bool,
+    forearm: Option<Entity>,
     item: Option<ItemId>,
     model: Option<Entity>,
     /// Seconds left in the current swing.
@@ -111,7 +116,7 @@ fn spawn_arm_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Arm in view"),
         ArmInView {
-            dressed: false,
+            forearm: None,
             item: None,
             model: None,
             swing: 0.0,
@@ -146,6 +151,7 @@ fn follow_world_camera(
 /// Gives the arm in view the player's own sleeve and hand, once the
 /// player's figure is dressed.
 fn dress_arm(
+    content: Res<Content>,
     meshes: Res<FigureMeshes>,
     player: Query<&Figure, With<InputMarker<PlayerInput>>>,
     arm: Single<(Entity, &mut ArmInView)>,
@@ -155,7 +161,7 @@ fn dress_arm(
     let Ok(figure) = player.single() else {
         return;
     };
-    if arm.dressed {
+    if arm.forearm.is_some() {
         return;
     }
     for mesh in meshes.of(Part::RightArm) {
@@ -165,7 +171,23 @@ fn dress_arm(
             ChildOf(entity),
         ));
     }
-    arm.dressed = true;
+    let characters = content.characters();
+    let elbow = Vec3::from(characters.limbs.right_forearm.joint) * characters.pixel;
+    let forearm = commands
+        .spawn((
+            Transform::from_translation(elbow),
+            Visibility::default(),
+            ChildOf(entity),
+        ))
+        .id();
+    for mesh in meshes.of(Part::RightForearm) {
+        commands.spawn((
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(figure.material.clone()),
+            ChildOf(forearm),
+        ));
+    }
+    arm.forearm = Some(forearm);
 }
 
 /// Shows the arm in first person, holding the held item's model.
@@ -175,10 +197,10 @@ fn hold_in_view(
     view: Res<View>,
     held: Res<HeldSlot>,
     player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
-    arm: Single<(Entity, &mut ArmInView, &mut Visibility)>,
+    arm: Single<(&mut ArmInView, &mut Visibility)>,
     mut commands: Commands,
 ) {
-    let (entity, mut arm, mut visibility) = arm.into_inner();
+    let (mut arm, mut visibility) = arm.into_inner();
     visibility.set_if_neq(if view.perspective == Perspective::FirstPerson {
         Visibility::Inherited
     } else {
@@ -196,11 +218,14 @@ fn hold_in_view(
         commands.entity(old).despawn();
     }
     arm.item = item;
+    let Some(hand) = arm.forearm else {
+        return;
+    };
     arm.model = item.and_then(|item| {
         let scene = models.scene(content.item(item).model.as_deref()?)?;
         Some(
             commands
-                .spawn((scene, in_hand(&content, item), ChildOf(entity)))
+                .spawn((scene, in_hand(&content, item), ChildOf(hand)))
                 .id(),
         )
     });
@@ -212,6 +237,7 @@ fn move_arm(
     mut used: MessageReader<Used>,
     player: Query<&Velocity, With<InputMarker<PlayerInput>>>,
     arm: Single<(&mut ArmInView, &mut Transform)>,
+    mut forearms: Query<&mut Transform, Without<ArmInView>>,
 ) {
     let (mut arm, mut transform) = arm.into_inner();
     let dt = time.delta_secs();
@@ -235,4 +261,10 @@ fn move_arm(
     transform.translation = REST + sway;
     transform.rotation =
         Quat::from_euler(EulerRot::XYZ, REST_TURN.x - swing, REST_TURN.y, REST_TURN.z);
+    if let Some(mut forearm) = arm
+        .forearm
+        .and_then(|forearm| forearms.get_mut(forearm).ok())
+    {
+        forearm.rotation = Quat::from_rotation_x(ELBOW + ELBOW_SWING * swing);
+    }
 }

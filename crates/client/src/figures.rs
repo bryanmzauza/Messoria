@@ -33,22 +33,34 @@ pub(crate) enum Part {
     LeftArm,
     RightLeg,
     LeftLeg,
+    RightForearm,
+    LeftForearm,
+    RightShin,
+    LeftShin,
 }
 
 impl Part {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 10] = [
         Self::Body,
         Self::Head,
         Self::RightArm,
         Self::LeftArm,
         Self::RightLeg,
         Self::LeftLeg,
+        Self::RightForearm,
+        Self::LeftForearm,
+        Self::RightShin,
+        Self::LeftShin,
     ];
 
     /// The limb it hangs from, if any; the others hang from the figure.
-    fn parent(self) -> Option<Self> {
+    pub(crate) fn parent(self) -> Option<Self> {
         match self {
             Self::Head | Self::RightArm | Self::LeftArm => Some(Self::Body),
+            Self::RightForearm => Some(Self::RightArm),
+            Self::LeftForearm => Some(Self::LeftArm),
+            Self::RightShin => Some(Self::RightLeg),
+            Self::LeftShin => Some(Self::LeftLeg),
             Self::Body | Self::RightLeg | Self::LeftLeg => None,
         }
     }
@@ -71,7 +83,7 @@ pub(crate) enum Expression {
 #[derive(Component, Clone)]
 pub(crate) struct Figure {
     pub root: Entity,
-    pub limbs: [Entity; 6],
+    pub limbs: [Entity; 10],
     pub face: Entity,
     pub material: Handle<StandardMaterial>,
 }
@@ -86,7 +98,7 @@ impl Figure {
 /// expression, shared by all figures.
 #[derive(Resource)]
 pub(crate) struct FigureMeshes {
-    limbs: [Vec<Handle<Mesh>>; 6],
+    limbs: [Vec<Handle<Mesh>>; 10],
     faces: [Handle<Mesh>; 5],
 }
 
@@ -142,7 +154,7 @@ pub(crate) fn spawn_figure(
             ChildOf(owner),
         ))
         .id();
-    let mut limbs = [root; 6];
+    let mut limbs = [root; 10];
     let mut face = root;
     // Parents come before the limbs hanging from them.
     for (part, limb) in Part::ALL.into_iter().zip(characters.limbs.all()) {
@@ -175,6 +187,9 @@ pub(crate) fn spawn_figure(
         material: material.clone(),
     }
 }
+
+/// The joint a held item hangs from.
+pub(crate) const HAND: Part = Part::RightForearm;
 
 /// A held item's model, hidden until it is fitted to the hand: its longest
 /// side made `size` meters long, and the point `anchor` of the way up it put
