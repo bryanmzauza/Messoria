@@ -16,5 +16,5 @@ so they may look different from the originals.
 | `sounds/rpg/` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 
 Each folder keeps the license file that came with its pack, and only the
-files the game uses. The character skins in `skins/` were made for Messoria
-and fall under the repository's license.
+files the game uses. The character skins in `skins/` and the textures in
+`textures/` were made for Messoria and fall under the repository's license.

@@ -4,7 +4,10 @@
 
 use std::collections::HashMap;
 
-use bevy::prelude::*;
+use bevy::{
+    image::{ImageLoaderSettings, ImageSampler},
+    prelude::*,
+};
 use messoria_content::CropId;
 use messoria_farming::Planting;
 use messoria_shared::{
@@ -22,8 +25,11 @@ const SOIL_LIFT: f32 = 0.04;
 /// How far the soil reaches down into the ground, so that it still meets the
 /// terrain where the ground around the field slopes away.
 const SOIL_DEPTH: f32 = 0.2;
-const DRY_SOIL: Color = Color::srgb(0.42, 0.3, 0.2);
-const WET_SOIL: Color = Color::srgb(0.25, 0.17, 0.11);
+/// Tilled soil's texture, drawn over each field's top, and how watering
+/// darkens it.
+const TILLED: &str = "textures/tilled.png";
+const DRY_SOIL: Color = Color::WHITE;
+const WET_SOIL: Color = Color::srgb(0.55, 0.48, 0.45);
 /// Scale the plant models are drawn at.
 const PLANT_SCALE: f32 = 1.4;
 /// How much a plant turns each day it grows, so rows do not look stamped.
@@ -68,10 +74,25 @@ struct PlantModel(Entity);
 
 fn load_field_art(
     content: Res<Content>,
+    assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
+    // Texels stay crisp squares, like the ground's.
+    let tilled: Handle<Image> = assets
+        .load_builder()
+        .with_settings(|settings: &mut ImageLoaderSettings| {
+            settings.sampler = ImageSampler::nearest();
+        })
+        .load(TILLED);
+    let soil = |color: Color| StandardMaterial {
+        base_color: color,
+        base_color_texture: Some(tilled.clone()),
+        perceptual_roughness: 0.92,
+        reflectance: 0.2,
+        ..default()
+    };
     let matte = |color: Color| StandardMaterial {
         base_color: color,
         perceptual_roughness: 0.9,
@@ -86,8 +107,8 @@ fn load_field_art(
         .collect();
     commands.insert_resource(FieldArt {
         soil: meshes.add(Cuboid::new(SOIL_SIZE, SOIL_DEPTH, SOIL_SIZE)),
-        dry_soil: materials.add(matte(DRY_SOIL)),
-        wet_soil: materials.add(matte(WET_SOIL)),
+        dry_soil: materials.add(soil(DRY_SOIL)),
+        wet_soil: materials.add(soil(WET_SOIL)),
         produce: meshes.add(Sphere::new(0.5)),
         produce_materials,
     });

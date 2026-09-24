@@ -97,8 +97,9 @@ which groups are added.
 
 ## Terrain
 
-See [ADR 0004](adr/0004-terrain-representation.md) and
-[ADR 0005](adr/0005-terrain-edits-and-shading.md).
+See [ADR 0004](adr/0004-terrain-representation.md),
+[ADR 0005](adr/0005-terrain-edits-and-shading.md) and
+[ADR 0013](adr/0013-picture-and-painted-ground.md).
 
 - The server generates the farm valley at startup and owns the authoritative
   `Terrain` resource. A client's `Terrain` holds only the chunks streamed to it.
@@ -109,8 +110,11 @@ See [ADR 0004](adr/0004-terrain-representation.md) and
   reach, rate, the target and nearby players, applies the brush and forwards
   the changed voxels to every client holding the chunk.
 - A brush moves the ground within a disc to the next level, a multiple of its
-  step, below or above the target. The client draws terrain flat-shaded, one
-  material per facet.
+  step, below or above the target.
+- The mesher gives each vertex its ground material and a normal from the
+  distance field. The client's `ground` material paints the terrain with
+  pixel-art textures in world space, picking the material texel by texel,
+  and tints them by the season.
 - Any change to `Terrain` emits `ChunkChanged` for each chunk whose mesh
   depends on it; the client remeshes those under a per-frame time budget.
 
@@ -195,6 +199,19 @@ there.
 - Reshaping the ground under a field destroys it, which terrain edits report
   as `GroundReshaped`.
 
+## The picture
+
+See [ADR 0013](adr/0013-picture-and-painted-ground.md).
+
+- `picture` finishes what the world camera renders: high dynamic range,
+  tonemapping, bloom, temporal anti-aliasing, and a color grade, exposure
+  and haze that follow the time of day and the weather. The graphics
+  quality in the player's settings adds ambient occlusion, sunbeams through
+  the haze and sharper shadows.
+- `environment` blends the sky's colors and the light through the day into
+  the `Sky` resource, and `sky` draws the dome, the glowing sun or moon, the
+  stars and the clouds from it. Fog fades the land into the horizon's color.
+
 ## Scenery and art
 
 See [ADR 0008](adr/0008-scenery-and-art.md).
@@ -209,9 +226,6 @@ See [ADR 0008](adr/0008-scenery-and-art.md).
 - Every mesh whose material name is in the palette is drawn with a shared
   material for that name. The client follows the world's season (`DrawnSeason`)
   and recolors those materials, and remeshes the terrain, when it turns.
-- `environment` blends the sky's colors and the light through the day into
-  the `Sky` resource, and `sky` draws the dome, the sun or moon and the
-  clouds from it. Fog fades the land into the horizon's color.
 
 ## Gathering
 

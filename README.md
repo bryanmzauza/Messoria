@@ -18,8 +18,9 @@ turns with the hours and a valley that turns with the seasons. They gather
 wood and stone, build cabins, and see each other as blocky, hand-painted
 characters, each dressed their own way, with their tools in hand, around a
 village square with shops and shopkeepers.
-Worlds are saved and resume where they stopped. Music and a playtest are
-next. See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
+The valley is lit and its ground painted to match. Worlds are saved and
+resume where they stopped. Art of our own for the whole valley is next, then
+music and a playtest. See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 

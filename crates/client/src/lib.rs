@@ -17,6 +17,7 @@ mod feedback;
 mod fields;
 mod figures;
 mod furniture;
+mod ground;
 mod hud;
 mod icons;
 mod input;
@@ -25,6 +26,7 @@ mod menu;
 mod noise;
 mod panels;
 mod particles;
+mod picture;
 mod scenery;
 mod settings;
 mod shops;
@@ -60,6 +62,8 @@ impl Plugin for ClientPlugin {
             },
             clock::ClockPlugin,
             environment::EnvironmentPlugin,
+            picture::PicturePlugin,
+            ground::GroundPlugin,
             terrain::TerrainPlugin,
             fields::FieldsPlugin,
             weather::WeatherPlugin,

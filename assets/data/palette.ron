@@ -2,8 +2,10 @@
 //
 // Models name their materials, and every material with a name listed here is
 // drawn in its color, whichever art pack the model comes from, so they all
-// look like one world. The terrain's ground is colored through the names
-// `terrain_grass`, `terrain_soil`, `terrain_stone` and `terrain_sand`.
+// look like one world. The terrain's ground textures (textures/ground.png) are
+// painted in spring's colors; in other seasons they are tinted by how the
+// colors named `terrain_grass`, `terrain_soil`, `terrain_stone` and
+// `terrain_sand` differ from spring's. In winter snow covers the grass.
 //
 // `seasons` overrides colors for part of the year.
 (
@@ -44,10 +46,10 @@
             "leafsGreen": (0.84, 0.52, 0.2),
             "leafsFall": (0.76, 0.3, 0.13),
         },
-        // Snow lies on the grass and on the leaves; evergreens stay dark.
+        // Snow lies on the leaves, and frost on the stone; evergreens stay
+        // dark.
         Winter: {
-            "terrain_grass": (0.88, 0.9, 0.93),
-            "terrain_stone": (0.7, 0.72, 0.76),
+            "terrain_stone": (0.6, 0.6, 0.62),
             "grass": (0.8, 0.84, 0.87),
             "leafsGreen": (0.76, 0.82, 0.84),
             "leafsFall": (0.76, 0.82, 0.84),

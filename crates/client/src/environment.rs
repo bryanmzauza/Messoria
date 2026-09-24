@@ -7,7 +7,11 @@
 
 use std::f32::consts::PI;
 
-use bevy::{light::CascadeShadowConfigBuilder, pbr::DistanceFog, prelude::*};
+use bevy::{
+    light::{CascadeShadowConfigBuilder, VolumetricLight},
+    pbr::DistanceFog,
+    prelude::*,
+};
 use messoria_calendar::Weather;
 use messoria_shared::protocol::CurrentWeather;
 
@@ -174,6 +178,8 @@ fn spawn_sky_light(mut commands: Commands) {
             shadow_maps_enabled: true,
             ..default()
         },
+        // Shines through the haze in beams.
+        VolumetricLight,
         CascadeShadowConfigBuilder {
             maximum_distance: 120.0,
             ..default()

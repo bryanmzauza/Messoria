@@ -8,7 +8,11 @@
 
 use std::f32::consts::PI;
 
-use bevy::{camera::visibility::RenderLayers, prelude::*};
+use bevy::{
+    camera::{Hdr, visibility::RenderLayers},
+    core_pipeline::tonemapping::Tonemapping,
+    prelude::*,
+};
 use lightyear::prelude::input::native::InputMarker;
 use messoria_content::ItemId;
 use messoria_shared::{
@@ -40,8 +44,8 @@ const SWING_ANGLE: f32 = 0.9;
 const SWAY: Vec2 = Vec2::new(0.012, 0.018);
 const SWAY_PACE: f32 = 1.6;
 /// Brightness of the light on the arm, by night and by day.
-const NIGHT_LIGHT: f32 = 600.0;
-const DAY_LIGHT: f32 = 7_000.0;
+const NIGHT_LIGHT: f32 = 250.0;
+const DAY_LIGHT: f32 = 2_600.0;
 
 pub(crate) struct ViewmodelPlugin;
 
@@ -88,6 +92,11 @@ fn spawn_arm_camera(mut commands: Commands) {
                 clear_color: ClearColorConfig::None,
                 ..default()
             },
+            // Drawn into the world camera's finished picture, so it must
+            // match its format and not tonemap that picture a second time.
+            Hdr,
+            Msaa::Off,
+            Tonemapping::None,
             layer.clone(),
         ))
         .id();

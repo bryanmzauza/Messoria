@@ -1,5 +1,6 @@
 //! The sky: a dome shaded from the horizon to the zenith, the sun or the
-//! moon, and low-poly clouds drifting over the valley.
+//! moon glowing on it, stars at night, and low-poly clouds drifting over the
+//! valley.
 //!
 //! The dome and the discs follow the camera, so they always look infinitely
 //! far away. Fog does not touch them; it fades the land into the horizon's
@@ -36,8 +37,17 @@ const ZENITH_FROM: f32 = 0.7;
 const DISC_DISTANCE: f32 = 550.0;
 const SUN_RADIUS: f32 = 24.0;
 const MOON_RADIUS: f32 = 16.0;
-const SUN_COLOR: Color = Color::srgb(1.0, 0.94, 0.72);
-const MOON_COLOR: Color = Color::srgb(0.88, 0.9, 1.0);
+/// The sun and the moon shine brighter than white, so that they glow.
+const SUN_COLOR: Color = Color::linear_rgb(9.0, 8.0, 5.5);
+const MOON_COLOR: Color = Color::linear_rgb(1.6, 1.7, 2.0);
+
+/// Stars: how many, how far, how large, and how bright at darkest night.
+const STARS: usize = 900;
+const STAR_DISTANCE: f32 = 580.0;
+const STAR_SIZE: (f32, f32) = (0.5, 1.6);
+const STAR_GLOW: f32 = 3.0;
+/// Lowest a star shows, in radians above the horizon, where the haze is.
+const STAR_LOWEST: f32 = 0.12;
 
 const CLOUDS: usize = 18;
 /// Half the side of the square clouds drift across, centered on the valley.
@@ -55,13 +65,16 @@ pub(crate) struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_dome, spawn_discs, spawn_clouds))
-            .add_systems(
-                PostUpdate,
-                (shade_dome, place_sky, drift_clouds)
-                    .after(CameraPlacement)
-                    .before(TransformSystems::Propagate),
-            );
+        app.add_systems(
+            Startup,
+            (spawn_dome, spawn_discs, spawn_stars, spawn_clouds),
+        )
+        .add_systems(
+            PostUpdate,
+            (shade_dome, place_sky, drift_clouds)
+                .after(CameraPlacement)
+                .before(TransformSystems::Propagate),
+        );
     }
 }
 
@@ -79,6 +92,10 @@ struct Disc {
 
 #[derive(Component)]
 struct Cloud;
+
+/// The stars, and their shared material, brightened as night falls.
+#[derive(Component)]
+struct Stars(Handle<StandardMaterial>);
 
 #[derive(Resource)]
 struct CloudLook(Handle<StandardMaterial>);
@@ -177,6 +194,58 @@ fn spawn_discs(
     }
 }
 
+/// Stars are small squares scattered over the upper dome, facing its
+/// middle, in one mesh. Their light adds to the sky's, so they fade in as
+/// the sky darkens.
+fn spawn_stars(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    let mut rng = SmallRng::seed_from_u64(0x0073_7461_7273);
+    let mut positions = Vec::with_capacity(STARS * 4);
+    let mut indices = Vec::with_capacity(STARS * 6);
+    for _ in 0..STARS {
+        let elevation = rng.random_range(STAR_LOWEST..FRAC_PI_2);
+        let bearing = rng.random_range(0.0..TAU);
+        let toward = Vec3::new(
+            elevation.cos() * bearing.cos(),
+            elevation.sin(),
+            elevation.cos() * bearing.sin(),
+        );
+        let middle = toward * STAR_DISTANCE;
+        let across = toward.any_orthonormal_vector();
+        let up = toward.cross(across);
+        let size = rng.random_range(STAR_SIZE.0..STAR_SIZE.1) / 2.0;
+        let first = u32::try_from(positions.len()).expect("a few thousand corners");
+        for (a, b) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            positions.push((middle + (across * a + up * b) * size).to_array());
+        }
+        indices.extend([0, 1, 2, 0, 2, 3].map(|corner| first + corner));
+    }
+    let normals = vec![[0.0, -1.0, 0.0]; positions.len()];
+    let mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_indices(Indices::U32(indices));
+    let material = materials.add(StandardMaterial {
+        alpha_mode: AlphaMode::Add,
+        ..sky_material(Color::BLACK)
+    });
+    commands.spawn((
+        Name::new("Stars"),
+        Stars(material.clone()),
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(material),
+        Transform::default(),
+        NotShadowCaster,
+        NotShadowReceiver,
+    ));
+}
+
 /// Clouds are clusters of flattened low-poly blobs.
 fn spawn_clouds(
     mut meshes: ResMut<Assets<Mesh>>,
@@ -227,6 +296,7 @@ fn spawn_clouds(
 fn shade_dome(
     sky: Res<Sky>,
     dome: Single<&Dome>,
+    stars: Single<&Stars>,
     mut meshes: ResMut<Assets<Mesh>>,
     clouds: Option<Res<CloudLook>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -251,6 +321,15 @@ fn shade_dome(
         CLOUD_COLOR
     };
     let cloud_color = sky.horizon.mix(&white, CLOUD_BRIGHTNESS * sky.daylight);
+    // Stars come out as the light goes, behind clouds they do not.
+    let night = if sky.overcast {
+        0.0
+    } else {
+        (1.0 - 2.0 * sky.daylight).clamp(0.0, 1.0)
+    };
+    if let Some(mut look) = materials.get_mut(&stars.0) {
+        look.base_color = (LinearRgba::rgb(1.0, 0.97, 0.9) * (STAR_GLOW * night)).into();
+    }
     if let Some(mut look) = clouds.and_then(|clouds| materials.get_mut(&clouds.0))
         && look.base_color != cloud_color
     {
@@ -262,11 +341,21 @@ fn shade_dome(
 /// the light, facing the camera.
 fn place_sky(
     sky: Res<Sky>,
-    camera: Single<&Transform, (With<WorldCamera>, Without<Dome>, Without<Disc>)>,
-    mut dome: Single<&mut Transform, (With<Dome>, Without<Disc>)>,
-    mut discs: Query<(&Disc, &mut Transform, &mut Visibility), Without<Dome>>,
+    camera: Single<
+        &Transform,
+        (
+            With<WorldCamera>,
+            Without<Dome>,
+            Without<Disc>,
+            Without<Stars>,
+        ),
+    >,
+    mut dome: Single<&mut Transform, (With<Dome>, Without<Disc>, Without<Stars>)>,
+    mut stars: Single<&mut Transform, (With<Stars>, Without<Dome>, Without<Disc>)>,
+    mut discs: Query<(&Disc, &mut Transform, &mut Visibility), (Without<Dome>, Without<Stars>)>,
 ) {
     dome.translation = camera.translation;
+    stars.translation = camera.translation;
     for (disc, mut transform, mut visibility) in &mut discs {
         visibility.set_if_neq(visible_if(disc.sun == sky.sun_up && !sky.overcast));
         let position = camera.translation + sky.toward_light * DISC_DISTANCE;

@@ -38,6 +38,6 @@ pub use crate::{
     player::PlayerState,
     profile::Profile,
     save_dir::{SaveDir, SavedWorld, is_valid_player_key},
-    settings::Settings,
+    settings::{Graphics, Settings},
     world::{FieldState, GatheredProp, StructureState, WorldState},
 };

@@ -59,11 +59,13 @@ const AXES: [IVec3; 3] = [IVec3::X, IVec3::Y, IVec3::Z];
 /// A triangle mesh in the chunk's local space, where `(0, 0, 0)` is the
 /// chunk's origin. Front faces wind counter-clockwise and face the air.
 ///
-/// There are no normals: how the surface is shaded, smooth or faceted, is
-/// the renderer's choice, and triangle winding gives each face's direction.
+/// Each vertex's normal points into the air along the gradient of the
+/// distance field. Chunks sharing a border read the same samples there, so
+/// their normals agree and the terrain shades smoothly across chunks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SurfaceMesh {
     pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
     /// Ground material at each vertex, for coloring or texturing.
     pub materials: Vec<Material>,
     pub indices: Vec<u32>,
@@ -206,11 +208,47 @@ fn place_vertices(samples: &Samples, mesh: &mut SurfaceMesh) -> Vec<u32> {
                 let index = u32::try_from(mesh.positions.len()).expect("fewer than 2³² vertices");
                 vertices[cell_index(cell)] = index;
                 mesh.positions.push((cell.as_vec3() + offset).to_array());
+                mesh.normals.push(
+                    gradient(&distances, offset)
+                        .normalize_or(Vec3::Y)
+                        .to_array(),
+                );
                 mesh.materials.push(material);
             }
         }
     }
     vertices
+}
+
+/// The gradient, at `at` within a cell, of the distances interpolated
+/// trilinearly between the cell's corners.
+fn gradient(corners: &[f32; 8], at: Vec3) -> Vec3 {
+    let d = |x: usize, y: usize, z: usize| corners[x + 2 * y + 4 * z];
+    let (x, y, z) = (at.x, at.y, at.z);
+    let along = |low: [f32; 4], high: [f32; 4], [u, v]: [f32; 2]| {
+        let differences = [0, 1, 2, 3].map(|i| high[i] - low[i]);
+        differences[0] * (1.0 - u) * (1.0 - v)
+            + differences[1] * u * (1.0 - v)
+            + differences[2] * (1.0 - u) * v
+            + differences[3] * u * v
+    };
+    Vec3::new(
+        along(
+            [d(0, 0, 0), d(0, 1, 0), d(0, 0, 1), d(0, 1, 1)],
+            [d(1, 0, 0), d(1, 1, 0), d(1, 0, 1), d(1, 1, 1)],
+            [y, z],
+        ),
+        along(
+            [d(0, 0, 0), d(1, 0, 0), d(0, 0, 1), d(1, 0, 1)],
+            [d(0, 1, 0), d(1, 1, 0), d(0, 1, 1), d(1, 1, 1)],
+            [x, z],
+        ),
+        along(
+            [d(0, 0, 0), d(1, 0, 0), d(0, 1, 0), d(1, 1, 0)],
+            [d(0, 0, 1), d(1, 0, 1), d(0, 1, 1), d(1, 1, 1)],
+            [x, y],
+        ),
+    )
 }
 
 /// Emits a quad for every edge that starts at one of the chunk's own samples
@@ -284,6 +322,26 @@ mod tests {
             assert!((position[1] - 10.3).abs() < 0.02, "vertex at {position:?}");
         }
         assert!(triangles(&mesh).all(|triangle| facing(triangle).y > 0.0));
+        for normal in &mesh.normals {
+            assert!(Vec3::from(*normal).y > 0.999, "normal {normal:?}");
+        }
+    }
+
+    #[test]
+    fn normals_point_out_of_a_sphere() {
+        let center = Vec3::new(16.2, 15.7, 16.4);
+        let mut map = ChunkMap::default();
+        map.insert(
+            ChunkPos(IVec3::ZERO),
+            Chunk::from_fn(|local| {
+                Voxel::new(local.as_vec3().distance(center) - 8.0, Material::Stone)
+            }),
+        );
+        let mesh = mesh_chunk(&map, ChunkPos(IVec3::ZERO)).unwrap();
+        for (position, normal) in mesh.positions.iter().zip(&mesh.normals) {
+            let outward = (Vec3::from(*position) - center).normalize();
+            assert!(Vec3::from(*normal).dot(outward) > 0.95);
+        }
     }
 
     #[test]

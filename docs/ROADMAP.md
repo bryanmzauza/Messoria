@@ -189,7 +189,37 @@ Goal: the people and the village look the part.
 **Exit criterion:** the village square and a player at work look finished in
 screenshots.
 
-## M13 — MVP playtest
+## M13 — Light and ground
+
+Goal: the valley is lit and its ground painted like a finished game.
+
+- [x] High dynamic range rendering with filmic tonemapping, bloom, and color
+      grading that follows the time of day and the weather
+- [x] Ambient occlusion, temporal anti-aliasing and soft shadows
+- [x] Sunbeams and haze through the air at dawn and dusk
+- [x] Terrain smoothly lit and painted with pixel-art textures per ground
+      material, tinted by the season; tilled fields painted to match
+- [x] A sky with a glowing sun and moon, and stars at night
+- [x] Graphics quality setting in the options, for weaker machines
+
+**Exit criterion:** screenshots at dawn, noon, dusk and night, in every
+season, look lit and textured like a finished game.
+
+## M14 — Our own art
+
+Goal: everything in the valley is drawn in one style, made for the game.
+
+- [ ] Block models with pixel-art textures, in the style of the characters,
+      for trees, rocks, bushes, logs and ground cover, swaying in the wind
+- [ ] Village buildings, stalls, fountain, lanterns, benches, cart and banners
+- [ ] The cabin, its furniture and chests
+- [ ] Crops at every growth stage, tools and items
+- [ ] No model from an outside pack left in the game
+
+**Exit criterion:** the village square, a farm at work and the woods look
+like one world in screenshots, in every season.
+
+## M15 — MVP playtest
 
 Goal: the slice feels like a game.
 
