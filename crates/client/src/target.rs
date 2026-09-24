@@ -1,14 +1,15 @@
 //! What the crosshair is on, named under it: a crop and how it is doing, a
-//! field, a stall, or a piece of scenery and how to gather it.
+//! field, a stall, something built, or a piece of scenery and how to gather
+//! it.
 
 use bevy::prelude::*;
 use messoria_calendar::WorldTime;
-use messoria_content::{CropDef, Tool};
+use messoria_content::{CropDef, Purpose, Tool};
 use messoria_farming::Planting;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
-    protocol::{Crop, Fertilized, Field, Gathered, Prop, Shopfront, Watered},
+    protocol::{Crop, Fertilized, Field, Gathered, Prop, Shopfront, Structure, Watered},
 };
 
 use crate::{
@@ -91,6 +92,7 @@ fn describe_target(
     fields: Query<(&Field, Option<&Crop>, Has<Watered>, Has<Fertilized>)>,
     props: Query<(&Prop, Option<&Gathered>)>,
     stalls: Query<&Shopfront>,
+    structures: Query<&Structure>,
     mut name: Single<&mut Text, (With<TargetName>, Without<TargetDetail>)>,
     mut detail: Single<&mut Text, With<TargetDetail>>,
 ) {
@@ -101,6 +103,8 @@ fn describe_target(
                 name: format!("{}'s stall", content.shop(stall.shop).name),
                 detail: format!("Stand close and press {INTERACT_KEY_NAME} to trade"),
             })
+        } else if let Ok(structure) = structures.get(thing) {
+            Some(describe_structure(&content, structure))
         } else {
             props
                 .get(thing)
@@ -124,6 +128,19 @@ fn describe_target(
     }
     if detail.0 != described.detail {
         detail.0 = described.detail;
+    }
+}
+
+/// A structure's name, and what to do with it.
+fn describe_structure(content: &Content, structure: &Structure) -> Description {
+    let definition = content.structure(structure.kind);
+    Description {
+        name: definition.name.clone(),
+        detail: match definition.purpose {
+            Purpose::Bed => format!("Press {INTERACT_KEY_NAME} to sleep, from 18:00"),
+            Purpose::Storage => format!("Press {INTERACT_KEY_NAME} to open"),
+            Purpose::None => String::new(),
+        },
     }
 }
 

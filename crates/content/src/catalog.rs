@@ -14,6 +14,7 @@ use crate::{
     palette::{Palette, PaletteFile},
     scenery::{CoverDef, PropDef, PropId, Scenery, SceneryFile},
     shop::{MarketRules, ShopDef, ShopId, Shops, ShopsFile},
+    structure::{StructureDef, StructureId, Structures, StructuresFile},
 };
 
 /// Files within the data folder.
@@ -22,6 +23,7 @@ const CROPS_FILE: &str = "crops.ron";
 const SHOPS_FILE: &str = "shops.ron";
 const SCENERY_FILE: &str = "scenery.ron";
 const PALETTE_FILE: &str = "palette.ron";
+const STRUCTURES_FILE: &str = "structures.ron";
 /// Folder of the models, next to the data folder.
 const MODELS_FOLDER: &str = "models";
 
@@ -33,6 +35,7 @@ pub struct Sources<'a> {
     pub shops: &'a str,
     pub scenery: &'a str,
     pub palette: &'a str,
+    pub structures: &'a str,
 }
 
 /// All loaded content, with every cross-reference checked.
@@ -55,6 +58,9 @@ pub struct Catalog {
     prop_keys: HashMap<String, PropId>,
     cover: Vec<CoverDef>,
     palette: Palette,
+    structures: Vec<StructureDef>,
+    structure_keys: HashMap<String, StructureId>,
+    structures_by_item: HashMap<ItemId, StructureId>,
 }
 
 impl Catalog {
@@ -75,12 +81,14 @@ impl Catalog {
         };
         let (items, crops, shops) = (read(ITEMS_FILE)?, read(CROPS_FILE)?, read(SHOPS_FILE)?);
         let (scenery, palette) = (read(SCENERY_FILE)?, read(PALETTE_FILE)?);
+        let structures = read(STRUCTURES_FILE)?;
         let sources = Sources {
             items: &items,
             crops: &crops,
             shops: &shops,
             scenery: &scenery,
             palette: &palette,
+            structures: &structures,
         };
         let catalog = Self::build(sources, data_dir)?;
 
@@ -90,10 +98,17 @@ impl Catalog {
             .iter()
             .flat_map(PropDef::models_used)
             .chain(catalog.cover.iter().flat_map(|cover| &cover.models));
-        for model in models_used {
+        let structure_models = catalog
+            .structures
+            .iter()
+            .flat_map(|structure| structure.parts.iter().map(|part| &part.model));
+        let used = models_used
+            .map(|model| (model, SCENERY_FILE))
+            .chain(structure_models.map(|model| (model, STRUCTURES_FILE)));
+        for (model, file) in used {
             if !models.join(model).is_file() {
                 return Err(ContentError {
-                    file: data_dir.join(SCENERY_FILE),
+                    file: data_dir.join(file),
                     problem: Problem::MissingModel(model.clone()),
                 });
             }
@@ -134,6 +149,9 @@ impl Catalog {
         let palette = parse::<PaletteFile>(sources.palette)
             .and_then(PaletteFile::resolve)
             .map_err(in_file(PALETTE_FILE))?;
+        let structures: Structures = parse::<StructuresFile>(sources.structures)
+            .and_then(|file| file.resolve(&items))
+            .map_err(in_file(STRUCTURES_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();
         for crop in &crops.definitions {
@@ -162,6 +180,9 @@ impl Catalog {
             prop_keys: scenery.by_key,
             cover: scenery.cover,
             palette,
+            structures: structures.definitions,
+            structure_keys: structures.by_key,
+            structures_by_item: structures.by_item,
         })
     }
 
@@ -273,6 +294,36 @@ impl Catalog {
     /// The prop a data file calls `key`.
     pub fn prop_id(&self, key: &str) -> Option<PropId> {
         self.prop_keys.get(key).copied()
+    }
+
+    /// The definition of structure `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` came from a different catalog with more structures.
+    pub fn structure(&self, id: StructureId) -> &StructureDef {
+        &self.structures[usize::from(id.0)]
+    }
+
+    pub fn structures(&self) -> impl Iterator<Item = (StructureId, &StructureDef)> {
+        (0..=u16::MAX).map(StructureId).zip(&self.structures)
+    }
+
+    /// The structure a data file calls `key`.
+    pub fn structure_id(&self, key: &str) -> Option<StructureId> {
+        self.structure_keys.get(key).copied()
+    }
+
+    /// The structure placing `item` builds, if it builds one.
+    pub fn structure_built_from(&self, item: ItemId) -> Option<StructureId> {
+        self.structures_by_item.get(&item).copied()
+    }
+
+    /// The structure that is every player's home, if there is one.
+    pub fn home(&self) -> Option<StructureId> {
+        self.structures()
+            .find(|(_, structure)| structure.home)
+            .map(|(id, _)| id)
     }
 
     /// The plants covering grassy ground.
@@ -403,6 +454,7 @@ mod tests {
             shops,
             scenery,
             palette,
+            structures: "(structures: [])",
         })
     }
 

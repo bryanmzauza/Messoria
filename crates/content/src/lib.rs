@@ -15,6 +15,7 @@ mod item;
 mod palette;
 mod scenery;
 mod shop;
+mod structure;
 
 pub use crate::{
     catalog::{Catalog, Sources},
@@ -24,4 +25,5 @@ pub use crate::{
     palette::{Palette, Rgb},
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
+    structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
 };

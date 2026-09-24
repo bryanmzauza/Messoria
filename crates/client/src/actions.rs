@@ -25,6 +25,7 @@ use messoria_shared::{
         ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerInput, Position,
         UseItem,
     },
+    structures,
     terrain::Terrain,
     tools, village,
 };
@@ -32,6 +33,7 @@ use messoria_voxel::RayHit;
 
 use crate::{
     camera::{LookSystems, View},
+    furniture::FurnitureSystems,
     inventory::HeldSlot,
     shops::ShopSystems,
 };
@@ -58,7 +60,11 @@ impl Plugin for ActionsPlugin {
             (
                 aim.in_set(AimSystems),
                 // Before the cursor is captured, so the capturing click is not a use.
-                (use_held_item, harvest.after(ShopSystems)).before(LookSystems),
+                (
+                    use_held_item,
+                    harvest.after(ShopSystems).after(FurnitureSystems),
+                )
+                    .before(LookSystems),
                 draw_aim,
             )
                 .chain(),
@@ -93,6 +99,8 @@ enum Handling {
     Consumable,
     /// Strikes the aimed tree or rock, repeatedly.
     Gatherer,
+    /// Builds a structure on the aimed ground, once per click.
+    Builder,
 }
 
 fn handling(kind: &ItemKind) -> Option<Handling> {
@@ -101,6 +109,7 @@ fn handling(kind: &ItemKind) -> Option<Handling> {
         ItemKind::Tool(Tool::Hoe | Tool::WateringCan) => Some(Handling::FieldTool),
         ItemKind::Tool(Tool::Axe | Tool::Pickaxe) => Some(Handling::Gatherer),
         ItemKind::Seed | ItemKind::Fertilizer => Some(Handling::FieldSupply),
+        ItemKind::Structure => Some(Handling::Builder),
         ItemKind::Food { .. } => Some(Handling::Consumable),
         ItemKind::Terrain { .. } | ItemKind::Goods => None,
     }
@@ -179,10 +188,12 @@ fn use_held_item(
     let target = match handling {
         Handling::Consumable if action == ItemAction::Primary => None,
         Handling::Consumable => return,
-        Handling::Shovel | Handling::FieldTool | Handling::FieldSupply => match aim.ground {
-            Some(hit) => Some(hit.point),
-            None => return,
-        },
+        Handling::Shovel | Handling::FieldTool | Handling::FieldSupply | Handling::Builder => {
+            match aim.ground {
+                Some(hit) => Some(hit.point),
+                None => return,
+            }
+        }
         Handling::Gatherer => match aim.thing {
             Some((_, point)) => Some(point),
             None => return,
@@ -198,7 +209,10 @@ fn use_held_item(
         target,
     });
     *ready_at = time.elapsed() + tools::USE_INTERVAL;
-    if matches!(handling, Handling::FieldSupply | Handling::Consumable) {
+    if matches!(
+        handling,
+        Handling::FieldSupply | Handling::Consumable | Handling::Builder
+    ) {
         *pressed = None;
     }
 }
@@ -223,6 +237,7 @@ fn harvest(
 
 fn draw_aim(
     aim: Res<Aim>,
+    view: Res<View>,
     content: Res<Content>,
     held: Res<HeldSlot>,
     player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
@@ -253,6 +268,29 @@ fn draw_aim(
             let square =
                 Isometry3d::new(Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y), flat);
             gizmos.rect(square, Vec2::ONE, color(0.0));
+        }
+        Some(Handling::Builder) => {
+            let built = belongings
+                .0
+                .slot(held.0)
+                .and_then(|stack| content.structure_built_from(stack.item));
+            if let Some(kind) = built {
+                let definition = content.structure(kind);
+                let plan = structures::planned(kind, definition, hit.point, view.yaw);
+                let (width, depth) = definition.size;
+                let ground = Isometry3d::new(
+                    plan.position.with_y(hit.point.y + AIM_LIFT),
+                    Quat::from_rotation_y(plan.facing) * flat,
+                );
+                let reach = Vec2::new(width, depth).length() / 2.0;
+                gizmos.rect(ground, Vec2::new(width, depth), {
+                    if village::reaches(plan.position, reach) {
+                        PROTECTED_AIM_COLOR
+                    } else {
+                        AIM_COLOR
+                    }
+                });
+            }
         }
         Some(Handling::Consumable | Handling::Gatherer) | None => {}
     }

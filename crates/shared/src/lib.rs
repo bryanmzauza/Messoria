@@ -13,6 +13,7 @@ pub mod network;
 pub mod obstacles;
 pub mod protocol;
 pub mod shops;
+pub mod structures;
 pub mod terrain;
 pub mod tick;
 pub mod tools;

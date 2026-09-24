@@ -235,7 +235,7 @@ mod tests {
     use super::*;
     use crate::{
         profile::Profile,
-        world::{FieldState, GatheredProp},
+        world::{FieldState, GatheredProp, StructureState},
     };
 
     fn catalog() -> Catalog {
@@ -282,6 +282,26 @@ mod tests {
                 cell: [12, 40],
                 day: 11,
             }],
+            structures: vec![
+                StructureState {
+                    kind: catalog.structure_id("cabin").unwrap(),
+                    position: Vec3::new(30.0, 8.5, -12.0),
+                    facing: std::f32::consts::PI,
+                    home_of: Some("host".to_owned()),
+                    stored: None,
+                },
+                StructureState {
+                    kind: catalog.structure_id("chest").unwrap(),
+                    position: Vec3::new(31.6, 8.5, -13.95),
+                    facing: 0.0,
+                    home_of: None,
+                    stored: Some({
+                        let mut stored = Inventory::default();
+                        stored.add(catalog, catalog.id("wood").unwrap(), Quality::Normal, 40, 0);
+                        stored
+                    }),
+                },
+            ],
         }
     }
 
@@ -340,7 +360,7 @@ mod tests {
         let path = save.root().join(WORLD_FILE);
         let text = fs::read_to_string(&path)
             .unwrap()
-            .replacen("version: 2", "version: 9", 1);
+            .replacen("version: 3", "version: 9", 1);
         fs::write(&path, text).unwrap();
 
         let error = save.load(&catalog).unwrap_err();
@@ -349,7 +369,7 @@ mod tests {
             error.problem,
             Problem::Newer {
                 found: 9,
-                supported: 2
+                supported: 3
             }
         ));
     }
@@ -362,12 +382,13 @@ mod tests {
         let text = fs::read_to_string(&path).unwrap();
         // Version 1 ended with the fields.
         let fields_end = text.find("gathered:").expect("gathered scenery is saved");
-        let version_1 = format!("{})", &text[..fields_end]).replacen("version: 2", "version: 1", 1);
+        let version_1 = format!("{})", &text[..fields_end]).replacen("version: 3", "version: 1", 1);
         fs::write(&path, version_1).unwrap();
 
         let loaded = save.load(&catalog).unwrap().expect("a world was saved");
         assert_eq!(loaded.world.fields, world(&catalog).fields);
         assert!(loaded.world.gathered.is_empty());
+        assert!(loaded.world.structures.is_empty());
     }
 
     #[test]

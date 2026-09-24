@@ -1,14 +1,15 @@
 //! A player's file: where they are and what they have.
 
 use glam::Vec3;
-use messoria_content::{Catalog, Quality};
+use messoria_content::Catalog;
 use messoria_economy::{SalesLedger, Wallet};
-use messoria_inventory::{Inventory, SLOTS, Stack};
+use messoria_inventory::Inventory;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Problem,
     files::{Resolver, to_ron, unreadable, version_of},
+    stacks::{self, SlotEntry},
 };
 
 /// Version of the format this game writes.
@@ -45,15 +46,6 @@ struct PlayerFile {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SlotEntry {
-    slot: u8,
-    item: String,
-    quality: Quality,
-    count: u16,
-    spoils_on: Option<u32>,
-}
-
-#[derive(Serialize, Deserialize)]
 struct SaleEntry {
     shop: String,
     item: String,
@@ -62,22 +54,7 @@ struct SaleEntry {
 
 impl PlayerState {
     pub(crate) fn to_ron(&self, catalog: &Catalog) -> Result<String, Problem> {
-        let inventory = self
-            .inventory
-            .slots()
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, stack)| {
-                let stack = stack.as_ref()?;
-                Some(SlotEntry {
-                    slot: u8::try_from(slot).expect("slot indices fit in u8"),
-                    item: catalog.item(stack.item).key.clone(),
-                    quality: stack.quality,
-                    count: stack.count,
-                    spoils_on: stack.spoils_on,
-                })
-            })
-            .collect();
+        let inventory = stacks::to_entries(catalog, &self.inventory);
         let sold_today = self
             .sold_today
             .entries()
@@ -106,28 +83,7 @@ impl PlayerState {
             found => return Err(unreadable(found, VERSION)),
         };
 
-        let mut slots = [None; SLOTS];
-        for entry in file.inventory {
-            let slot = slots
-                .get_mut(usize::from(entry.slot))
-                .ok_or_else(|| Problem::OutOfRange(format!("inventory slot {}", entry.slot)))?;
-            let Some(item) = resolver.item(&entry.item) else {
-                continue;
-            };
-            let max_stack = resolver.catalog.item(item).max_stack;
-            if entry.count == 0 || entry.count > max_stack {
-                return Err(Problem::OutOfRange(format!(
-                    "a stack of {} `{}`",
-                    entry.count, entry.item
-                )));
-            }
-            *slot = Some(Stack {
-                item,
-                quality: entry.quality,
-                count: entry.count,
-                spoils_on: entry.spoils_on,
-            });
-        }
+        let inventory = stacks::from_entries(file.inventory, &mut resolver)?;
 
         let sold_today = file
             .sold_today
@@ -145,7 +101,7 @@ impl PlayerState {
             position: file.position,
             heading: file.heading,
             energy: file.energy,
-            inventory: Inventory::from_slots(slots),
+            inventory,
             money: Wallet::with(file.money),
             sold_today,
             saved_on: file.saved_on,

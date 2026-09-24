@@ -170,8 +170,8 @@ and a restarted server keeps every cleared tree and rock.
 
 Goal: players have a place of their own.
 
-- [ ] A house for each player, with a bed; sleeping happens in bed
-- [ ] Chests that keep items, saved with the world
+- [x] A house for each player, with a bed; sleeping happens in bed
+- [x] Chests that keep items, saved with the world
 
 **Exit criterion:** a player can store their harvest overnight and find it
 after a server restart.

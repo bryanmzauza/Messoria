@@ -15,6 +15,7 @@ mod cover;
 mod environment;
 mod feedback;
 mod fields;
+mod furniture;
 mod hud;
 mod input;
 mod inventory;
@@ -26,8 +27,8 @@ mod scenery;
 mod settings;
 mod shops;
 mod sky;
-mod sleep;
 mod sounds;
+mod structures;
 mod target;
 mod terrain;
 mod ui;
@@ -48,6 +49,7 @@ pub struct ClientPlugin {
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
+        // The world and the player in it.
         app.add_plugins((
             connection::ConnectionPlugin {
                 session: self.session.clone(),
@@ -60,28 +62,33 @@ impl Plugin for ClientPlugin {
             avatars::AvatarPlugin,
             camera::CameraPlugin,
             input::InputPlugin,
-            inventory::InventoryPlugin,
             actions::ActionsPlugin,
-            sleep::SleepPlugin,
-            hud::HudPlugin,
+            furniture::FurniturePlugin,
         ))
+        // How it looks and sounds.
         .add_plugins((
             art::ArtPlugin,
             scenery::SceneryPlugin,
+            structures::StructuresPlugin,
             cover::CoverPlugin,
             sky::SkyPlugin,
+            feedback::FeedbackPlugin,
+            sounds::SoundsPlugin,
+            particles::ParticlesPlugin,
+        ))
+        // What is on screen over it.
+        .add_plugins((
             ui::UiPlugin,
+            hud::HudPlugin,
+            target::TargetPlugin,
             panels::PanelsPlugin,
+            inventory::InventoryPlugin,
             shops::ShopsPlugin,
             wallet::WalletPlugin,
             settings::SettingsPlugin {
                 file: self.settings_file.clone(),
             },
             menu::MenuPlugin,
-            feedback::FeedbackPlugin,
-            sounds::SoundsPlugin,
-            particles::ParticlesPlugin,
-            target::TargetPlugin,
         ));
     }
 }

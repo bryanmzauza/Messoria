@@ -8,15 +8,19 @@
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
-use messoria_save::{FieldState, GatheredProp, SaveDir, SaveError, WorldState};
+use messoria_save::{FieldState, GatheredProp, SaveDir, SaveError, StructureState, WorldState};
 use messoria_shared::{
     content::Content,
-    protocol::{Crop, Fertilized, Field, Gathered, MarketState, Prop, Watered, WorldClock},
+    protocol::{
+        Crop, Fertilized, Field, Gathered, MarketState, Prop, Stored, Structure, Watered,
+        WorldClock,
+    },
     terrain::Terrain,
 };
 
 use crate::{
     Beginning, WorldSeed, WorldStart,
+    building::Home,
     day_cycle::DayStarted,
     players::{AbsentPlayers, CharacterState, player_key, state_of},
     scenery::SceneryCell,
@@ -77,6 +81,7 @@ fn save_world(
     market: Single<&MarketState>,
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Option<&Crop>)>,
     gathered: Query<(&Prop, &SceneryCell, &Gathered)>,
+    structures: Query<(&Structure, Option<&Home>, Option<&Stored>)>,
     terrain: Res<Terrain>,
     mut edited: ResMut<EditedChunks>,
     characters: Query<CharacterState<'_>>,
@@ -111,6 +116,16 @@ fn save_world(
                 kind: prop.kind,
                 cell: cell.0,
                 day: gathered.day,
+            })
+            .collect(),
+        structures: structures
+            .iter()
+            .map(|(structure, home, stored)| StructureState {
+                kind: structure.kind,
+                position: structure.position,
+                facing: structure.facing,
+                home_of: home.map(|home| home.0.clone()),
+                stored: stored.map(|stored| stored.0.clone()),
             })
             .collect(),
     };

@@ -68,6 +68,12 @@ pub enum Problem {
     DuplicateProp(String),
     #[error("prop `{prop}` is invalid: {reason}")]
     InvalidProp { prop: String, reason: String },
+    #[error("structure `{0}` is defined more than once")]
+    DuplicateStructure(String),
+    #[error("structure `{structure}` is invalid: {reason}")]
+    InvalidStructure { structure: String, reason: String },
+    #[error("item `{0}` is a structure, but no structure is built from it")]
+    UnbuiltStructureItem(String),
     #[error("ground cover {index} is invalid: {reason}")]
     InvalidCover { index: usize, reason: String },
     #[error("model `{0}` is not in the models folder")]

@@ -10,7 +10,7 @@ use messoria_shared::{
 };
 
 use crate::{
-    camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM, sleep::SLEEP_KEY_NAME,
+    actions::INTERACT_KEY_NAME, camera::View, clock::LocalClock, inventory::HOTBAR_BOTTOM,
     ui::visible_if,
 };
 
@@ -208,11 +208,11 @@ fn show_sleep_status(
 
     let shown = match (asleep, tally.single()) {
         (true, Ok(tally)) => format!(
-            "Sleeping, {} of {} players needed. Press {SLEEP_KEY_NAME} to get up.",
+            "Sleeping, {} of {} players needed. Press {INTERACT_KEY_NAME} to get up.",
             tally.asleep, tally.required
         ),
         (true, Err(_)) => "Sleeping".to_owned(),
-        (false, _) if bedtime => format!("Press {SLEEP_KEY_NAME} to sleep"),
+        (false, _) if bedtime => format!("Bedtime: press {INTERACT_KEY_NAME} at a bed to sleep"),
         (false, _) => String::new(),
     };
     if text.0 != shown {

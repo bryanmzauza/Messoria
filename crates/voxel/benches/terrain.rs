@@ -49,7 +49,7 @@ fn editing(c: &mut Criterion) {
     c.bench_function("lower the ground with the shovel", |b| {
         b.iter_batched_ref(
             || map.clone(),
-            |map| map.apply_brush(black_box(&brush)),
+            |map| map.reshape(black_box(&brush)),
             criterion::BatchSize::LargeInput,
         );
     });

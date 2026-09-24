@@ -119,6 +119,7 @@ pub(crate) fn item_color(content: &Content, item: ItemId) -> Color {
         ItemKind::Terrain { materials } => materials.first().map_or(GOODS_COLOR, |&material| {
             srgb(content.palette().ground(material.exposed(), Season::Summer))
         }),
+        ItemKind::Structure => GOODS_COLOR,
         ItemKind::Food { .. } | ItemKind::Goods => content
             .crops()
             .find(|(_, crop)| crop.produce == item)
@@ -130,7 +131,12 @@ fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResM
     let paths = content
         .props()
         .flat_map(|(_, prop)| prop.models_used())
-        .chain(content.cover().iter().flat_map(|cover| &cover.models));
+        .chain(content.cover().iter().flat_map(|cover| &cover.models))
+        .chain(
+            content
+                .structures()
+                .flat_map(|(_, structure)| structure.parts.iter().map(|part| &part.model)),
+        );
     for path in paths {
         if models.files.contains_key(path) {
             continue;

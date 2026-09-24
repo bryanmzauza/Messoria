@@ -54,6 +54,9 @@ pub enum ItemKind {
     Terrain {
         materials: Vec<Material>,
     },
+    /// Placed in the world to build a structure; the structures file says
+    /// which.
+    Structure,
     /// Anything else: kept, traded and used as an ingredient.
     Goods,
 }

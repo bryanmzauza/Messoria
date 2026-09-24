@@ -60,6 +60,7 @@ enum Cue {
     Dig,
     DigStone,
     Chop,
+    Build,
     Raise,
     Till,
     Water,
@@ -85,7 +86,7 @@ enum Ground {
 }
 
 impl Cue {
-    const ALL: [Self; 20] = [
+    const ALL: [Self; 21] = [
         Self::Footstep(Ground::Grass),
         Self::Footstep(Ground::Soil),
         Self::Footstep(Ground::Hard),
@@ -93,6 +94,7 @@ impl Cue {
         Self::Dig,
         Self::DigStone,
         Self::Chop,
+        Self::Build,
         Self::Raise,
         Self::Till,
         Self::Water,
@@ -123,6 +125,7 @@ impl Cue {
             Self::Footstep(Ground::Snow) => numbered("footstep_snow"),
             Self::Dig => numbered("impactSoft_medium"),
             Self::DigStone => numbered("impactMining"),
+            Self::Build => numbered("impactPlank_medium"),
             Self::Chop => {
                 let mut recordings = numbered("impactWood_medium");
                 recordings.push("rpg/chop.ogg".to_owned());
@@ -161,6 +164,7 @@ impl Cue {
             Happened::Harvested => Self::Harvest,
             Happened::Struck(Tool::Axe) => Self::Chop,
             Happened::Traded => Self::Coins,
+            Happened::Built => Self::Build,
             Happened::Ate => Self::Eat,
         }
     }

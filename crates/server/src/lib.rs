@@ -9,16 +9,19 @@
 //! reads before building the app, as it does content, so a damaged save stops
 //! the program instead of being overwritten.
 
+mod building;
 mod connections;
 mod day_cycle;
 mod feedback;
 mod fields;
 mod gathering;
+mod homes;
 mod inventory;
 mod market;
 mod players;
 mod saving;
 mod scenery;
+mod storage;
 mod terrain;
 mod village;
 
@@ -128,6 +131,9 @@ impl Plugin for ServerPlugin {
                 village::VillagePlugin,
                 scenery::SceneryPlugin,
                 gathering::GatheringPlugin,
+                building::BuildingPlugin,
+                homes::HomesPlugin,
+                storage::StoragePlugin,
                 terrain::TerrainPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,

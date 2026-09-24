@@ -176,29 +176,27 @@ impl Inventory {
         if from >= SLOTS || to >= SLOTS {
             return false;
         }
-        match (self.slots[from], self.slots[to]) {
-            (Some(source), Some(target))
-                if from != to && source.item == target.item && source.quality == target.quality =>
-            {
-                let room = catalog.item(target.item).max_stack - target.count;
-                let moved = room.min(source.count);
-                self.slots[to] = Some(Stack {
-                    count: target.count + moved,
-                    spoils_on: blend_freshness(
-                        target.spoils_on,
-                        target.count,
-                        source.spoils_on,
-                        moved,
-                    ),
-                    ..target
-                });
-                self.slots[from] = (source.count > moved).then_some(Stack {
-                    count: source.count - moved,
-                    ..source
-                });
-            }
-            _ => self.slots.swap(from, to),
+        // Two different slots, both within the inventory.
+        if let Ok([source, target]) = self.slots.get_disjoint_mut([from, to]) {
+            put(catalog, source, target);
         }
+        true
+    }
+
+    /// Moves the stack in slot `from` of `source` onto slot `to` of
+    /// `target`, merging or swapping as [`Self::move_stack`] does. Returns
+    /// `false` if either slot does not exist.
+    pub fn move_between(
+        catalog: &Catalog,
+        source: &mut Self,
+        from: usize,
+        target: &mut Self,
+        to: usize,
+    ) -> bool {
+        if from >= SLOTS || to >= SLOTS {
+            return false;
+        }
+        put(catalog, &mut source.slots[from], &mut target.slots[to]);
         true
     }
 
@@ -240,6 +238,34 @@ impl Inventory {
 
 /// The spoil day of a stack made by combining two. Freshness is averaged by
 /// count, so merging neither saves old items nor ruins fresh ones.
+/// Puts the stack in `source` onto `target`: merged as far as it fits if both
+/// hold the same item and quality, swapped otherwise.
+fn put(catalog: &Catalog, source: &mut Option<Stack>, target: &mut Option<Stack>) {
+    match (*source, *target) {
+        (Some(moving), Some(staying))
+            if moving.item == staying.item && moving.quality == staying.quality =>
+        {
+            let room = catalog.item(staying.item).max_stack - staying.count;
+            let moved = room.min(moving.count);
+            *target = Some(Stack {
+                count: staying.count + moved,
+                spoils_on: blend_freshness(
+                    staying.spoils_on,
+                    staying.count,
+                    moving.spoils_on,
+                    moved,
+                ),
+                ..staying
+            });
+            *source = (moving.count > moved).then_some(Stack {
+                count: moving.count - moved,
+                ..moving
+            });
+        }
+        _ => std::mem::swap(source, target),
+    }
+}
+
 fn blend_freshness(a: Option<u32>, a_count: u16, b: Option<u32>, b_count: u16) -> Option<u32> {
     match (a, b) {
         (Some(a), Some(b)) => {
@@ -292,6 +318,7 @@ mod tests {
             shops: SHOPS,
             scenery: SCENERY,
             palette: PALETTE,
+            structures: "(structures: [])",
         })
         .unwrap();
         let id = |key| catalog.id(key).unwrap();
@@ -392,6 +419,51 @@ mod tests {
         assert_eq!(inventory.slot(1).unwrap().item, f.soil);
 
         assert!(!inventory.move_stack(&f.catalog, 0, SLOTS));
+    }
+
+    #[test]
+    fn stacks_move_between_inventories_as_within_one() {
+        let f = fixture();
+        let (mut carried, mut stored) = (Inventory::default(), Inventory::default());
+        carried.add(&f.catalog, f.soil, Quality::Normal, 30, 0);
+        stored.add(&f.catalog, f.soil, Quality::Normal, 80, 0);
+        stored.add(&f.catalog, f.shovel, Quality::Normal, 1, 0);
+
+        assert!(Inventory::move_between(
+            &f.catalog,
+            &mut carried,
+            0,
+            &mut stored,
+            0
+        ));
+        assert_eq!(stored.slot(0).unwrap().count, 99);
+        assert_eq!(carried.slot(0).unwrap().count, 11);
+
+        assert!(Inventory::move_between(
+            &f.catalog,
+            &mut carried,
+            0,
+            &mut stored,
+            1
+        ));
+        assert_eq!(carried.slot(0).unwrap().item, f.shovel);
+        assert_eq!(stored.slot(1).unwrap().count, 11);
+
+        assert!(Inventory::move_between(
+            &f.catalog,
+            &mut carried,
+            0,
+            &mut stored,
+            5
+        ));
+        assert!(carried.slot(0).is_none());
+        assert!(!Inventory::move_between(
+            &f.catalog,
+            &mut carried,
+            SLOTS,
+            &mut stored,
+            0
+        ));
     }
 
     #[test]

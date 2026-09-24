@@ -20,6 +20,7 @@ use messoria_shared::{
 };
 
 use crate::{
+    building::BuildUse,
     day_cycle::{ClockSystems, DayStarted},
     feedback::Show,
     gathering::GatherUse,
@@ -113,6 +114,7 @@ fn use_items(
     mut shovel_uses: MessageWriter<ShovelUse>,
     mut field_work: MessageWriter<FieldWork>,
     mut gathering: MessageWriter<GatherUse>,
+    mut building: MessageWriter<BuildUse>,
     mut show: MessageWriter<Show>,
     mut commands: Commands,
 ) {
@@ -171,6 +173,14 @@ fn use_items(
                     }
                     None => false,
                 },
+                (ItemKind::Structure, Some(target)) => {
+                    building.write(BuildUse {
+                        character: character.0,
+                        slot,
+                        target,
+                    });
+                    true
+                }
                 (ItemKind::Fertilizer, Some(_)) => {
                     field_work.write(field_task(FieldTask::Fertilize));
                     true

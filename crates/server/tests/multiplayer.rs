@@ -14,16 +14,17 @@ use lightyear::prelude::{
     *,
 };
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
+use messoria_content::Purpose;
 use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
-    content::load_content,
+    content::{Content, load_content},
     energy::Energy,
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
     protocol::{
         ActionChannel, Asleep, Belongings, Deal, ItemAction, Money, PlayerId, PlayerInput,
-        Position, Shopfront, SleepRequest, Trade, UseItem, WorldClock,
+        Position, Shopfront, SleepRequest, Structure, Trade, UseItem, WorldClock,
     },
     terrain::Terrain,
     tools,
@@ -258,6 +259,24 @@ fn sleeping_through_the_night_starts_a_new_day() {
         "client to control a character",
         |_, client| local_character_if_any(client).is_some(),
     );
+    // Characters sleep in beds; one stands beside this one.
+    let world = server.world_mut();
+    let feet = world
+        .query_filtered::<&Position, With<PlayerId>>()
+        .single(world)
+        .expect("one character")
+        .0;
+    let bed = world
+        .resource::<Content>()
+        .structures()
+        .find(|(_, structure)| structure.purpose == Purpose::Bed)
+        .map(|(id, _)| id)
+        .expect("the content has a bed");
+    world.spawn(Structure {
+        kind: bed,
+        position: feet + Vec3::new(0.0, 0.0, 1.6),
+        facing: 0.0,
+    });
     client
         .world_mut()
         .query_filtered::<&mut MessageSender<SleepRequest>, With<Client>>()

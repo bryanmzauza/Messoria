@@ -26,6 +26,7 @@ use messoria_voxel::Brush;
 
 use crate::{
     Beginning, WorldStart,
+    building::Built,
     day_cycle::{ClockSystems, DayStarted},
     feedback::{Show, Tell},
     inventory::{FieldTask, FieldWork, ItemUseSystems},
@@ -98,6 +99,7 @@ fn work_fields(
     content: Res<Content>,
     terrain: Res<Terrain>,
     scenery: Res<Scenery>,
+    built: Built,
     clock: Single<&WorldClock>,
     mut work: MessageReader<FieldWork>,
     characters: Query<&Position>,
@@ -135,7 +137,8 @@ fn work_fields(
                     tell.write(refuse(Notice::ProtectedGround));
                     continue;
                 }
-                if scenery.blocks(at(job.target.y), 0.71) {
+                let ground = at(job.target.y);
+                if scenery.blocks(ground, 0.71) || built.covers(ground, 0.71) {
                     tell.write(refuse(Notice::SceneryInTheWay));
                     continue;
                 }

@@ -212,7 +212,11 @@ fn show_shop_window(
 ) {
     let stall = match *panel {
         OpenPanel::Shop(stall) => stalls.get(stall).ok(),
-        OpenPanel::None | OpenPanel::Backpack | OpenPanel::Menu | OpenPanel::Options => None,
+        OpenPanel::None
+        | OpenPanel::Backpack
+        | OpenPanel::Chest(_)
+        | OpenPanel::Menu
+        | OpenPanel::Options => None,
     };
     window.set_if_neq(ui::visible_if(stall.is_some()));
     let (Some(stall), Ok((belongings, money, sold)), Ok(market), Some(now)) =

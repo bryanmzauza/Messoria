@@ -58,6 +58,7 @@
             sells: [
                 (item: "axe", price: 120),
                 (item: "pickaxe", price: 150),
+                (item: "chest", price: 80),
             ],
         ),
     ],

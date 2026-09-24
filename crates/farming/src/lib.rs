@@ -153,6 +153,7 @@ mod tests {
             shops: SHOPS,
             scenery: SCENERY,
             palette: PALETTE,
+            structures: "(structures: [])",
         })
         .unwrap();
         let turnip = catalog.crop_id("turnip").unwrap();

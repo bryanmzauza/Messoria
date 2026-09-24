@@ -73,12 +73,17 @@ packets from the server, for testing under latency.
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
 held item, left and right mouse buttons to use it, `F` to harvest a ripe
-crop, pick berries or, at a stall, open its shop, `E` to open the backpack
-(click a stack to pick it up and a slot to put it down, and give money to
-other players beside it), `Z` to sleep or get up (from 18:00), `F5` to
-switch between first and third person, `Esc` for the game menu (options, and
-saving and quitting). What the crosshair is on is named under it, and the
-game says why when an action does nothing.
+crop, pick berries, open a chest, go to bed (from 18:00) or get up, or at a
+stall open its shop, `E` to open the backpack (click a stack to pick it up
+and a slot to put it down, and give money to other players beside it), `F5`
+to switch between first and third person, `Esc` for the game menu (options,
+and saving and quitting). What the crosshair is on is named under it, and
+the game says why when an action does nothing.
+
+Every newcomer is given a cabin deed: used on open ground, aimed where the
+door should be, it builds their cabin, with a bed and a chest inside. The
+carpenter sells more chests. Players sleep in beds, and whoever is still
+up at 02:00 collapses and wakes up at home.
 The shovel digs and raises ground; the hoe tills a field, seeds are planted in
 it and the watering can waters it; food is eaten. The axe fells trees for
 wood, leaving stumps that grow back in a week, and the pickaxe breaks rocks
@@ -90,7 +95,8 @@ Game content lives in `assets/data/`: items in
 [`items.ron`](assets/data/items.ron), crops in
 [`crops.ron`](assets/data/crops.ron), shops and market prices in
 [`shops.ron`](assets/data/shops.ron), trees, rocks, ground cover and what
-gathering them gives in [`scenery.ron`](assets/data/scenery.ron), and the colors of everything, season
+gathering them gives in [`scenery.ron`](assets/data/scenery.ron), what
+players build in [`structures.ron`](assets/data/structures.ron), and the colors of everything, season
 by season, in [`palette.ron`](assets/data/palette.ron). The game refuses to
 start, naming the problem, if a data file is invalid. Models come from CC0 art
 and sound packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).

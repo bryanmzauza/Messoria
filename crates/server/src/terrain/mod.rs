@@ -13,7 +13,7 @@ use std::collections::HashSet;
 
 use bevy::{ecs::message::Message, prelude::*};
 use messoria_shared::terrain::{ChunkChanged, Terrain};
-use messoria_voxel::{Brush, ChunkChanges, ChunkPos};
+use messoria_voxel::{Brush, ChunkChanges, ChunkPos, Reshape};
 
 use crate::{Beginning, WorldStart};
 
@@ -55,7 +55,21 @@ pub(crate) enum WorldBuilding {
 
 /// Voxels changed by an edit, to be forwarded to clients that have the chunk.
 #[derive(Message, Clone, Debug)]
-struct TerrainEdited(ChunkChanges);
+pub(crate) struct TerrainEdited(ChunkChanges);
+
+/// Applies `edit` to the terrain, and tells the systems that keep the
+/// terrain's copies and meshes about it.
+pub(crate) fn reshape(
+    terrain: &mut Terrain,
+    edit: &impl Reshape,
+    edited: &mut MessageWriter<TerrainEdited>,
+    chunk_changed: &mut MessageWriter<ChunkChanged>,
+) {
+    for changes in terrain.reshape(edit) {
+        chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
+        edited.write(TerrainEdited(changes));
+    }
+}
 
 /// The ground was moved by `Brush`, so anything resting on it may be
 /// disturbed.

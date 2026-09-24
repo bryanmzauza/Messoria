@@ -1,16 +1,17 @@
 //! The local player's inventory: choosing the held hotbar slot, the hotbar
-//! on screen, and the backpack window.
+//! on screen, and the windows of the backpack and of chests.
 //!
 //! Number keys and the mouse wheel pick the held slot, whose item is named
 //! above the hotbar for a moment. `E` opens the backpack window, which holds
-//! the backpack above the hotbar. There, clicking a stack picks it up and
-//! it follows the cursor; clicking another slot puts it there, merging with
-//! a stack of the same item or swapping with anything else. Hovering over a
-//! stack describes it.
+//! the backpack above the hotbar; a chest's window shows the chest above
+//! them. There, clicking a stack picks it up and it follows the cursor;
+//! clicking another slot puts it there, merging with a stack of the same
+//! item or swapping with anything else. Hovering over a stack describes it.
 
-use std::{ops::Range, time::Duration};
+use std::time::Duration;
 
 use bevy::{
+    ecs::system::SystemParam,
     input::mouse::{AccumulatedMouseScroll, MouseScrollUnit},
     prelude::*,
     window::PrimaryWindow,
@@ -21,7 +22,9 @@ use messoria_content::{ItemId, ItemKind, Quality, Tool};
 use messoria_inventory::{HOTBAR_SLOTS, SLOTS, Stack};
 use messoria_shared::{
     content::Content,
-    protocol::{ActionChannel, Belongings, MoveItem, PlayerInput},
+    protocol::{
+        ActionChannel, Belongings, MoveItem, MoveStored, Place, PlayerInput, Stored, Structure,
+    },
 };
 
 use crate::{
@@ -77,12 +80,20 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HeldSlot>()
             .init_resource::<PickedSlot>()
-            .add_systems(Startup, (spawn_hotbar, spawn_backpack, spawn_cursor_layer))
+            .add_systems(
+                Startup,
+                (
+                    spawn_hotbar,
+                    spawn_backpack,
+                    spawn_chest_window,
+                    spawn_cursor_layer,
+                ),
+            )
             .add_systems(
                 Update,
                 (
                     choose_held_slot,
-                    toggle_backpack,
+                    toggle_windows,
                     click_slots,
                     show_slots,
                     show_held_name,
@@ -98,15 +109,16 @@ impl Plugin for InventoryPlugin {
 #[derive(Resource, Default)]
 pub(crate) struct HeldSlot(pub usize);
 
-/// A slot whose stack was picked up in the backpack window, waiting for
-/// where to put it.
+/// A slot whose stack was picked up in a window, waiting for where to put
+/// it.
 #[derive(Resource, Default)]
-struct PickedSlot(Option<usize>);
+struct PickedSlot(Option<Place>);
 
-/// Shows the contents of one inventory slot, through its parts.
+/// Shows the contents of one slot, of the character's inventory or of the
+/// open chest, through its parts.
 #[derive(Component)]
 struct SlotView {
-    slot: usize,
+    place: Place,
     parts: SlotParts,
 }
 
@@ -129,12 +141,15 @@ struct Hotbar;
 #[derive(Component)]
 struct BackpackWindow;
 
+#[derive(Component)]
+struct ChestWindow;
+
 /// A column beside the backpack window for panels that open with it.
 #[derive(Component)]
 pub(crate) struct BackpackSide;
 
-/// The backdrop behind the backpack window; clicking it puts a picked-up
-/// stack back.
+/// The backdrop behind the backpack or a chest's window; clicking it puts a
+/// picked-up stack back.
 #[derive(Component)]
 struct Backdrop;
 
@@ -169,7 +184,7 @@ fn spawn_hotbar(mut commands: Commands) {
             },
         ))
         .with_children(|hotbar| {
-            for slot in 0..HOTBAR_SLOTS {
+            for slot in carried(0..HOTBAR_SLOTS) {
                 spawn_slot(hotbar, slot, false);
             }
         });
@@ -221,9 +236,9 @@ fn spawn_backpack(mut commands: Commands) {
                         TEXT_SIZE,
                         MUTED_TEXT_COLOR,
                     ));
-                    spawn_grid(window, HOTBAR_SLOTS..SLOTS);
+                    spawn_grid(window, carried(HOTBAR_SLOTS..SLOTS));
                     window.spawn(ui::label("Hotbar", TEXT_SIZE, MUTED_TEXT_COLOR));
-                    spawn_grid(window, 0..HOTBAR_SLOTS);
+                    spawn_grid(window, carried(0..HOTBAR_SLOTS));
                     // Beside the window rather than in a row with it, so the
                     // window stays in the middle of the screen.
                     window.spawn((
@@ -240,6 +255,44 @@ fn spawn_backpack(mut commands: Commands) {
                     ));
                 });
         });
+}
+
+fn spawn_chest_window(mut commands: Commands) {
+    commands
+        .spawn((
+            Name::new("Chest window"),
+            ChestWindow,
+            Backdrop,
+            Button,
+            ui::screen(),
+            BackgroundColor(BACKDROP_COLOR),
+            Visibility::Hidden,
+        ))
+        .with_children(|screen| {
+            screen
+                .spawn(ui::window(Node {
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(px(18)),
+                    row_gap: px(10),
+                    ..default()
+                }))
+                .with_children(|window| {
+                    window.spawn(ui::label("Chest", TITLE_SIZE, TEXT_COLOR));
+                    spawn_grid(window, stored(0..SLOTS));
+                    window.spawn(ui::label("Backpack", TEXT_SIZE, MUTED_TEXT_COLOR));
+                    spawn_grid(window, carried(HOTBAR_SLOTS..SLOTS));
+                    window.spawn(ui::label("Hotbar", TEXT_SIZE, MUTED_TEXT_COLOR));
+                    spawn_grid(window, carried(0..HOTBAR_SLOTS));
+                });
+        });
+}
+
+fn carried(slots: std::ops::Range<usize>) -> impl Iterator<Item = Place> {
+    slots.map(|slot| Place::Carried(u8::try_from(slot).expect("slot indices fit in u8")))
+}
+
+fn stored(slots: std::ops::Range<usize>) -> impl Iterator<Item = Place> {
+    slots.map(|slot| Place::Stored(u8::try_from(slot).expect("slot indices fit in u8")))
 }
 
 fn spawn_cursor_layer(mut commands: Commands) {
@@ -282,7 +335,7 @@ fn spawn_cursor_layer(mut commands: Commands) {
 }
 
 /// Spawns clickable slots in rows as long as the hotbar.
-fn spawn_grid(parent: &mut ChildSpawnerCommands, slots: Range<usize>) {
+fn spawn_grid(parent: &mut ChildSpawnerCommands, slots: impl Iterator<Item = Place>) {
     let columns = u16::try_from(HOTBAR_SLOTS).expect("a small constant");
     parent
         .spawn(Node {
@@ -299,8 +352,8 @@ fn spawn_grid(parent: &mut ChildSpawnerCommands, slots: Range<usize>) {
         });
 }
 
-/// Spawns a slot; slots in the backpack window can be clicked.
-fn spawn_slot(parent: &mut ChildSpawnerCommands, slot: usize, clickable: bool) {
+/// Spawns a slot; slots in windows can be clicked.
+fn spawn_slot(parent: &mut ChildSpawnerCommands, place: Place, clickable: bool) {
     let mut view = parent.spawn((
         Node {
             width: px(SLOT_SIZE),
@@ -320,7 +373,7 @@ fn spawn_slot(parent: &mut ChildSpawnerCommands, slot: usize, clickable: bool) {
     }
     let id = view.id();
     let parts = spawn_slot_body(view.commands_mut(), id);
-    view.insert(SlotView { slot, parts });
+    view.insert(SlotView { place, parts });
 }
 
 /// Spawns the pieces a stack is drawn with inside `slot`.
@@ -433,46 +486,81 @@ fn choose_held_slot(
     }
 }
 
-/// `E` opens the backpack window, or closes it; it also takes the place of
-/// any other open window but the game menu.
-fn toggle_backpack(
+/// `E` opens the backpack window, or closes it or a chest's; the backpack
+/// takes the place of a shop's window. The hotbar hides while a window
+/// shows its own.
+fn toggle_windows(
     keys: Res<ButtonInput<KeyCode>>,
     mut panel: ResMut<OpenPanel>,
     mut picked: ResMut<PickedSlot>,
-    mut window: Single<&mut Visibility, (With<BackpackWindow>, Without<Hotbar>)>,
+    mut backpack: Single<
+        &mut Visibility,
+        (With<BackpackWindow>, Without<Hotbar>, Without<ChestWindow>),
+    >,
+    mut chest: Single<&mut Visibility, (With<ChestWindow>, Without<Hotbar>)>,
     mut hotbar: Single<&mut Visibility, With<Hotbar>>,
 ) {
     if keys.just_pressed(TOGGLE_KEY) {
         match *panel {
-            OpenPanel::Backpack => *panel = OpenPanel::None,
+            OpenPanel::Backpack | OpenPanel::Chest(_) => *panel = OpenPanel::None,
             OpenPanel::Menu | OpenPanel::Options => {}
             OpenPanel::None | OpenPanel::Shop(_) => *panel = OpenPanel::Backpack,
         }
     }
     if panel.is_changed() {
         picked.0 = None;
-        let open = *panel == OpenPanel::Backpack;
-        window.set_if_neq(ui::visible_if(open));
-        hotbar.set_if_neq(ui::visible_if(!open));
+        let (in_backpack, in_chest) = (
+            *panel == OpenPanel::Backpack,
+            matches!(*panel, OpenPanel::Chest(_)),
+        );
+        backpack.set_if_neq(ui::visible_if(in_backpack));
+        chest.set_if_neq(ui::visible_if(in_chest));
+        hotbar.set_if_neq(ui::visible_if(!in_backpack && !in_chest));
+    }
+}
+
+/// The stacks the windows show: the character's, and the open chest's.
+#[derive(SystemParam)]
+struct Stacks<'w, 's> {
+    panel: Res<'w, OpenPanel>,
+    player: Query<'w, 's, &'static Belongings, With<InputMarker<PlayerInput>>>,
+    chests: Query<'w, 's, (&'static Structure, &'static Stored)>,
+}
+
+impl Stacks<'_, '_> {
+    fn get(&self, place: Place) -> Option<&Stack> {
+        match place {
+            Place::Carried(slot) => self.player.single().ok()?.0.slot(usize::from(slot)),
+            Place::Stored(slot) => self.open_chest()?.1.0.slot(usize::from(slot)),
+        }
+    }
+
+    fn open_chest(&self) -> Option<(&Structure, &Stored)> {
+        match *self.panel {
+            OpenPanel::Chest(chest) => self.chests.get(chest).ok(),
+            _ => None,
+        }
+    }
+
+    /// Whether a window with slots is open.
+    fn showing(&self) -> bool {
+        matches!(*self.panel, OpenPanel::Backpack | OpenPanel::Chest(_))
     }
 }
 
 fn click_slots(
-    panel: Res<OpenPanel>,
+    stacks: Stacks,
     mut picked: ResMut<PickedSlot>,
     clicked: Query<
         (&Interaction, Option<&SlotView>),
         (Changed<Interaction>, Or<(With<SlotView>, With<Backdrop>)>),
     >,
-    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
-    mut sender: Query<&mut MessageSender<MoveItem>, With<Client>>,
+    mut moves: Query<&mut MessageSender<MoveItem>, With<Client>>,
+    mut stored_moves: Query<&mut MessageSender<MoveStored>, With<Client>>,
 ) {
-    if *panel != OpenPanel::Backpack {
+    if !stacks.showing() {
         return;
     }
-    let Ok(belongings) = player.single() else {
-        return;
-    };
     for (interaction, view) in &clicked {
         if *interaction != Interaction::Pressed {
             continue;
@@ -482,14 +570,22 @@ fn click_slots(
             picked.0 = None;
             continue;
         };
-        match picked.0.take() {
-            None => picked.0 = belongings.0.slot(view.slot).map(|_| view.slot),
-            Some(from) if from == view.slot => {}
-            Some(from) => {
-                if let Ok(mut sender) = sender.single_mut() {
-                    sender.send::<ActionChannel>(MoveItem {
-                        from: u8::try_from(from).expect("slot indices fit in u8"),
-                        to: u8::try_from(view.slot).expect("slot indices fit in u8"),
+        match (picked.0.take(), view.place) {
+            (None, place) => picked.0 = stacks.get(place).map(|_| place),
+            (Some(from), to) if from == to => {}
+            (Some(Place::Carried(from)), Place::Carried(to)) => {
+                if let Ok(mut sender) = moves.single_mut() {
+                    sender.send::<ActionChannel>(MoveItem { from, to });
+                }
+            }
+            (Some(from), to) => {
+                if let (Some((chest, _)), Ok(mut sender)) =
+                    (stacks.open_chest(), stored_moves.single_mut())
+                {
+                    sender.send::<ActionChannel>(MoveStored {
+                        chest: chest.position,
+                        from,
+                        to,
                     });
                 }
             }
@@ -550,15 +646,14 @@ fn show_slots(
     clock: Res<LocalClock>,
     held: Res<HeldSlot>,
     picked: Res<PickedSlot>,
-    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
+    stacks: Stacks,
     views: Query<(Entity, &SlotView, &Interaction)>,
     hotbar_views: Query<(Entity, &SlotView), Without<Interaction>>,
     cursor: Single<(&CursorStack, &mut Visibility)>,
     mut parts: SlotPartsParams,
 ) {
-    let belongings = player.single().ok();
     let today = clock.time().map(WorldTime::day);
-    let stack = |slot: usize| belongings.and_then(|belongings| belongings.0.slot(slot));
+    let held = Place::Carried(u8::try_from(held.0).expect("slot indices fit in u8"));
 
     let hovered = |interaction: &Interaction| *interaction != Interaction::None;
     let window_views = views
@@ -568,10 +663,14 @@ fn show_slots(
         .iter()
         .map(|(entity, view)| (entity, view, false));
     for (entity, view, hovered) in window_views.chain(bar_views) {
-        let picked_here = picked.0 == Some(view.slot);
-        let shown = if picked_here { None } else { stack(view.slot) };
+        let picked_here = picked.0 == Some(view.place);
+        let shown = if picked_here {
+            None
+        } else {
+            stacks.get(view.place)
+        };
         parts.draw(&view.parts, &StackLook::of(&content, shown, today));
-        let edge = if held.0 == view.slot {
+        let edge = if held == view.place {
             HELD_EDGE
         } else if hovered {
             HOVERED_EDGE
@@ -590,7 +689,7 @@ fn show_slots(
     }
 
     let (cursor, mut visibility) = cursor.into_inner();
-    let carried = picked.0.and_then(stack);
+    let carried = picked.0.and_then(|place| stacks.get(place));
     visibility.set_if_neq(ui::visible_if(carried.is_some()));
     parts.draw(&cursor.0, &StackLook::of(&content, carried, today));
 }
@@ -701,14 +800,13 @@ fn follow_cursor(
     }
 }
 
-/// Describes the stack under the cursor in the backpack window, unless a
-/// stack is being carried.
+/// Describes the stack under the cursor in a window, unless a stack is being
+/// carried.
 fn describe_hovered(
     content: Res<Content>,
     clock: Res<LocalClock>,
-    panel: Res<OpenPanel>,
     picked: Res<PickedSlot>,
-    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
+    stacks: Stacks,
     views: Query<(&SlotView, &Interaction)>,
     tooltip: Single<&mut Visibility, With<Tooltip>>,
     mut name: Single<(&mut Text, &mut TextColor), (With<TooltipName>, Without<TooltipLines>)>,
@@ -717,13 +815,9 @@ fn describe_hovered(
     let hovered = views
         .iter()
         .find(|(_, interaction)| **interaction == Interaction::Hovered)
-        .map(|(view, _)| view.slot);
-    let stack = player
-        .single()
-        .ok()
-        .zip(hovered)
-        .and_then(|(belongings, slot)| belongings.0.slot(slot).copied());
-    let shown = stack.filter(|_| *panel == OpenPanel::Backpack && picked.0.is_none());
+        .map(|(view, _)| view.place);
+    let stack = hovered.and_then(|place| stacks.get(place).copied());
+    let shown = stack.filter(|_| stacks.showing() && picked.0.is_none());
     let mut visibility = tooltip.into_inner();
     visibility.set_if_neq(ui::visible_if(shown.is_some()));
     let Some(stack) = shown else {
@@ -773,6 +867,13 @@ fn describe(content: &Content, stack: &Stack, today: Option<u32>) -> String {
         ItemKind::Food { energy } => format!("Eat to restore {energy} energy."),
         ItemKind::Terrain { .. } => "Raise the ground with it, using the shovel.".to_owned(),
         ItemKind::Goods => "Sell it in the village.".to_owned(),
+        ItemKind::Structure => match content.structure_built_from(stack.item) {
+            Some(built) => format!(
+                "Builds a {} on open ground, its front where you aim.",
+                content.structure(built).name.to_lowercase()
+            ),
+            None => "Builds something.".to_owned(),
+        },
     }];
     match stack.quality {
         Quality::Normal => {}

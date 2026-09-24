@@ -7,13 +7,21 @@ use std::time::Duration;
 use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::*;
 use messoria_calendar::{SleepRule, Weather};
+use messoria_content::Purpose;
 use messoria_shared::{
     energy::{Energy, Rest},
-    protocol::{Asleep, CurrentWeather, Notice, PlayerId, SleepRequest, SleepTally, WorldClock},
+    protocol::{
+        Asleep, CurrentWeather, Notice, PlayerId, Position, SleepRequest, SleepTally, WorldClock,
+    },
     tick,
 };
 
-use crate::{Beginning, WorldSeed, WorldStart, feedback::Tell, players::ControlledCharacter};
+use crate::{
+    Beginning, WorldSeed, WorldStart, building::Built, feedback::Tell, players::ControlledCharacter,
+};
+
+/// How far from the middle of a bed a character can go to sleep in it.
+const BED_REACH: f32 = 2.0;
 
 pub(crate) struct DayCyclePlugin {
     pub sleep_rule: SleepRule,
@@ -27,6 +35,7 @@ impl Plugin for DayCyclePlugin {
             ticks_per_minute: tick::ticks_in(self.minute_length).max(1),
         })
         .add_message::<DayStarted>()
+        .add_message::<PassedOut>()
         .add_systems(Startup, start_clock)
         .add_systems(
             PreUpdate,
@@ -51,6 +60,10 @@ pub(crate) struct ClockSystems;
 #[derive(Message, Clone, Copy, Debug)]
 pub(crate) struct DayStarted(pub u32);
 
+/// A character was still awake when the day ran out, and collapsed.
+#[derive(Message, Clone, Copy, Debug)]
+pub(crate) struct PassedOut(pub Entity);
+
 fn start_clock(beginning: Res<Beginning>, seed: Res<WorldSeed>, mut commands: Commands) {
     let (now, how) = match &beginning.0 {
         WorldStart::New { start_time, .. } => (*start_time, "a new world starts"),
@@ -66,23 +79,33 @@ fn start_clock(beginning: Res<Beginning>, seed: Res<WorldSeed>, mut commands: Co
     ));
 }
 
+/// Characters go to sleep in a bed, from bedtime on, and get up whenever.
 fn handle_sleep_requests(
     clock: Single<&WorldClock>,
+    built: Built,
+    positions: Query<&Position>,
     mut clients: Query<(&mut MessageReceiver<SleepRequest>, &ControlledCharacter)>,
     mut tell: MessageWriter<Tell>,
     mut commands: Commands,
 ) {
     for (mut requests, character) in &mut clients {
         for request in requests.receive() {
+            let refuse = |notice| Tell {
+                character: character.0,
+                notice,
+            };
             match request {
-                SleepRequest::Sleep if clock.0.is_bedtime() => {
-                    commands.entity(character.0).insert(Asleep);
-                }
                 SleepRequest::Sleep => {
-                    tell.write(Tell {
-                        character: character.0,
-                        notice: Notice::TooEarlyToSleep,
-                    });
+                    let in_bed = positions
+                        .get(character.0)
+                        .is_ok_and(|feet| built.nearest(Purpose::Bed, feet.0, BED_REACH).is_some());
+                    if !in_bed {
+                        tell.write(refuse(Notice::SleepInABed));
+                    } else if !clock.0.is_bedtime() {
+                        tell.write(refuse(Notice::TooEarlyToSleep));
+                    } else {
+                        commands.entity(character.0).insert(Asleep);
+                    }
                 }
                 SleepRequest::Wake => {
                     commands.entity(character.0).remove::<Asleep>();
@@ -101,6 +124,7 @@ fn run_clock(
     mut characters: Query<(Entity, &mut Energy, Has<Asleep>), With<PlayerId>>,
     mut ticks_this_minute: Local<u32>,
     mut days: MessageWriter<DayStarted>,
+    mut collapsed: MessageWriter<PassedOut>,
     mut commands: Commands,
 ) {
     let (mut clock, mut weather, mut tally) = clock.into_inner();
@@ -133,6 +157,7 @@ fn run_clock(
             commands.entity(character).remove::<Asleep>();
         } else if out_of_time {
             *energy = energy.after(Rest::PassedOut);
+            collapsed.write(PassedOut(character));
         }
     }
     clock.0 = clock.0.next_dawn();

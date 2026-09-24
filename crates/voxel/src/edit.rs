@@ -1,14 +1,15 @@
 //! Reshaping terrain.
 //!
 //! Edits move the ground up or down rather than carving shapes out of it.
-//! Within a brush's footprint, the surface of each column of samples shifts
+//! Within an edit's footprint, the surface of each column of samples shifts
 //! vertically, and the samples around the surface shift with it. The ground
-//! under a brush is treated as a heightfield: only the topmost surface near
+//! under an edit is treated as a heightfield: only the topmost surface near
 //! the target moves.
 //!
-//! Edits bring ground to levels shared by the whole world, at every multiple
-//! of a brush's step, so edits made at the same level by anyone join into flat
-//! ground, and digging along a slope cuts terraces.
+//! A [`Brush`] brings ground to levels shared by the whole world, at every
+//! multiple of its step, so edits made at the same level by anyone join into
+//! flat ground, and digging along a slope cuts terraces. A [`Levelling`]
+//! brings a rectangle of ground to one height, for something to stand on.
 
 use std::collections::BTreeMap;
 
@@ -34,6 +35,27 @@ const RESURFACE_FALLOFF: f32 = 0.5;
 /// Samples rewritten above and below a moved surface, so that every sample
 /// shaping it moves along.
 const BAND: i32 = 2;
+/// How far above and below an edit's target height a column's surface is
+/// looked for. Columns whose surface lies further away, such as the top of a
+/// cliff, are left alone.
+pub const SURFACE_SEARCH: f32 = 3.0;
+
+/// An edit that moves the ground of each column it covers up or down.
+pub trait Reshape {
+    /// Corners of the rectangle on the ground plane holding every column the
+    /// edit may move.
+    fn bounds(&self) -> (Vec2, Vec2);
+    /// The height the edit works around; surfaces are looked for within
+    /// [`SURFACE_SEARCH`] of it.
+    fn target_height(&self) -> f32;
+    /// Farthest any column moves, in meters.
+    fn largest_shift(&self) -> f32;
+    /// How far the ground at `column` (x and z), whose surface is at height
+    /// `surface`, moves up (positive) or down (negative).
+    fn shift(&self, column: Vec2, surface: f32) -> f32;
+    /// The material ground that was `moved` at `column` ends up with.
+    fn material(&self, column: Vec2, moved: Material) -> Material;
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BrushMode {
@@ -57,11 +79,6 @@ pub struct Brush {
 }
 
 impl Brush {
-    /// How far above and below the target a column's surface is looked for.
-    /// Columns whose surface lies further away, such as the top of a cliff,
-    /// are left alone.
-    pub const SURFACE_SEARCH: f32 = 3.0;
-
     /// The height the edit brings the middle of its disc to.
     pub fn level(&self) -> f32 {
         let steps = match self.mode {
@@ -93,8 +110,26 @@ impl Brush {
         let t = ((self.radius - distance) / fade).clamp(0.0, 1.0);
         t * t * (3.0 - 2.0 * t)
     }
+}
 
-    /// The material ground that was `moved` at `column` ends up with.
+impl Reshape for Brush {
+    fn bounds(&self) -> (Vec2, Vec2) {
+        let middle = Vec2::new(self.center.x, self.center.z);
+        (middle - self.radius, middle + self.radius)
+    }
+
+    fn target_height(&self) -> f32 {
+        self.center.y
+    }
+
+    fn largest_shift(&self) -> f32 {
+        self.step
+    }
+
+    fn shift(&self, column: Vec2, surface: f32) -> f32 {
+        Brush::shift(self, column, surface)
+    }
+
     fn material(&self, column: Vec2, moved: Material) -> Material {
         if self.falloff(column) < RESURFACE_FALLOFF {
             return moved;
@@ -102,6 +137,67 @@ impl Brush {
         match self.mode {
             BrushMode::Lower => moved.exposed(),
             BrushMode::Raise(material) => material,
+        }
+    }
+}
+
+/// An edit that brings a rectangle of ground to one height, easing into the
+/// ground around it, so that something can stand on it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Levelling {
+    /// Middle of the rectangle on the ground plane.
+    pub center: Vec2,
+    /// Half the rectangle's size, along its own x and z.
+    pub half_size: Vec2,
+    /// Turn of the rectangle around the vertical axis, in radians, the way
+    /// `Quat::from_rotation_y` turns.
+    pub turn: f32,
+    pub height: f32,
+    /// Width of the band around the rectangle over which the ground eases
+    /// back to where it was.
+    pub margin: f32,
+    /// What the ground in the rectangle is made of afterwards.
+    pub surface: Material,
+}
+
+impl Levelling {
+    /// How far outside the rectangle `column` is; zero inside it.
+    fn outside(&self, column: Vec2) -> f32 {
+        // Undoing a turn about +y rotates the ground plane's (x, z) forward.
+        let local = Vec2::from_angle(self.turn).rotate(column - self.center);
+        (local.abs() - self.half_size).max(Vec2::ZERO).length()
+    }
+
+    /// One in the rectangle, easing to zero across the margin.
+    fn weight(&self, column: Vec2) -> f32 {
+        let t = (1.0 - self.outside(column) / self.margin).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    }
+}
+
+impl Reshape for Levelling {
+    fn bounds(&self) -> (Vec2, Vec2) {
+        let reach = Vec2::splat(self.half_size.length() + self.margin);
+        (self.center - reach, self.center + reach)
+    }
+
+    fn target_height(&self) -> f32 {
+        self.height
+    }
+
+    fn largest_shift(&self) -> f32 {
+        SURFACE_SEARCH
+    }
+
+    fn shift(&self, column: Vec2, surface: f32) -> f32 {
+        (self.height - surface) * self.weight(column)
+    }
+
+    fn material(&self, column: Vec2, moved: Material) -> Material {
+        if self.outside(column) > 0.0 {
+            moved
+        } else {
+            self.surface
         }
     }
 }
@@ -136,18 +232,16 @@ impl ChunkChanges {
 }
 
 impl ChunkMap {
-    /// Applies `brush` to every loaded column it covers and returns what
+    /// Applies `edit` to every loaded column it covers and returns what
     /// changed, ordered by chunk.
-    pub fn apply_brush(&mut self, brush: &Brush) -> Vec<ChunkChanges> {
-        let reach = Vec2::splat(brush.radius);
-        let middle = Vec2::new(brush.center.x, brush.center.z);
-        let min = (middle - reach).floor().as_ivec2();
-        let max = (middle + reach).ceil().as_ivec2();
+    pub fn reshape(&mut self, edit: &impl Reshape) -> Vec<ChunkChanges> {
+        let (min, max) = edit.bounds();
+        let (min, max) = (min.floor().as_ivec2(), max.ceil().as_ivec2());
 
         let mut changes: BTreeMap<ChunkPos, Vec<(u16, Voxel)>> = BTreeMap::new();
         for z in min.y..=max.y {
             for x in min.x..=max.x {
-                for (position, voxel) in self.moved_column(brush, x, z) {
+                for (position, voxel) in self.moved_column(edit, x, z) {
                     let (chunk_pos, local) = split(position);
                     let Some(chunk) = self.get_mut(chunk_pos) else {
                         continue;
@@ -171,18 +265,19 @@ impl ChunkMap {
             .collect()
     }
 
-    /// The new voxels of the column at `x`, `z` once `brush` moves its
+    /// The new voxels of the column at `x`, `z` once `edit` moves its
     /// ground. Empty if its ground does not move, or the column is not fully
     /// loaded around the target.
-    fn moved_column(&self, brush: &Brush, x: i32, z: i32) -> Vec<(IVec3, Voxel)> {
+    fn moved_column(&self, edit: &impl Reshape, x: i32, z: i32) -> Vec<(IVec3, Voxel)> {
+        let target = edit.target_height();
         #[expect(
             clippy::cast_possible_truncation,
-            reason = "brush sizes are a few meters"
+            reason = "edits move ground a few meters"
         )]
         let (search_bottom, search_top, margin) = (
-            (brush.center.y - Brush::SURFACE_SEARCH).floor() as i32,
-            (brush.center.y + Brush::SURFACE_SEARCH).ceil() as i32,
-            BAND + 2 * brush.step.ceil() as i32 + 1,
+            (target - SURFACE_SEARCH).floor() as i32,
+            (target + SURFACE_SEARCH).ceil() as i32,
+            BAND + 2 * edit.largest_shift().ceil() as i32 + 1,
         );
         let Some(column) = Column::read(self, x, z, search_bottom - margin, search_top + margin)
         else {
@@ -203,7 +298,7 @@ impl ChunkMap {
             ground as f32 + below / (below - above),
             Vec2::new(x as f32, z as f32),
         );
-        let shift = brush.shift(position, surface);
+        let shift = edit.shift(position, surface);
         if shift == 0.0 {
             return Vec::new();
         }
@@ -222,14 +317,14 @@ impl ChunkMap {
                 let source = y as f32 - shift;
                 let voxel = Voxel::new(
                     column.distance_at(source),
-                    brush.material(position, column.material_at(source)),
+                    edit.material(position, column.material_at(source)),
                 );
                 (IVec3::new(x, y, z), voxel)
             })
             .collect()
     }
 
-    /// Applies changes produced by [`Self::apply_brush`], typically on another
+    /// Applies changes produced by [`Self::reshape`], typically on another
     /// peer. Returns `false` if the chunk is not loaded here.
     pub fn apply_changes(&mut self, changes: &ChunkChanges) -> bool {
         let Some(chunk) = self.get_mut(changes.chunk) else {
@@ -338,7 +433,7 @@ mod tests {
     #[test]
     fn lowering_moves_the_ground_down_a_level() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
 
         assert_near(height(&map, -8.0, -8.0), GROUND - STEP);
         assert_near(height(&map, -11.0, -8.0), GROUND);
@@ -349,7 +444,7 @@ mod tests {
     #[test]
     fn lowering_exposes_what_lies_under_grass() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
 
         let dug = Vec3::new(-8.0, GROUND - STEP - 0.25, -8.0);
         assert_eq!(map.surface_material(dug), Some(Material::Soil));
@@ -360,7 +455,7 @@ mod tests {
     #[test]
     fn ground_at_the_edge_moves_but_keeps_its_material() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.3, GROUND, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.3, GROUND, -8.0, BrushMode::Lower));
 
         assert!(height(&map, -10.0, -8.0) < GROUND - 0.05);
         let edge = map.voxel(IVec3::new(-10, 0, -8)).unwrap();
@@ -371,9 +466,9 @@ mod tests {
     #[test]
     fn lowering_again_digs_a_level_deeper() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
         let floor = height(&map, -8.0, -8.0);
-        map.apply_brush(&brush(-8.0, floor, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.0, floor, -8.0, BrushMode::Lower));
 
         assert_near(height(&map, -8.0, -8.0), GROUND - 2.0 * STEP);
     }
@@ -383,9 +478,9 @@ mod tests {
     #[test]
     fn digging_at_the_rim_widens_the_floor() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-8.0, GROUND, -8.0, BrushMode::Lower));
         let rim = height(&map, -6.5, -8.0);
-        map.apply_brush(&brush(-6.5, rim, -8.0, BrushMode::Lower));
+        map.reshape(&brush(-6.5, rim, -8.0, BrushMode::Lower));
 
         for x in [-8.0, -7.0, -6.5, -6.0] {
             assert_near(height(&map, x, -8.0), GROUND - STEP);
@@ -395,7 +490,7 @@ mod tests {
     #[test]
     fn raising_builds_up_with_its_material() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        map.apply_brush(&brush(-8.0, GROUND, -8.0, BrushMode::Raise(Material::Sand)));
+        map.reshape(&brush(-8.0, GROUND, -8.0, BrushMode::Raise(Material::Sand)));
 
         assert_near(height(&map, -8.0, -8.0), GROUND + STEP);
         let raised = Vec3::new(-8.0, GROUND + STEP - 0.25, -8.0);
@@ -405,9 +500,9 @@ mod tests {
     #[test]
     fn ground_beyond_the_search_is_left_alone() {
         let mut map = flat_world(GROUND, chunks_around_origin());
-        let far_above = GROUND + Brush::SURFACE_SEARCH + 1.0;
+        let far_above = GROUND + SURFACE_SEARCH + 1.0;
         assert!(
-            map.apply_brush(&brush(-8.0, far_above, -8.0, BrushMode::Lower))
+            map.reshape(&brush(-8.0, far_above, -8.0, BrushMode::Lower))
                 .is_empty()
         );
     }
@@ -415,7 +510,7 @@ mod tests {
     #[test]
     fn edits_across_chunk_borders_touch_every_chunk() {
         let mut map = flat_world(0.0, chunks_around_origin());
-        let changes = map.apply_brush(&brush(0.0, 0.0, 0.0, BrushMode::Lower));
+        let changes = map.reshape(&brush(0.0, 0.0, 0.0, BrushMode::Lower));
 
         let chunks: Vec<_> = changes.iter().map(|changes| changes.chunk).collect();
         assert_eq!(chunks.len(), 8, "changed chunks: {chunks:?}");
@@ -426,7 +521,7 @@ mod tests {
         let mut authority = flat_world(0.0, chunks_around_origin());
         let mut replica = authority.clone();
 
-        for changes in authority.apply_brush(&brush(0.3, -0.2, -0.7, BrushMode::Lower)) {
+        for changes in authority.reshape(&brush(0.3, -0.2, -0.7, BrushMode::Lower)) {
             assert!(replica.apply_changes(&changes));
         }
 
@@ -442,5 +537,32 @@ mod tests {
             voxels: vec![(0, Voxel::AIR)],
         };
         assert_eq!(changes.affected_chunks().count(), 8);
+    }
+
+    #[test]
+    fn levelling_flattens_a_rectangle_and_eases_into_the_ground_around_it() {
+        let mut map = flat_world(GROUND, chunks_around_origin());
+        let levelling = Levelling {
+            center: Vec2::new(-8.0, -8.0),
+            half_size: Vec2::new(2.0, 1.0),
+            turn: 0.0,
+            height: GROUND + 1.0,
+            margin: 2.0,
+            surface: Material::Soil,
+        };
+        map.reshape(&levelling);
+        for (x, z) in [(-8.0, -8.0), (-9.5, -8.5), (-6.5, -7.5)] {
+            assert_near(height(&map, x, z), GROUND + 1.0);
+            assert_eq!(
+                map.surface_material(Vec3::new(x, GROUND + 0.9, z)),
+                Some(Material::Soil)
+            );
+        }
+        let halfway = height(&map, -8.0, -10.0);
+        assert!(
+            GROUND < halfway && halfway < GROUND + 1.0,
+            "eased to {halfway}"
+        );
+        assert_near(height(&map, -8.0, -12.0), GROUND);
     }
 }

@@ -94,6 +94,18 @@ impl Scenery {
             .map(|footprint| footprint.prop)
     }
 
+    /// Whether `test` holds for the middle and radius of any footprint
+    /// within `reach` of `center`.
+    pub(crate) fn any_near(
+        &self,
+        center: Vec2,
+        reach: f32,
+        test: impl Fn(Vec2, f32) -> bool,
+    ) -> bool {
+        self.near(center, reach)
+            .any(|footprint| test(footprint.center, footprint.radius))
+    }
+
     /// Frees the ground under `prop`, which no longer stands there.
     pub(crate) fn clear(&mut self, prop: Entity) {
         for footprints in self.footprints.values_mut() {

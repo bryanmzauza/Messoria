@@ -19,7 +19,7 @@ mod voxel;
 pub use crate::{
     chunk::{Chunk, DecodeError},
     coords::{CHUNK_SIZE, ChunkPos},
-    edit::{Brush, BrushMode, ChunkChanges},
+    edit::{Brush, BrushMode, ChunkChanges, Levelling, Reshape, SURFACE_SEARCH},
     map::ChunkMap,
     mesh::{SurfaceMesh, mesh_chunk},
     query::RayHit,

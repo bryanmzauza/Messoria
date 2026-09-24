@@ -11,16 +11,17 @@ use std::net::{Ipv4Addr, SocketAddr};
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use lightyear::prelude::{input::native::InputMarker, server::Server, *};
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
-use messoria_content::{Catalog, ItemId, Quality};
+use messoria_content::{Catalog, ItemId, Purpose, Quality};
 use messoria_farming::Planting;
 use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
+    content::Content,
     fields::{tile_at, tile_center},
     network::{self, NetworkRole},
     protocol::{
         ActionChannel, Belongings, Crop, Deal, Field, Happening, HarvestRequest, ItemAction, Money,
-        Notice, PlayerInput, Position, Shopfront, SleepRequest, Trade, UseItem, Watered,
+        Notice, PlayerInput, Position, Shopfront, SleepRequest, Structure, Trade, UseItem, Watered,
         WorldClock,
     },
     terrain::Terrain,
@@ -179,8 +180,10 @@ impl HostedWorld {
         self.run(PAUSE_BETWEEN_USES);
     }
 
-    /// Jumps to 21:00, goes to bed and waits for the next dawn.
+    /// Jumps to 21:00, goes to bed and waits for the next dawn. A bed is
+    /// put beside the character if none is near.
     pub fn sleep_through_the_night(&mut self) {
+        self.bed_nearby();
         let today = self.clock().day();
         let bedtime =
             WorldTime::at(today, "21:00".parse().expect("valid time")).expect("within the day");
@@ -194,6 +197,30 @@ impl HostedWorld {
         self.run_until("the next day to begin", |world| {
             world.clock().day() == today + 1
         });
+    }
+
+    /// Puts a bed behind the host's character, out of the way of the ground
+    /// ahead, unless one stands near.
+    pub fn bed_nearby(&mut self) {
+        let (feet, _) = self.character().expect("the host has a character");
+        let world = self.app.world_mut();
+        let bed = world
+            .resource::<Content>()
+            .structures()
+            .find(|(_, structure)| structure.purpose == Purpose::Bed)
+            .map(|(id, _)| id)
+            .expect("the content has a bed");
+        let near = world
+            .query::<&Structure>()
+            .iter(world)
+            .any(|structure| structure.kind == bed && structure.position.distance(feet) < 1.8);
+        if !near {
+            world.spawn(Structure {
+                kind: bed,
+                position: feet + Vec3::new(0.0, 0.0, 1.6),
+                facing: 0.0,
+            });
+        }
     }
 
     /// Sets the world's clock to `clock` on the current day.

@@ -6,7 +6,7 @@ use std::fmt;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, PropId, ShopId, Tool};
+use messoria_content::{ItemId, PropId, ShopId, StructureId, Tool};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -100,6 +100,23 @@ pub struct Crop(pub Planting);
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct HarvestRequest {
     pub target: Vec3,
+}
+
+/// A client moving a stack between the inventory of its character and the
+/// chest standing at `chest`, or within either. The character must be within
+/// reach of the chest.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct MoveStored {
+    pub chest: Vec3,
+    pub from: Place,
+    pub to: Place,
+}
+
+/// A slot of the character's inventory or of a chest.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Place {
+    Carried(u8),
+    Stored(u8),
 }
 
 /// A client asking to gather, by hand, the prop at `target`, such as a berry
@@ -205,6 +222,20 @@ pub struct Prop {
     pub scale: f32,
 }
 
+/// Something players built, such as a cabin, a bed or a chest, standing at
+/// `position` (the middle of its ground) turned by `facing`, as a
+/// [`Heading`] is.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Structure {
+    pub kind: StructureId,
+    pub position: Vec3,
+    pub facing: f32,
+}
+
+/// What a chest keeps.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Stored(pub Inventory);
+
 /// A prop gathered on `day`: it stands as what its kind leaves behind until
 /// it grows back, if it ever does.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -250,6 +281,12 @@ pub enum Notice {
     PickByHand,
     /// Gathering what has not grown back yet.
     NothingToGather,
+    /// Building where something else stands.
+    NoRoomToBuild,
+    /// Building on ground too uneven for it.
+    GroundTooUneven,
+    /// Going to sleep away from a bed.
+    SleepInABed,
     Trade(Refusal),
 }
 
@@ -275,6 +312,9 @@ impl fmt::Display for Notice {
             },
             Self::PickByHand => "Pick that by hand.",
             Self::NothingToGather => "There is nothing to gather there yet.",
+            Self::NoRoomToBuild => "There is no room to build that here.",
+            Self::GroundTooUneven => "The ground is too uneven to build that here.",
+            Self::SleepInABed => "Sleep in a bed.",
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -309,6 +349,8 @@ pub enum Happened {
     Harvested,
     /// A tool struck a prop being gathered.
     Struck(Tool),
+    /// A structure was built.
+    Built,
     Traded,
     Ate,
 }
@@ -381,6 +423,8 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<Gather>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<MoveStored>()
+            .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<SleepRequest>()
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<Trade>()
@@ -404,6 +448,8 @@ impl Plugin for ProtocolPlugin {
         app.component::<Shopfront>().replicate();
         app.component::<Prop>().replicate();
         app.component::<Gathered>().replicate();
+        app.component::<Structure>().replicate();
+        app.component::<Stored>().replicate();
 
         app.component::<PlayerId>().replicate();
 

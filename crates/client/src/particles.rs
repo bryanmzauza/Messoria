@@ -69,7 +69,7 @@ impl Burst {
             | Happened::Raised
             | Happened::Tilled => Some(Self::Soil),
             Happened::Dug(Material::Stone) | Happened::Struck(Tool::Pickaxe) => Some(Self::Stone),
-            Happened::Struck(Tool::Axe) => Some(Self::Chips),
+            Happened::Struck(Tool::Axe) | Happened::Built => Some(Self::Chips),
             Happened::Dug(Material::Sand) => Some(Self::Sand),
             Happened::Watered => Some(Self::Water),
             Happened::Harvested => Some(Self::Leaves),

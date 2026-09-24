@@ -29,6 +29,7 @@ mod player;
 mod profile;
 mod save_dir;
 mod settings;
+mod stacks;
 mod terrain;
 mod world;
 
@@ -38,5 +39,5 @@ pub use crate::{
     profile::Profile,
     save_dir::{SaveDir, SavedWorld, is_valid_player_key},
     settings::Settings,
-    world::{FieldState, GatheredProp, WorldState},
+    world::{FieldState, GatheredProp, StructureState, WorldState},
 };

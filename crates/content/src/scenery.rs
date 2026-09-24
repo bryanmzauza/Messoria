@@ -356,7 +356,7 @@ fn valid_scale((smallest, largest): (f32, f32)) -> bool {
 
 /// Checks that models are listed, and that each is a glTF file inside the
 /// models folder.
-fn check_models(models: &[String]) -> Result<(), String> {
+pub(crate) fn check_models(models: &[String]) -> Result<(), String> {
     if models.is_empty() {
         return Err("it lists no model".to_owned());
     }

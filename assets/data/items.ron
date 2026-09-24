@@ -32,6 +32,10 @@
         (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost"),
         (id: "wheat", name: "Wheat", kind: Goods, stack: 99),
 
+        // Placed to build a structure; structures.ron says which.
+        (id: "cabin_deed", name: "Cabin deed", kind: Structure, color: (0.85, 0.75, 0.55)),
+        (id: "chest", name: "Chest", kind: Structure, stack: 10, color: (0.7, 0.45, 0.25)),
+
         // Gathered from the scenery; scenery.ron says what gives what.
         (id: "wood", name: "Wood", kind: Goods, stack: 99, color: (0.6, 0.42, 0.25)),
 

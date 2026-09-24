@@ -7,6 +7,9 @@ so they may look different from the originals.
 | Folder | Pack | Creator | License |
 |---|---|---|---|
 | `models/nature/` | [Nature Kit](https://kenney.nl/assets/nature-kit) 2.1 | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `models/town/` | [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) 2.0 | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `models/furniture/` | [Furniture Kit](https://kenney.nl/assets/furniture-kit) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `models/survival/` | [Survival Kit](https://kenney.nl/assets/survival-kit) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/impact/` | [Impact Sounds](https://kenney.nl/assets/impact-sounds) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/interface/` | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/rpg/` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |

@@ -14,8 +14,9 @@ use messoria_shared::{
 };
 use messoria_voxel::Brush;
 
-use super::{GroundReshaped, TerrainEdited, editable};
+use super::{GroundReshaped, TerrainEdited, editable, reshape};
 use crate::{
+    building::Built,
     feedback::{Show, Tell},
     inventory::{ItemUseSystems, ShovelUse},
     scenery::Scenery,
@@ -38,6 +39,7 @@ fn apply_shovel_uses(
     clock: Single<&WorldClock>,
     mut uses: MessageReader<ShovelUse>,
     scenery: Res<Scenery>,
+    built: Built,
     characters: Query<&Position, With<PlayerId>>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
@@ -58,7 +60,9 @@ fn apply_shovel_uses(
             character: shovel_use.character,
             notice,
         };
-        match validate(shovel_use, feet.0, &terrain, &scenery, &characters) {
+        // Ground something stands on stays as it is.
+        let kept = |point, radius| scenery.blocks(point, radius) || built.covers(point, radius);
+        match validate(shovel_use, feet.0, &terrain, kept, &characters) {
             Ok(()) => {}
             Err(Refusal::Malformed(reason)) => {
                 debug!("rejected {shovel_use:?}: {reason}");
@@ -103,10 +107,7 @@ fn apply_shovel_uses(
         energy.try_spend(tools::SHOVEL_ENERGY);
 
         let brush = tools::shovel_brush(shovel_use.target, shovel_use.action);
-        for changes in terrain.apply_brush(&brush) {
-            chunk_changed.write_batch(changes.affected_chunks().map(ChunkChanged));
-            edited.write(TerrainEdited(changes));
-        }
+        reshape(&mut terrain, &brush, &mut edited, &mut chunk_changed);
         reshaped.write(GroundReshaped(brush));
         show.write(Show::at(happened, shovel_use.target));
     }
@@ -124,7 +125,7 @@ fn validate(
     shovel_use: &ShovelUse,
     feet: Vec3,
     terrain: &Terrain,
-    scenery: &Scenery,
+    kept: impl Fn(Vec3, f32) -> bool,
     characters: &Query<&Position, With<PlayerId>>,
 ) -> Result<(), Refusal> {
     let target = shovel_use.target;
@@ -137,7 +138,7 @@ fn validate(
     if village::reaches(target, tools::BRUSH_RADIUS) {
         return Err(Refusal::Told(Notice::ProtectedGround));
     }
-    if scenery.blocks(target, tools::BRUSH_RADIUS) {
+    if kept(target, tools::BRUSH_RADIUS) {
         return Err(Refusal::Told(Notice::SceneryInTheWay));
     }
     if !terrain

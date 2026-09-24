@@ -15,6 +15,7 @@ fn refused_actions_tell_the_player_why() {
     let mut world = HostedWorld::new(content.clone());
 
     world.set_time("10:00");
+    world.bed_nearby();
     world.send(SleepRequest::Sleep);
     world.run_until("the refusal to arrive", |world| {
         !world.heard().notices.is_empty()

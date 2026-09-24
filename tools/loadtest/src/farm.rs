@@ -1,6 +1,7 @@
-//! Bot behavior: keep a row of fields. Till, plant, water every day, go to
-//! bed at bedtime, and harvest what ripens, logging each harvest against the
-//! day its crop's data says it should ripen.
+//! Bot behavior: keep a row of fields. Till, plant, water every day and
+//! harvest what ripens, logging each harvest against the day its crop's data
+//! says it should ripen. Bots build no home, so they have no bed: they stay
+//! up until the day runs out at 02:00.
 
 use std::{collections::HashMap, time::Duration};
 
@@ -13,7 +14,7 @@ use messoria_shared::{
     fields::{tile_at, tile_center},
     protocol::{
         ActionChannel, Asleep, Belongings, Crop, Field, HarvestRequest, ItemAction, PlayerInput,
-        Position, SleepRequest, UseItem, Watered, WorldClock,
+        Position, UseItem, Watered, WorldClock,
     },
     terrain::Terrain,
     tools,
@@ -36,7 +37,6 @@ impl Plugin for FarmPlugin {
             timer: Timer::new(PACE, TimerMode::Repeating),
             plot: None,
             planted_on: HashMap::new(),
-            in_bed_on: None,
         })
         .add_systems(Update, farm);
     }
@@ -50,8 +50,6 @@ struct Farmer {
     plot: Option<Vec<Vec3>>,
     /// Day each field was planted.
     planted_on: HashMap<IVec2, u32>,
-    /// Day the bot last went to bed.
-    in_bed_on: Option<u32>,
 }
 
 /// What to do next on one field.
@@ -72,7 +70,6 @@ fn farm(
     fields: Query<(&Field, Has<Watered>, Option<&Crop>)>,
     mut uses: Query<&mut MessageSender<UseItem>, With<Client>>,
     mut harvests: Query<&mut MessageSender<HarvestRequest>, With<Client>>,
-    mut sleeps: Query<&mut MessageSender<SleepRequest>, With<Client>>,
 ) {
     if !farmer.timer.tick(real_time.delta()).just_finished() {
         return;
@@ -132,15 +129,6 @@ fn farm(
             }
         }
         return;
-    }
-
-    // Everything is tended: turn in once it is late enough.
-    if clock.0.is_bedtime()
-        && farmer.in_bed_on != Some(today)
-        && let Ok(mut sender) = sleeps.single_mut()
-    {
-        sender.send::<ActionChannel>(SleepRequest::Sleep);
-        farmer.in_bed_on = Some(today);
     }
 }
 

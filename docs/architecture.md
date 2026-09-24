@@ -155,8 +155,9 @@ remote characters are interpolated between server snapshots.
 
 ## Content
 
-Game content (items, crops, shops and the market's tuning, scenery and the
-palette) lives in RON files under `assets/data/`, never in code. Models live
+Game content (items, crops, shops and the market's tuning, scenery, the
+palette and structures) lives in RON files under `assets/data/`, never in
+code. Models live
 under `assets/models/`, and the catalog checks that every model it refers to
 is there.
 
@@ -177,7 +178,8 @@ is there.
   hotbar slot; the item in the slot decides what the use does.
 - Tool uses that act on the world are handed to the system that owns that part
   of the world as a Bevy message (`ShovelUse` for the terrain, `FieldWork` for
-  fields); eating is handled by the inventory itself. Every use counts against
+  fields, `GatherUse` for scenery, `BuildUse` for structures); eating is
+  handled by the inventory itself. Every use counts against
   one per-player rate limit.
 - At dawn every inventory spoils what has expired.
 
@@ -223,6 +225,27 @@ See [ADR 0010](adr/0010-gathered-scenery.md).
   obstacle and keeps its ground; clients draw it as its remains, and draw
   fruit on props that can be picked.
 - The world file lists gathered props by kind and scattering cell.
+
+## Building and homes
+
+See [ADR 0011](adr/0011-structures-and-homes.md).
+
+- Using a structure's item becomes a `BuildUse` for the server's `building`
+  module, which checks the ground (`Site`), levels it for structures that
+  level theirs (`messoria_voxel::Levelling`), and spawns a replicated
+  `Structure` for it and for each structure it contains. Chests also get a
+  replicated `Stored` inventory. `Built` finds structures and the ground
+  they keep, which the shovel and the hoe leave alone.
+- `messoria_shared::structures` places a structure's parts, boxes and
+  contents in the world the same way on every peer; the client draws its
+  parts and lamps, and the obstacles gain its boxes.
+- `homes` gives newcomers without a home the item to build one and moves
+  whoever collapses at the end of a day beside their bed. The day cycle
+  accepts `SleepRequest::Sleep` only near a bed.
+- `storage` carries out `MoveStored` between a character and the chest it
+  stands at. The client's chest window shows the chest above the backpack
+  and hotbar.
+- The world file keeps every structure, whose home it is and what it keeps.
 
 ## Feedback and feel
 
