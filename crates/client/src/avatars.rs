@@ -7,7 +7,9 @@
 //! than played from recorded animations: their legs and arms swing with the
 //! distance walked, they lean into a run, spread their arms in the air, act
 //! out what the server reports their player did, and lie down in bed asleep.
-//! Shopkeepers are figures too.
+//! Their faces blink now and then, strain at hard work, smile at a trade or
+//! a meal, start when they fall and close their eyes in sleep. Shopkeepers
+//! are figures too.
 
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
@@ -29,7 +31,7 @@ use messoria_shared::{
 use crate::{
     art::Models,
     feedback::Witnessed,
-    figures::{Figure, FigureMeshes, Part, in_hand, spawn_figure},
+    figures::{Expression, Figure, FigureMeshes, Part, in_hand, spawn_figure},
     inventory::HeldSlot,
     skins::Tailor,
 };
@@ -52,6 +54,10 @@ const HOLDING: f32 = 0.35;
 /// acting something out so that strikes land on time.
 const EASING: f32 = 12.0;
 const ACTING_EASING: f32 = 28.0;
+/// How often figures blink, at the least and at the most, in seconds, and for
+/// how long.
+const BLINK_EVERY: (f32, f32) = (3.2, 5.8);
+const BLINK_LENGTH: f32 = 0.14;
 /// How far from a stall a trade makes its keeper greet the customer.
 const KEEPER_REACH: f32 = 4.0;
 /// How far from a bed a sleeper lies down in it, and how high over its
@@ -91,8 +97,9 @@ pub(crate) struct Pose {
     /// Radians of leg swing walked so far.
     stride: f32,
     acting: Option<(Act, Duration)>,
-    /// Keeps figures standing idle from all moving as one.
+    /// Keeps figures standing idle, or blinking, from all moving as one.
     offset: f32,
+    expression: Expression,
 }
 
 /// Something a figure acts out once.
@@ -122,6 +129,15 @@ impl Act {
             Happened::Watered => Self::Water,
             Happened::Traded | Happened::Built => Self::Reach,
             Happened::Ate => Self::Eat,
+        }
+    }
+
+    /// The face a figure makes while acting this out.
+    fn expression(self) -> Expression {
+        match self {
+            Self::Chop | Self::Dig => Expression::Effort,
+            Self::Reach | Self::Eat | Self::Greet => Expression::Smile,
+            Self::Pick | Self::Water => Expression::Rest,
         }
     }
 
@@ -335,6 +351,7 @@ fn act_out(
 fn pose_figures(
     time: Res<Time>,
     content: Res<Content>,
+    meshes: Res<FigureMeshes>,
     mut figures: Query<(
         &Figure,
         &mut Pose,
@@ -345,6 +362,7 @@ fn pose_figures(
     )>,
     beds: Query<&Structure>,
     mut transforms: Query<&mut Transform>,
+    mut faces: Query<&mut Mesh3d>,
 ) {
     let now = time.elapsed();
     let clock = time.elapsed_secs();
@@ -376,6 +394,14 @@ fn pose_figures(
             }
         }
 
+        let expression = expression(&pose, asleep, velocity, clock);
+        if pose.expression != expression
+            && let Ok(mut face) = faces.get_mut(figure.face)
+        {
+            face.0 = meshes.face(expression);
+            pose.expression = expression;
+        }
+
         let rate = if pose.acting.is_some() {
             ACTING_EASING
         } else {
@@ -393,6 +419,28 @@ fn pose_figures(
                 transform.rotation = transform.rotation.slerp(wanted, blend);
             }
         }
+    }
+}
+
+/// The face a figure makes: asleep, acting something out, falling, blinking,
+/// or at rest, the first of these that holds.
+fn expression(pose: &Pose, asleep: bool, velocity: Vec3, clock: f32) -> Expression {
+    if asleep {
+        return Expression::Blink;
+    }
+    if let Some((act, _)) = pose.acting {
+        return act.expression();
+    }
+    if velocity.y < FALLING {
+        return Expression::Surprise;
+    }
+    // Each figure blinks at its own pace, the offset spreading them out.
+    let share = pose.offset / std::f32::consts::TAU;
+    let every = BLINK_EVERY.0 + (BLINK_EVERY.1 - BLINK_EVERY.0) * share;
+    if (clock + pose.offset * 7.3).rem_euclid(every) < BLINK_LENGTH {
+        Expression::Blink
+    } else {
+        Expression::Rest
     }
 }
 

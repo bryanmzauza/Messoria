@@ -9,7 +9,10 @@
 //
 // Boxes are painted from skins of `skin_size` texels, `texels` of them per
 // figure pixel. A box's faces are unwrapped from `uv`: its top and bottom in
-// a row, then its right, front, left and back faces below them.
+// a row, then its right, front, left and back faces below them. Every outfit
+// and hairstyle paints only the boxes it uses (a hood, a pouch, a bun) and
+// leaves the rest clear. `expressions` says where else the front of the head
+// is painted, for each face a character makes.
 //
 // A skin is laid in layers from the skins folder: a body, an outfit over it
 // and hair over both, painted in grays and tinted with a hair color (sRGB).
@@ -20,62 +23,148 @@
 // anything else. Tools are turned by `turn` (degrees around x, y and z);
 // anything else is held upright.
 (
-    pixel: 0.066,
+    pixel: 0.068,
     texels: 2,
-    skin_size: (128, 128),
+    skin_size: (256, 256),
     limbs: (
         body: (
             joint: (0.0, 8.0, 0.0),
-            boxes: [(from: (-4.5, 0.0, -2.5), size: (9.0, 8.0, 5.0), uv: (0, 80))],
+            boxes: [
+                // torso
+                (from: (-4.5, 0.0, -2.5), size: (9.0, 7.0, 5.0), uv: (92, 40)),
+                // jacket
+                (from: (-4.5, 0.0, -2.5), size: (9.0, 7.0, 5.0), uv: (148, 40), inflate: 0.25),
+                // skirt
+                (from: (-4.75, -2.0, -2.75), size: (9.5, 2.5, 5.5), uv: (62, 89)),
+                // belt
+                (from: (-5.0, 0.5, -3.0), size: (10.0, 1.0, 6.0), uv: (98, 106)),
+                // collar
+                (from: (-4.5, 5.5, -3.25), size: (9.0, 2.0, 6.5), uv: (0, 89)),
+                // hood
+                (from: (-3.5, 2.5, 2.75), size: (7.0, 4.5, 1.5), uv: (0, 134)),
+                // pack
+                (from: (-2.25, -0.5, 2.8), size: (4.5, 3.0, 2.0), uv: (138, 134)),
+            ],
         ),
         head: (
-            joint: (0.0, 8.0, 0.0),
+            joint: (0.0, 7.0, 0.0),
             boxes: [
+                // head
                 (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (0, 0)),
-                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (0, 40), inflate: 0.6),
-                (from: (-0.75, 3.0, -5.5), size: (1.5, 1.0, 0.5), uv: (76, 106)),
+                // nose
+                (from: (-0.75, 3.0, -5.5), size: (1.5, 1.0, 0.5), uv: (54, 146)),
+                // shell
+                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (84, 0), inflate: 0.8),
+                // crown
+                (from: (-6.0, 10.0, -5.5), size: (12.0, 1.5, 11.0), uv: (0, 40)),
+                // back
+                (from: (-6.0, 1.5, 4.5), size: (12.0, 8.5, 1.5), uv: (32, 65)),
+                // fringe
+                (from: (-6.0, 7.5, -6.0), size: (12.0, 2.5, 1.5), uv: (0, 146)),
+                // side_r
+                (from: (5.5, 2.5, -4.5), size: (1.0, 7.0, 8.5), uv: (168, 0)),
+                // side_l
+                (from: (-6.5, 2.5, -4.5), size: (1.0, 7.0, 8.5), uv: (206, 0)),
+                // bun
+                (from: (-2.0, 7.5, 5.0), size: (4.0, 3.5, 3.0), uv: (80, 121)),
+                // tail
+                (from: (-1.5, -1.5, 5.5), size: (3.0, 6.0, 1.5), uv: (80, 106)),
+                // curl_a
+                (from: (-5.0, 11.5, -3.5), size: (3.5, 1.5, 3.5), uv: (82, 134)),
+                // curl_b
+                (from: (1.5, 11.5, -1.0), size: (3.5, 1.5, 3.5), uv: (110, 134)),
+                // curl_c
+                (from: (-2.0, 11.5, 2.0), size: (3.5, 1.5, 3.0), uv: (208, 134)),
+                // curl_d
+                (from: (5.8, 4.0, -2.5), size: (1.5, 3.5, 4.0), uv: (36, 106)),
+                // curl_e
+                (from: (-7.3, 4.0, -2.5), size: (1.5, 3.5, 4.0), uv: (58, 106)),
+                // curl_f
+                (from: (-4.5, 5.0, 5.8), size: (4.0, 3.5, 1.5), uv: (164, 134)),
+                // curl_g
+                (from: (0.5, 2.5, 5.8), size: (4.0, 3.5, 1.5), uv: (186, 134)),
+                // curl_h
+                (from: (-6.8, 8.5, 1.0), size: (3.0, 2.5, 4.0), uv: (108, 121)),
+                // curl_i
+                (from: (3.8, 8.5, 2.5), size: (3.0, 2.5, 4.0), uv: (136, 121)),
+                // beard
+                (from: (-5.5, -0.5, -5.75), size: (11.0, 4.0, 1.0), uv: (34, 134)),
             ],
         ),
         right_arm: (
-            joint: (6.25, 7.0, 0.0),
+            joint: (6.25, 6.0, 0.0),
             boxes: [
-                (from: (-1.75, -6.5, -1.75), size: (3.5, 8.0, 3.5), uv: (56, 80)),
-                (from: (-2.0, -9.0, -2.0), size: (4.0, 3.0, 4.0), uv: (84, 48)),
+                // rarm
+                (from: (-1.75, -5.5, -1.75), size: (3.5, 6.5, 3.5), uv: (86, 65)),
+                // rsleeve
+                (from: (-1.75, -2.5, -1.75), size: (3.5, 3.5, 3.5), uv: (162, 106), inflate: 0.35),
+                // rhand
+                (from: (-2.25, -8.0, -2.25), size: (4.5, 3.0, 4.5), uv: (198, 89)),
+                // rcuff
+                (from: (-2.5, -6.0, -2.5), size: (5.0, 1.5, 5.0), uv: (0, 121)),
             ],
         ),
         left_arm: (
-            joint: (-6.25, 7.0, 0.0),
+            joint: (-6.25, 6.0, 0.0),
             boxes: [
-                (from: (-1.75, -6.5, -1.75), size: (3.5, 8.0, 3.5), uv: (84, 80)),
-                (from: (-2.0, -9.0, -2.0), size: (4.0, 3.0, 4.0), uv: (84, 62)),
+                // larm
+                (from: (-1.75, -5.5, -1.75), size: (3.5, 6.5, 3.5), uv: (114, 65)),
+                // lsleeve
+                (from: (-1.75, -2.5, -1.75), size: (3.5, 3.5, 3.5), uv: (190, 106), inflate: 0.35),
+                // lhand
+                (from: (-2.25, -8.0, -2.25), size: (4.5, 3.0, 4.5), uv: (0, 106)),
+                // lcuff
+                (from: (-2.5, -6.0, -2.5), size: (5.0, 1.5, 5.0), uv: (40, 121)),
             ],
         ),
         right_leg: (
             joint: (2.25, 8.0, 0.0),
             boxes: [
-                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (84, 0)),
-                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (0, 106)),
+                // rleg
+                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (204, 40)),
+                // rboot
+                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (122, 89)),
+                // rbootcuff
+                (from: (-2.5, -5.5, -2.5), size: (5.0, 1.0, 5.0), uv: (164, 121)),
             ],
         ),
         left_leg: (
             joint: (-2.25, 8.0, 0.0),
             boxes: [
-                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (84, 24)),
-                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (38, 106)),
+                // lleg
+                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (0, 65)),
+                // lboot
+                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (160, 89)),
+                // lbootcuff
+                (from: (-2.5, -5.5, -2.5), size: (5.0, 1.0, 5.0), uv: (204, 121)),
             ],
         ),
     ),
-    grip: (at: (0.0, -7.5, 0.0), turn: (-70.0, 0.0, 0.0), tool_size: 0.95, item_size: 0.35),
+    expressions: (
+        blink: (142, 65),
+        smile: (164, 65),
+        surprise: (186, 65),
+        effort: (208, 65),
+    ),
+    grip: (at: (0.0, -6.6, 0.0), turn: (-70.0, 0.0, 0.0), tool_size: 0.95, item_size: 0.35),
     wardrobe: (
         bodies: ["body-fair.png", "body-light.png", "body-tan.png", "body-brown.png", "body-dark.png"],
         outfits: [
+            "outfit-adventurer.png",
             "outfit-overalls.png",
-            "outfit-tunic.png",
             "outfit-flannel.png",
             "outfit-vest.png",
             "outfit-dress.png",
         ],
-        hair: ["hair-short.png", "hair-long.png", "hair-bob.png", "hair-curly.png", "hair-beard.png"],
+        hair: [
+            "hair-curly.png",
+            "hair-short.png",
+            "hair-long.png",
+            "hair-bob.png",
+            "hair-bun.png",
+            "hair-ponytail.png",
+            "hair-beard.png",
+        ],
         hair_colors: [
             (0.13, 0.1, 0.09),
             (0.3, 0.2, 0.13),

@@ -529,6 +529,7 @@ mod tests {
             right_leg: (joint: (0.5, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
             left_leg: (joint: (-0.5, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
         ),
+        expressions: (blink: (0, 0), smile: (0, 0), surprise: (0, 0), effort: (0, 0)),
         grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
         wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
     )"#;

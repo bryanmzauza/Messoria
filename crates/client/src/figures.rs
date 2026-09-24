@@ -1,5 +1,6 @@
 //! Character figures: limbs of boxes painted from a skin, each turning at its
-//! joint, built as `characters.ron` describes them.
+//! joint, built as `characters.ron` describes them. The front of the head
+//! can be drawn from other places in the skin, one for each expression.
 
 use bevy::{
     asset::RenderAssetUsages, camera::primitives::Aabb, mesh::Indices, prelude::*,
@@ -53,12 +54,25 @@ impl Part {
     }
 }
 
+/// What a figure's face shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Expression {
+    #[default]
+    Rest,
+    Blink,
+    Smile,
+    Surprise,
+    Effort,
+}
+
 /// A figure standing on its owner's feet: the entity everything hangs from,
-/// each limb's joint, which turns to pose it, and what it is dressed in.
+/// each limb's joint, which turns to pose it, the head's front box, which
+/// shows the expression, and what it is dressed in.
 #[derive(Component, Clone)]
 pub(crate) struct Figure {
     pub root: Entity,
     pub limbs: [Entity; 6],
+    pub face: Entity,
     pub material: Handle<StandardMaterial>,
 }
 
@@ -68,13 +82,21 @@ impl Figure {
     }
 }
 
-/// The meshes of every limb's boxes, shared by all figures.
+/// The meshes of every limb's boxes, and of the head's first box for each
+/// expression, shared by all figures.
 #[derive(Resource)]
-pub(crate) struct FigureMeshes([Vec<Handle<Mesh>>; 6]);
+pub(crate) struct FigureMeshes {
+    limbs: [Vec<Handle<Mesh>>; 6],
+    faces: [Handle<Mesh>; 5],
+}
 
 impl FigureMeshes {
     pub(crate) fn of(&self, part: Part) -> &[Handle<Mesh>] {
-        &self.0[part as usize]
+        &self.limbs[part as usize]
+    }
+
+    pub(crate) fn face(&self, expression: Expression) -> Handle<Mesh> {
+        self.faces[expression as usize].clone()
     }
 }
 
@@ -83,10 +105,25 @@ fn build_meshes(content: Res<Content>, mut meshes: ResMut<Assets<Mesh>>, mut com
     let limbs = characters.limbs.all().map(|limb| {
         limb.boxes
             .iter()
-            .map(|cube| meshes.add(cube_mesh(cube, characters)))
-            .collect()
+            .map(|cube| meshes.add(cube_mesh(cube, characters, None)))
+            .collect::<Vec<_>>()
     });
-    commands.insert_resource(FigureMeshes(limbs));
+    let head = characters
+        .limbs
+        .head
+        .boxes
+        .first()
+        .expect("the content checks the head has a box");
+    let expressions = characters.expressions;
+    let faces = [
+        None,
+        Some(expressions.blink),
+        Some(expressions.smile),
+        Some(expressions.surprise),
+        Some(expressions.effort),
+    ]
+    .map(|front| meshes.add(cube_mesh(head, characters, front)));
+    commands.insert_resource(FigureMeshes { limbs, faces });
 }
 
 /// Builds a figure under `owner`, dressed in `material`.
@@ -106,6 +143,7 @@ pub(crate) fn spawn_figure(
         ))
         .id();
     let mut limbs = [root; 6];
+    let mut face = root;
     // Parents come before the limbs hanging from them.
     for (part, limb) in Part::ALL.into_iter().zip(characters.limbs.all()) {
         let parent = part.parent().map_or(root, |parent| limbs[parent as usize]);
@@ -116,18 +154,24 @@ pub(crate) fn spawn_figure(
                 ChildOf(parent),
             ))
             .id();
-        for mesh in &meshes.0[part as usize] {
-            commands.spawn((
-                Mesh3d(mesh.clone()),
-                MeshMaterial3d(material.clone()),
-                ChildOf(joint),
-            ));
+        for (index, mesh) in meshes.of(part).iter().enumerate() {
+            let entity = commands
+                .spawn((
+                    Mesh3d(mesh.clone()),
+                    MeshMaterial3d(material.clone()),
+                    ChildOf(joint),
+                ))
+                .id();
+            if part == Part::Head && index == 0 {
+                face = entity;
+            }
         }
         limbs[part as usize] = joint;
     }
     Figure {
         root,
         limbs,
+        face,
         material: material.clone(),
     }
 }
@@ -221,8 +265,8 @@ fn fit_held_items(
 }
 
 /// A box's mesh, in meters from its limb's joint, with each face painted from
-/// its place in the skin (see `characters.ron`).
-fn cube_mesh(cube: &Cube, characters: &Characters) -> Mesh {
+/// its place in the skin (see `characters.ron`), or its front from `front`.
+fn cube_mesh(cube: &Cube, characters: &Characters, front: Option<(u32, u32)>) -> Mesh {
     let pixel = characters.pixel;
     let grow = Vec3::splat(cube.inflate);
     let low = (Vec3::from(cube.from) - grow) * pixel;
@@ -234,6 +278,8 @@ fn cube_mesh(cube: &Cube, characters: &Characters) -> Mesh {
     );
     #[expect(clippy::cast_precision_loss, reason = "skins are small images")]
     let origin = Vec2::new(cube.uv.0 as f32, cube.uv.1 as f32);
+    #[expect(clippy::cast_precision_loss, reason = "skins are small images")]
+    let front = front.map(|(u, v)| Vec2::new(u as f32, v as f32));
     let faces = faces(low, high, Vec3::from(cube.size) * texels);
 
     let mut positions = Vec::with_capacity(24);
@@ -242,6 +288,10 @@ fn cube_mesh(cube: &Cube, characters: &Characters) -> Mesh {
     let mut indices = Vec::with_capacity(36);
     for (corners, normal, at, size) in faces {
         let first = u16::try_from(positions.len()).expect("a box has 24 corners");
+        let at = match front {
+            Some(front) if normal == Vec3::NEG_Z => front - origin,
+            _ => at,
+        };
         let picture = [
             Vec2::ZERO,
             Vec2::new(size.x, 0.0),
@@ -366,7 +416,7 @@ mod tests {
     #[test]
     fn every_face_turns_outward() {
         let characters = shipped();
-        let mesh = cube_mesh(&characters.limbs.head.boxes[0], &characters);
+        let mesh = cube_mesh(&characters.limbs.head.boxes[0], &characters, None);
         let Some(VertexAttributeValues::Float32x3(positions)) =
             mesh.attribute(Mesh::ATTRIBUTE_POSITION)
         else {
@@ -393,7 +443,7 @@ mod tests {
         let characters = shipped();
         for limb in characters.limbs.all() {
             for cube in &limb.boxes {
-                let mesh = cube_mesh(cube, &characters);
+                let mesh = cube_mesh(cube, &characters, None);
                 let Some(VertexAttributeValues::Float32x2(uvs)) =
                     mesh.attribute(Mesh::ATTRIBUTE_UV_0)
                 else {

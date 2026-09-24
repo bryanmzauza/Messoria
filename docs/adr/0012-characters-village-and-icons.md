@@ -25,7 +25,12 @@ models used everywhere else, including models that later packs add.
 - A character is a figure of six limbs, each a few boxes turning at a
   joint, described in `characters.ron`: sizes in figure pixels and where
   each box's faces are painted from in a skin. Clients build the meshes
-  from that data.
+  from that data. The figure has boxes for everything any outfit or
+  hairstyle may need (a hood, a pouch, sleeves, boot cuffs, curls, a bun, a
+  beard); each layer paints the ones it uses and leaves the rest clear.
+- The front of the head is also painted elsewhere in the skin for each
+  expression: blinking, smiling, surprise and effort. A figure's face swaps
+  between them by what the character does, with nothing replicated.
 - Skins are laid in layers made for the game: a body, an outfit over it and
   hair, painted in grays and tinted with a hair color. Clients lay each
   look into one image when its layers have loaded. Every player is dressed

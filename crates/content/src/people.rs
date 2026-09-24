@@ -18,6 +18,8 @@ pub struct Characters {
     /// Width and height of every skin, in texels.
     pub skin_size: (u32, u32),
     pub limbs: Limbs,
+    /// Where the front of the head is painted for each expression.
+    pub expressions: Expressions,
     /// Where a held item sits in the right hand.
     pub grip: Grip,
     /// What players are dressed in; each player gets one of each.
@@ -49,6 +51,26 @@ impl Limbs {
             &self.right_leg,
             &self.left_leg,
         ]
+    }
+}
+
+/// Where the front of the head (the head's first box) is painted for each
+/// expression other than the resting one, as the picture's top left corner,
+/// in texels. The resting face is painted where the box's own unwrap puts it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Expressions {
+    /// Eyes shut, for blinking and for sleep.
+    pub blink: (u32, u32),
+    pub smile: (u32, u32),
+    pub surprise: (u32, u32),
+    /// Straining, as when swinging a tool.
+    pub effort: (u32, u32),
+}
+
+impl Expressions {
+    pub fn all(&self) -> [(u32, u32); 4] {
+        [self.blink, self.smile, self.surprise, self.effort]
     }
 }
 
@@ -193,6 +215,23 @@ impl Characters {
                 return problem(format!("limb {} {reason}", index + 1));
             }
         }
+        let Some(head) = self.limbs.head.boxes.first() else {
+            return problem("the head has no box".to_owned());
+        };
+        #[expect(clippy::cast_precision_loss, reason = "skins are small images")]
+        let (texels, skin_width, skin_height) = (
+            self.texels as f32,
+            self.skin_size.0 as f32,
+            self.skin_size.1 as f32,
+        );
+        let (face_width, face_height) = (head.size.0 * texels, head.size.1 * texels);
+        #[expect(clippy::cast_precision_loss, reason = "skins are small images")]
+        let beyond = |(u, v): (u32, u32)| {
+            u as f32 + face_width > skin_width || v as f32 + face_height > skin_height
+        };
+        if self.expressions.all().into_iter().any(beyond) {
+            return problem("an expression is painted beyond the skin".to_owned());
+        }
         let wardrobe = &self.wardrobe;
         if wardrobe.bodies.is_empty()
             || wardrobe.outfits.is_empty()
@@ -288,6 +327,12 @@ mod tests {
                 right_leg: limb.clone(),
                 left_leg: limb,
             },
+            expressions: Expressions {
+                blink: (0, 8),
+                smile: (4, 8),
+                surprise: (8, 8),
+                effort: (12, 8),
+            },
             grip: Grip {
                 at: (0.0, 0.0, 0.0),
                 turn: (0.0, 0.0, 0.0),
@@ -326,5 +371,12 @@ mod tests {
         assert!(characters.validate().is_err());
         characters.limbs.head.boxes[0].uv = (0, 8);
         assert!(characters.validate().is_ok());
+    }
+
+    #[test]
+    fn an_expression_painted_beyond_the_skin_is_refused() {
+        let mut characters = characters();
+        characters.expressions.smile = (13, 8);
+        assert!(characters.validate().is_err());
     }
 }

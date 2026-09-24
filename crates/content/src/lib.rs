@@ -25,7 +25,7 @@ pub use crate::{
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Quality, Tool},
     palette::{Palette, Rgb},
-    people::{Characters, Cube, Grip, Limb, Limbs, Look, Wardrobe},
+    people::{Characters, Cube, Expressions, Grip, Limb, Limbs, Look, Wardrobe},
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},

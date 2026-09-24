@@ -291,6 +291,9 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
   load, and figures dressed alike share its material. Players are dressed
   from the wardrobe by their id (`Characters::look_for`), so everyone sees
   the same look for the same player; shopkeepers' looks are in `shops.ron`.
+  Faces blink, strain at hard work, smile at a trade or a meal, start when
+  falling and close in sleep, by swapping the head's front for another
+  painted expression.
 - `avatars` poses figures every frame rather than playing recorded clips:
   legs and arms swing with the distance walked, figures lean into a run and
   spread their arms in the air, and sleepers lie in the nearest bed.
