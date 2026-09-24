@@ -24,9 +24,11 @@ use messoria_shared::{
 
 use crate::{
     actions::INTERACT_KEY,
-    art::item_color,
+    art::Models,
+    avatars::{Keeper, spawn_body},
     camera::View,
     clock::LocalClock,
+    icons::ItemIcons,
     panels::OpenPanel,
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
@@ -34,11 +36,20 @@ use crate::{
 /// Units bought at once with the second buy button.
 const BULK_PURCHASE: u16 = 10;
 
-const WOOD_COLOR: Color = Color::srgb(0.45, 0.3, 0.18);
-const AWNING_COLORS: [Color; 2] = [Color::srgb(0.75, 0.2, 0.18), Color::srgb(0.93, 0.88, 0.78)];
-/// Crates on a stall show what the shop buys; these fill in for a shop that
-/// buys fewer than two things.
-const CRATE_COLORS: [Color; 2] = [Color::srgb(0.9, 0.55, 0.15), Color::srgb(0.4, 0.62, 0.25)];
+/// Scale the stall models are drawn at.
+const STALL_SCALE: f32 = 2.6;
+/// Where wares lie on a counter: across it, clear of the post holding the
+/// awning up in the middle, its height, and toward the customers; and how
+/// large they are drawn.
+const WARE_SPOTS: [f32; 3] = [-0.85, -0.4, 0.75];
+const COUNTER_HEIGHT: f32 = 0.95;
+const COUNTER_FRONT: f32 = -0.45;
+const WARE_SCALE: f32 = 1.6;
+/// Size of the item icons in the listing.
+const ROW_ICON_SIZE: f32 = 28.0;
+/// Where the keeper stands: to one side of the middle post, behind the counter.
+const KEEPER_SIDE: f32 = 0.55;
+const KEEPER_BEHIND: f32 = 0.55;
 
 pub(crate) struct ShopsPlugin;
 
@@ -66,40 +77,29 @@ struct ShopListing;
 #[derive(Component, Clone, Copy)]
 struct DealButton(Deal);
 
-/// A stall: a counter under a striped awning, with crates of what the shop
-/// buys. Built facing -Z, then turned the way the stall faces.
+/// A stall: the shop's stall model with some of its wares on the counter,
+/// and its keeper behind it. Built facing -Z, then turned the way the stall
+/// faces.
 fn build_stall(
     trigger: On<Add, Shopfront>,
     content: Res<Content>,
+    models: Res<Models>,
     stalls: Query<&Shopfront>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
     let Ok(stall) = stalls.get(trigger.entity) else {
         return;
     };
-    let mut matte = |color: Color| {
-        materials.add(StandardMaterial {
-            base_color: color,
-            perceptual_roughness: 0.9,
-            ..default()
-        })
-    };
-    let wood = matte(WOOD_COLOR);
-    let awning = AWNING_COLORS.map(&mut matte);
-    let buys = &content.shop(stall.shop).buys;
-    let crates: [_; 2] = std::array::from_fn(|index| {
-        let color = buys.get(index).map_or(CRATE_COLORS[index], |offer| {
-            item_color(&content, offer.item)
-        });
-        matte(color)
-    });
-    let counter = meshes.add(Cuboid::new(2.4, 1.0, 0.7));
-    let post = meshes.add(Cuboid::new(0.12, 2.6, 0.12));
-    let stripe = meshes.add(Cuboid::new(0.7, 0.08, 2.0));
-    let produce = meshes.add(Cuboid::new(0.5, 0.25, 0.4));
-
+    let shop = content.shop(stall.shop);
+    let wares: Vec<_> = shop
+        .buys
+        .iter()
+        .map(|offer| offer.item)
+        .chain(shop.sells.iter().map(|listing| listing.item))
+        .filter_map(|item| content.item(item).model.as_deref())
+        .filter_map(|model| models.scene(model))
+        .take(WARE_SPOTS.len())
+        .collect();
     commands
         .entity(trigger.entity)
         .insert((
@@ -108,35 +108,28 @@ fn build_stall(
             Visibility::default(),
         ))
         .with_children(|parts| {
-            parts.spawn((
-                Mesh3d(counter),
-                MeshMaterial3d(wood.clone()),
-                Transform::from_xyz(0.0, 0.5, 0.0),
-            ));
-            for (x, z) in [(-1.15, -0.3), (1.15, -0.3), (-1.15, 1.2), (1.15, 1.2)] {
-                parts.spawn((
-                    Mesh3d(post.clone()),
-                    MeshMaterial3d(wood.clone()),
-                    Transform::from_xyz(x, 1.3, z),
-                ));
+            if let Some(scene) = models.scene(&shop.stall) {
+                parts.spawn((scene, Transform::from_scale(Vec3::splat(STALL_SCALE))));
             }
-            // Sloping down towards the customers.
-            let slope = Quat::from_rotation_x(-0.2);
-            for (index, x) in [-1.05, -0.35, 0.35, 1.05].into_iter().enumerate() {
+            for (ware, x) in wares.into_iter().zip(WARE_SPOTS) {
                 parts.spawn((
-                    Mesh3d(stripe.clone()),
-                    MeshMaterial3d(awning[index % 2].clone()),
-                    Transform::from_xyz(x, 2.6, 0.45).with_rotation(slope),
-                ));
-            }
-            for (index, x) in [-0.6, 0.6].into_iter().enumerate() {
-                parts.spawn((
-                    Mesh3d(produce.clone()),
-                    MeshMaterial3d(crates[index].clone()),
-                    Transform::from_xyz(x, 1.125, 0.0),
+                    ware,
+                    Transform::from_xyz(x, COUNTER_HEIGHT, COUNTER_FRONT)
+                        .with_scale(Vec3::splat(WARE_SCALE)),
                 ));
             }
         });
+    let keeper = commands
+        .spawn((
+            Name::new(format!("{} keeper", shop.name)),
+            Keeper {
+                stall: stall.position,
+            },
+            Transform::from_xyz(KEEPER_SIDE, 0.0, KEEPER_BEHIND),
+            ChildOf(trigger.entity),
+        ))
+        .id();
+    spawn_body(&mut commands, &content, &models, keeper, &shop.keeper);
 }
 
 fn spawn_shop_window(mut commands: Commands) {
@@ -201,6 +194,7 @@ fn open_or_close_shop(
 fn show_shop_window(
     panel: Res<OpenPanel>,
     content: Res<Content>,
+    icons: Res<ItemIcons>,
     clock: Res<LocalClock>,
     stalls: Query<&Shopfront>,
     player: Query<(Ref<Belongings>, Ref<Money>, Ref<SoldToday>), With<InputMarker<PlayerInput>>>,
@@ -243,6 +237,7 @@ fn show_shop_window(
         wallet: money.0,
         ledger: &sold.0,
         market: &market.0,
+        icons: &icons,
     };
     commands
         .entity(*listing)
@@ -282,6 +277,7 @@ struct Counter<'a> {
     wallet: Wallet,
     ledger: &'a SalesLedger,
     market: &'a Market,
+    icons: &'a ItemIcons,
 }
 
 impl Counter<'_> {
@@ -366,7 +362,7 @@ impl Counter<'_> {
                     )
                 })
             });
-            spawn_row(listing, description, deals);
+            spawn_row(listing, self.icons.get(stack.item), description, deals);
         }
         if !selling {
             listing.spawn(ui::label(
@@ -395,7 +391,7 @@ impl Counter<'_> {
                     )
                 })
             });
-            spawn_row(listing, description, deals);
+            spawn_row(listing, self.icons.get(listed.item), description, deals);
         }
     }
 
@@ -424,10 +420,11 @@ impl Counter<'_> {
     }
 }
 
-/// One line of the listing: a description, then a button for each deal that
-/// can be made, or why the first cannot.
+/// One line of the listing: the item's icon and a description, then a
+/// button for each deal that can be made, or why the first cannot.
 fn spawn_row(
     listing: &mut ChildSpawnerCommands,
+    icon: Option<Handle<Image>>,
     description: String,
     deals: [Result<(String, Deal), Refusal>; 2],
 ) {
@@ -438,6 +435,16 @@ fn spawn_row(
             ..default()
         })
         .with_children(|row| {
+            if let Some(icon) = icon {
+                row.spawn((
+                    ImageNode::new(icon),
+                    Node {
+                        width: px(ROW_ICON_SIZE),
+                        height: px(ROW_ICON_SIZE),
+                        ..default()
+                    },
+                ));
+            }
             row.spawn((
                 ui::label(description, TEXT_SIZE, TEXT_COLOR),
                 Node {

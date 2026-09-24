@@ -12,9 +12,11 @@ use crate::{
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Items, ItemsFile},
     palette::{Palette, PaletteFile},
+    people::Characters,
     scenery::{CoverDef, PropDef, PropId, Scenery, SceneryFile},
     shop::{MarketRules, ShopDef, ShopId, Shops, ShopsFile},
     structure::{StructureDef, StructureId, Structures, StructuresFile},
+    village::{Village, VillageFile},
 };
 
 /// Files within the data folder.
@@ -24,6 +26,8 @@ const SHOPS_FILE: &str = "shops.ron";
 const SCENERY_FILE: &str = "scenery.ron";
 const PALETTE_FILE: &str = "palette.ron";
 const STRUCTURES_FILE: &str = "structures.ron";
+const CHARACTERS_FILE: &str = "characters.ron";
+const VILLAGE_FILE: &str = "village.ron";
 /// Folder of the models, next to the data folder.
 const MODELS_FOLDER: &str = "models";
 
@@ -36,6 +40,8 @@ pub struct Sources<'a> {
     pub scenery: &'a str,
     pub palette: &'a str,
     pub structures: &'a str,
+    pub characters: &'a str,
+    pub village: &'a str,
 }
 
 /// All loaded content, with every cross-reference checked.
@@ -61,6 +67,8 @@ pub struct Catalog {
     structures: Vec<StructureDef>,
     structure_keys: HashMap<String, StructureId>,
     structures_by_item: HashMap<ItemId, StructureId>,
+    characters: Characters,
+    village: Village,
 }
 
 impl Catalog {
@@ -82,6 +90,7 @@ impl Catalog {
         let (items, crops, shops) = (read(ITEMS_FILE)?, read(CROPS_FILE)?, read(SHOPS_FILE)?);
         let (scenery, palette) = (read(SCENERY_FILE)?, read(PALETTE_FILE)?);
         let structures = read(STRUCTURES_FILE)?;
+        let (characters, village) = (read(CHARACTERS_FILE)?, read(VILLAGE_FILE)?);
         let sources = Sources {
             items: &items,
             crops: &crops,
@@ -89,6 +98,8 @@ impl Catalog {
             scenery: &scenery,
             palette: &palette,
             structures: &structures,
+            characters: &characters,
+            village: &village,
         };
         let catalog = Self::build(sources, data_dir)?;
 
@@ -102,9 +113,25 @@ impl Catalog {
             .structures
             .iter()
             .flat_map(|structure| structure.parts.iter().map(|part| &part.model));
+        let item_models = catalog.items.iter().filter_map(|item| item.model.as_ref());
+        let crop_models = catalog.crops.iter().flat_map(|crop| &crop.models);
+        let shop_models = catalog
+            .shops
+            .iter()
+            .flat_map(|shop| [&shop.stall, &shop.keeper]);
         let used = models_used
             .map(|model| (model, SCENERY_FILE))
-            .chain(structure_models.map(|model| (model, STRUCTURES_FILE)));
+            .chain(structure_models.map(|model| (model, STRUCTURES_FILE)))
+            .chain(item_models.map(|model| (model, ITEMS_FILE)))
+            .chain(crop_models.map(|model| (model, CROPS_FILE)))
+            .chain(shop_models.map(|model| (model, SHOPS_FILE)))
+            .chain(
+                catalog
+                    .characters
+                    .models
+                    .iter()
+                    .map(|model| (model, CHARACTERS_FILE)),
+            );
         for (model, file) in used {
             if !models.join(model).is_file() {
                 return Err(ContentError {
@@ -152,6 +179,12 @@ impl Catalog {
         let structures: Structures = parse::<StructuresFile>(sources.structures)
             .and_then(|file| file.resolve(&items))
             .map_err(in_file(STRUCTURES_FILE))?;
+        let characters = parse::<Characters>(sources.characters)
+            .and_then(|characters| characters.validate().map(|()| characters))
+            .map_err(in_file(CHARACTERS_FILE))?;
+        let village = parse::<VillageFile>(sources.village)
+            .and_then(|file| file.resolve(&shops.by_key, &structures.by_key))
+            .map_err(in_file(VILLAGE_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();
         for crop in &crops.definitions {
@@ -183,6 +216,8 @@ impl Catalog {
             structures: structures.definitions,
             structure_keys: structures.by_key,
             structures_by_item: structures.by_item,
+            characters,
+            village,
         })
     }
 
@@ -326,6 +361,16 @@ impl Catalog {
             .map(|(id, _)| id)
     }
 
+    /// How characters look and move.
+    pub fn characters(&self) -> &Characters {
+        &self.characters
+    }
+
+    /// Where the village's stalls and buildings stand.
+    pub fn village(&self) -> &Village {
+        &self.village
+    }
+
     /// The plants covering grassy ground.
     pub fn cover(&self) -> &[CoverDef] {
         &self.cover
@@ -397,6 +442,7 @@ mod tests {
             (
                 id: "turnip", name: "Turnip", seeds: "turnip_seeds", produce: "turnip",
                 seasons: [Spring], stages: [1, 1, 2], color: (0.9, 0.8, 0.9),
+                models: ["crops/a.glb", "crops/b.glb", "crops/c.glb", "crops/d.glb"],
             ),
         ],
     )"#;
@@ -415,6 +461,7 @@ mod tests {
                 closed_on: [Sunday], daily_limit: 20,
                 buys: [("turnip", 30), ("berries", 8)],
                 sells: [(item: "turnip_seeds", price: 10, seasons: [Spring]), (item: "compost", price: 5)],
+                stall: "town/stall.glb", keeper: "people/grocer.glb",
             ),
         ],
     )"#;
@@ -455,6 +502,8 @@ mod tests {
             scenery,
             palette,
             structures: "(structures: [])",
+            characters: "(models: [\"people/a.glb\"], scale: 1.0, hand: \"hand\", grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), scale: 1.0), animations: (idle: \"idle\", walk: \"walk\", run: \"run\", jump: \"jump\", fall: \"fall\", swing: \"swing\", work: \"work\", pick: \"pick\", greet: \"greet\"))",
+            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)])",
         })
     }
 
@@ -653,7 +702,7 @@ mod tests {
     fn inconsistent_shops_are_rejected() {
         let cases = [
             (
-                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: []),"),
+                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\", keeper: \"k.glb\"),"),
                 "shop `grocer` is defined more than once",
             ),
             (
@@ -790,7 +839,7 @@ mod tests {
     fn inconsistent_crops_are_rejected() {
         let duplicate = CROPS.replace(
             "crops: [",
-            "crops: [(id: \"turnip\", name: \"Again\", seeds: \"turnip_seeds\", produce: \"turnip\", seasons: [Spring], stages: [1], color: (0, 0, 0)),",
+            "crops: [(id: \"turnip\", name: \"Again\", seeds: \"turnip_seeds\", produce: \"turnip\", seasons: [Spring], stages: [1], color: (0, 0, 0), models: [\"a.glb\", \"b.glb\"]),",
         );
         let cases = [
             (duplicate, "crop `turnip` is defined more than once"),

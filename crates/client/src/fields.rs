@@ -1,5 +1,5 @@
 //! Fields and crops on screen: tilled squares that darken when watered, and
-//! plants built from simple shapes that grow with each stage and show their
+//! plants drawn with their crop's model for each stage, showing their
 //! produce when ripe.
 
 use std::collections::HashMap;
@@ -13,6 +13,8 @@ use messoria_shared::{
     protocol::{Crop, Field, Watered},
 };
 
+use crate::art::Models;
+
 /// Side of a tilled square, a little under the tile so rows read as rows.
 const SOIL_SIZE: f32 = 0.92;
 /// Lifts the soil above the terrain so it is not hidden inside it.
@@ -22,9 +24,17 @@ const SOIL_LIFT: f32 = 0.04;
 const SOIL_DEPTH: f32 = 0.2;
 const DRY_SOIL: Color = Color::srgb(0.42, 0.3, 0.2);
 const WET_SOIL: Color = Color::srgb(0.25, 0.17, 0.11);
-const LEAF_COLOR: Color = Color::srgb(0.32, 0.62, 0.25);
-/// Height of a fully grown stem, in meters.
-const STEM_HEIGHT: f32 = 0.55;
+/// Scale the plant models are drawn at.
+const PLANT_SCALE: f32 = 1.4;
+/// How much a plant turns each day it grows, so rows do not look stamped.
+const PLANT_TURN: f32 = 2.4;
+/// Where produce hangs on a ripe plant that does not show it, and its size.
+const PRODUCE_SPOTS: [Vec3; 3] = [
+    Vec3::new(0.12, 0.32, 0.05),
+    Vec3::new(-0.1, 0.42, -0.06),
+    Vec3::new(0.02, 0.24, -0.13),
+];
+const PRODUCE_SIZE: f32 = 0.11;
 
 pub(crate) struct FieldsPlugin;
 
@@ -44,10 +54,7 @@ struct FieldArt {
     soil: Handle<Mesh>,
     dry_soil: Handle<StandardMaterial>,
     wet_soil: Handle<StandardMaterial>,
-    stem: Handle<Mesh>,
-    leaf: Handle<Mesh>,
     produce: Handle<Mesh>,
-    leaf_material: Handle<StandardMaterial>,
     produce_materials: HashMap<CropId, Handle<StandardMaterial>>,
 }
 
@@ -81,10 +88,7 @@ fn load_field_art(
         soil: meshes.add(Cuboid::new(SOIL_SIZE, SOIL_DEPTH, SOIL_SIZE)),
         dry_soil: materials.add(matte(DRY_SOIL)),
         wet_soil: materials.add(matte(WET_SOIL)),
-        stem: meshes.add(Cylinder::new(0.025, 1.0)),
-        leaf: meshes.add(Sphere::new(0.5)),
         produce: meshes.add(Sphere::new(0.5)),
-        leaf_material: materials.add(matte(LEAF_COLOR)),
         produce_materials,
     });
 }
@@ -170,6 +174,7 @@ fn set_soil(
 /// Rebuilds a field's plant whenever its crop changes.
 fn show_crops(
     content: Res<Content>,
+    models: Res<Models>,
     art: Res<FieldArt>,
     crops: Query<(Entity, &Crop, Option<&PlantModel>), Changed<Crop>>,
     mut commands: Commands,
@@ -178,7 +183,7 @@ fn show_crops(
         if let Some(previous) = previous {
             commands.entity(previous.0).despawn();
         }
-        let plant = spawn_plant(&mut commands, &content, &art, crop.0);
+        let plant = spawn_plant(&mut commands, &content, &models, &art, crop.0);
         commands
             .entity(field)
             .add_child(plant)
@@ -193,46 +198,37 @@ fn remove_plant(trigger: On<Remove, Crop>, plants: Query<&PlantModel>, mut comma
     }
 }
 
-/// A stem that grows with each stage, a pair of leaves, and the produce once
-/// the crop is ripe.
+/// The plant's model for its stage, with its produce on it once ripe where
+/// the model does not show it.
 fn spawn_plant(
     commands: &mut Commands,
     content: &Content,
+    models: &Models,
     art: &FieldArt,
     planting: Planting,
 ) -> Entity {
     let crop = content.crop(planting.crop);
-    #[expect(clippy::cast_precision_loss, reason = "stage counts are tiny")]
-    let growth = planting.stage(crop) as f32 / crop.stages.len() as f32;
-    let height = STEM_HEIGHT * (0.2 + 0.8 * growth);
-    let leaf_size = 0.08 + 0.14 * growth;
-
+    let stage = planting.stage(crop).min(crop.models.len() - 1);
+    let ripe = planting.is_ripe(crop);
+    let turn = Quat::from_rotation_y(f32::from(planting.days_grown) * PLANT_TURN);
     commands
         .spawn((
             Name::new(crop.name.clone()),
-            Transform::from_xyz(0.0, SOIL_LIFT, 0.0),
+            Transform::from_xyz(0.0, SOIL_LIFT, 0.0).with_rotation(turn),
             Visibility::default(),
         ))
         .with_children(|plant| {
-            plant.spawn((
-                Mesh3d(art.stem.clone()),
-                MeshMaterial3d(art.leaf_material.clone()),
-                Transform::from_xyz(0.0, height / 2.0, 0.0).with_scale(Vec3::new(1.0, height, 1.0)),
-            ));
-            for side in [-1.0, 1.0] {
-                plant.spawn((
-                    Mesh3d(art.leaf.clone()),
-                    MeshMaterial3d(art.leaf_material.clone()),
-                    Transform::from_xyz(side * leaf_size * 0.6, height * 0.6, 0.0)
-                        .with_scale(Vec3::new(leaf_size, leaf_size * 0.3, leaf_size * 0.6)),
-                ));
+            if let Some(scene) = models.scene(&crop.models[stage]) {
+                plant.spawn((scene, Transform::from_scale(Vec3::splat(PLANT_SCALE))));
             }
-            if planting.is_ripe(crop) {
-                plant.spawn((
-                    Mesh3d(art.produce.clone()),
-                    MeshMaterial3d(art.produce_materials[&planting.crop].clone()),
-                    Transform::from_xyz(0.0, height, 0.0).with_scale(Vec3::splat(0.2)),
-                ));
+            if ripe && !crop.produce_shown {
+                for spot in PRODUCE_SPOTS {
+                    plant.spawn((
+                        Mesh3d(art.produce.clone()),
+                        MeshMaterial3d(art.produce_materials[&planting.crop].clone()),
+                        Transform::from_translation(spot).with_scale(Vec3::splat(PRODUCE_SIZE)),
+                    ));
+                }
             }
         })
         .id()

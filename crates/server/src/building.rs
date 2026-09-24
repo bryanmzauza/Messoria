@@ -255,7 +255,11 @@ fn build(
         for inside in structure.contained(definition) {
             raise(&mut commands, &content, inside, None);
         }
-        show.write(Show::at(Happened::Built, structure.position));
+        show.write(Show::at(
+            Happened::Built,
+            structure.position,
+            work.character,
+        ));
     }
 }
 

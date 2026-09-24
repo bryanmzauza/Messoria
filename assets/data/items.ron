@@ -2,42 +2,43 @@
 //
 // `id` is how other data files and saves refer to an item. Optional fields:
 // `stack` (most items per inventory slot, 1 if omitted), `shelf_life` (days
-// until a perishable item spoils), `spoils_into` (what it then becomes) and
+// until a perishable item spoils), `spoils_into` (what it then becomes),
 // `color` (what it is marked with on screen, for items no crop or ground
-// colors).
+// colors) and `model` (what it is drawn with in the hand and in its icon;
+// items without one are drawn as a lump of their color).
 (
     items: [
-        (id: "shovel", name: "Shovel", kind: Tool(Shovel)),
-        (id: "hoe", name: "Hoe", kind: Tool(Hoe)),
-        (id: "watering_can", name: "Watering can", kind: Tool(WateringCan)),
-        (id: "axe", name: "Axe", kind: Tool(Axe)),
-        (id: "pickaxe", name: "Pickaxe", kind: Tool(Pickaxe)),
+        (id: "shovel", name: "Shovel", kind: Tool(Shovel), model: "survival/tool-shovel.glb"),
+        (id: "hoe", name: "Hoe", kind: Tool(Hoe), model: "survival/tool-hoe.glb"),
+        (id: "watering_can", name: "Watering can", kind: Tool(WateringCan), model: "survival/bucket.glb"),
+        (id: "axe", name: "Axe", kind: Tool(Axe), model: "survival/tool-axe.glb"),
+        (id: "pickaxe", name: "Pickaxe", kind: Tool(Pickaxe), model: "survival/tool-pickaxe.glb"),
 
         // Digging yields the item listing the dug material; raising the
         // ground uses soil.
         (id: "soil", name: "Soil", kind: Terrain(materials: [Grass, Soil]), stack: 99),
-        (id: "stone", name: "Stone", kind: Terrain(materials: [Stone]), stack: 99),
+        (id: "stone", name: "Stone", kind: Terrain(materials: [Stone]), stack: 99, model: "survival/resource-stone.glb"),
         (id: "sand", name: "Sand", kind: Terrain(materials: [Sand]), stack: 99),
 
         // What each seed grows into is set in crops.ron.
-        (id: "turnip_seeds", name: "Turnip seeds", kind: Seed, stack: 99),
-        (id: "potato_seeds", name: "Potato seeds", kind: Seed, stack: 99),
-        (id: "strawberry_seeds", name: "Strawberry seeds", kind: Seed, stack: 99),
-        (id: "tomato_seeds", name: "Tomato seeds", kind: Seed, stack: 99),
-        (id: "wheat_seeds", name: "Wheat seeds", kind: Seed, stack: 99),
+        (id: "turnip_seeds", name: "Turnip seeds", kind: Seed, stack: 99, model: "food/bag.glb"),
+        (id: "potato_seeds", name: "Potato seeds", kind: Seed, stack: 99, model: "food/bag.glb"),
+        (id: "strawberry_seeds", name: "Strawberry seeds", kind: Seed, stack: 99, model: "food/bag.glb"),
+        (id: "tomato_seeds", name: "Tomato seeds", kind: Seed, stack: 99, model: "food/bag.glb"),
+        (id: "wheat_seeds", name: "Wheat seeds", kind: Seed, stack: 99, model: "food/bag.glb"),
 
-        (id: "turnip", name: "Turnip", kind: Food(energy: 12), stack: 99, shelf_life: 6, spoils_into: "compost"),
+        (id: "turnip", name: "Turnip", kind: Food(energy: 12), stack: 99, shelf_life: 6, spoils_into: "compost", model: "food/radish.glb"),
         (id: "potato", name: "Potato", kind: Food(energy: 15), stack: 99, shelf_life: 10, spoils_into: "compost"),
-        (id: "strawberry", name: "Strawberry", kind: Food(energy: 6), stack: 99, shelf_life: 3, spoils_into: "compost"),
-        (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost"),
-        (id: "wheat", name: "Wheat", kind: Goods, stack: 99),
+        (id: "strawberry", name: "Strawberry", kind: Food(energy: 6), stack: 99, shelf_life: 3, spoils_into: "compost", model: "food/strawberry.glb"),
+        (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost", model: "food/tomato.glb"),
+        (id: "wheat", name: "Wheat", kind: Goods, stack: 99, model: "nature/crops_wheatStageB.glb"),
 
         // Placed to build a structure; structures.ron says which.
-        (id: "cabin_deed", name: "Cabin deed", kind: Structure, color: (0.85, 0.75, 0.55)),
-        (id: "chest", name: "Chest", kind: Structure, stack: 10, color: (0.7, 0.45, 0.25)),
+        (id: "cabin_deed", name: "Cabin deed", kind: Structure, color: (0.85, 0.75, 0.55), model: "nature/sign.glb"),
+        (id: "chest", name: "Chest", kind: Structure, stack: 10, color: (0.7, 0.45, 0.25), model: "survival/chest.glb"),
 
         // Gathered from the scenery; scenery.ron says what gives what.
-        (id: "wood", name: "Wood", kind: Goods, stack: 99, color: (0.6, 0.42, 0.25)),
+        (id: "wood", name: "Wood", kind: Goods, stack: 99, color: (0.6, 0.42, 0.25), model: "survival/resource-wood.glb"),
 
         (
             id: "wild_berries",
@@ -46,6 +47,7 @@
             stack: 30,
             shelf_life: 3,
             spoils_into: "compost",
+            model: "food/cherries.glb",
         ),
         // Spoiled food; spread on tilled soil, it improves harvests.
         (id: "compost", name: "Compost", kind: Fertilizer, stack: 99),

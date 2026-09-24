@@ -152,12 +152,12 @@ fn work_fields(
                 }
                 let field = commands.spawn(field_bundle(tile, height)).id();
                 index.0.insert(tile, field);
-                show.write(Show::at(Happened::Tilled, at(height)));
+                show.write(Show::at(Happened::Tilled, at(height), job.character));
             }
             (FieldTask::Water, Some(field), Some((land, false, _, _))) => {
                 if energy.try_spend(tools::WATERING_ENERGY) {
                     commands.entity(field).insert(Watered);
-                    show.write(Show::at(Happened::Watered, at(land.height)));
+                    show.write(Show::at(Happened::Watered, at(land.height), job.character));
                 } else {
                     tell.write(refuse(Notice::NotEnoughEnergy));
                 }
@@ -167,7 +167,7 @@ fn work_fields(
                     tell.write(refuse(Notice::OutOfSeason));
                 } else if belongings.0.take_one(job.slot).is_some() {
                     commands.entity(field).insert(Crop(Planting::new(crop)));
-                    show.write(Show::at(Happened::Planted, at(land.height)));
+                    show.write(Show::at(Happened::Planted, at(land.height), job.character));
                 }
             }
             (FieldTask::Fertilize, Some(field), Some((land, _, false, _))) => {
@@ -175,7 +175,11 @@ fn work_fields(
                     continue;
                 }
                 commands.entity(field).insert(Fertilized);
-                show.write(Show::at(Happened::Fertilized, at(land.height)));
+                show.write(Show::at(
+                    Happened::Fertilized,
+                    at(land.height),
+                    job.character,
+                ));
             }
             _ => {}
         }
@@ -231,6 +235,7 @@ fn harvest_crops(
             show.write(Show::at(
                 Happened::Harvested,
                 Vec3::new(middle.x, land.height, middle.y),
+                character.0,
             ));
 
             let mut planting = crop.0;

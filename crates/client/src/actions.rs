@@ -13,7 +13,7 @@
 
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_content::{ItemKind, Tool};
 use messoria_shared::{
@@ -32,7 +32,7 @@ use messoria_shared::{
 use messoria_voxel::RayHit;
 
 use crate::{
-    camera::{LookSystems, View},
+    camera::{LookSystems, View, WorldCamera},
     furniture::FurnitureSystems,
     inventory::HeldSlot,
     shops::ShopSystems,
@@ -55,20 +55,22 @@ pub(crate) struct ActionsPlugin;
 
 impl Plugin for ActionsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Aim>().add_systems(
-            Update,
-            (
-                aim.in_set(AimSystems),
-                // Before the cursor is captured, so the capturing click is not a use.
+        app.init_resource::<Aim>()
+            .add_message::<Used>()
+            .add_systems(
+                Update,
                 (
-                    use_held_item,
-                    harvest.after(ShopSystems).after(FurnitureSystems),
+                    aim.in_set(AimSystems),
+                    // Before the cursor is captured, so the capturing click is not a use.
+                    (
+                        use_held_item,
+                        harvest.after(ShopSystems).after(FurnitureSystems),
+                    )
+                        .before(LookSystems),
+                    draw_aim,
                 )
-                    .before(LookSystems),
-                draw_aim,
-            )
-                .chain(),
-        );
+                    .chain(),
+            );
     }
 }
 
@@ -80,6 +82,10 @@ pub(crate) struct Aim {
     /// The entity standing there, and the point on it aimed at.
     pub thing: Option<(Entity, Vec3)>,
 }
+
+/// The local player used the held item.
+#[derive(Message, Clone, Copy, Debug)]
+pub(crate) struct Used;
 
 /// Finds what the crosshair is on.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -124,7 +130,7 @@ fn aim(
     view: Res<View>,
     terrain: Res<Terrain>,
     obstacles: Res<Obstacles>,
-    camera: Single<&Transform, With<Camera3d>>,
+    camera: Single<&Transform, With<WorldCamera>>,
     player: Query<&Position, With<InputMarker<PlayerInput>>>,
     mut aim: ResMut<Aim>,
 ) {
@@ -166,6 +172,7 @@ fn use_held_item(
     mut pressed: Local<Option<ItemAction>>,
     mut ready_at: Local<Duration>,
     mut sender: Query<&mut MessageSender<UseItem>, With<Client>>,
+    mut used: MessageWriter<Used>,
 ) {
     for (button, action) in BUTTONS {
         if mouse.just_pressed(button) {
@@ -209,6 +216,7 @@ fn use_held_item(
         target,
     });
     *ready_at = time.elapsed() + tools::USE_INTERVAL;
+    used.write(Used);
     if matches!(
         handling,
         Handling::FieldSupply | Handling::Consumable | Handling::Builder

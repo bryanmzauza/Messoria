@@ -23,6 +23,7 @@ use messoria_voxel::{ChunkPos, Material, SurfaceMesh, mesh_chunk};
 
 use crate::{
     art::{DrawnSeason, srgb},
+    camera::WorldCamera,
     noise::unit_noise,
 };
 
@@ -86,7 +87,7 @@ fn rebuild_meshes(
     content: Res<Content>,
     season: Res<DrawnSeason>,
     material: Res<TerrainMaterial>,
-    camera: Single<&Transform, With<Camera3d>>,
+    camera: Single<&Transform, With<WorldCamera>>,
     mut stale: ResMut<StaleChunks>,
     mut chunk_meshes: ResMut<ChunkMeshes>,
     mut meshes: ResMut<Assets<Mesh>>,

@@ -1,7 +1,7 @@
 //! Structures on screen: each one drawn from its parts, turned the way it
 //! faces, and lit by its lamps.
 
-use bevy::prelude::*;
+use bevy::{light::NotShadowCaster, prelude::*};
 use messoria_shared::{content::Content, protocol::Structure};
 
 use crate::art::Models;
@@ -11,6 +11,9 @@ use crate::art::Models;
 const LAMP_COLOR: Color = Color::srgb(1.0, 0.78, 0.5);
 const LAMP_LUMENS: f32 = 30_000.0;
 const LAMP_RANGE: f32 = 8.0;
+/// The glowing bulb drawn where each lamp hangs, so the light has a source.
+const BULB_RADIUS: f32 = 0.11;
+const BULB_GLOW: f32 = 12.0;
 
 pub(crate) struct StructuresPlugin;
 
@@ -24,8 +27,28 @@ fn draw_structures(
     content: Res<Content>,
     models: Res<Models>,
     built: Query<(Entity, &Structure), Added<Structure>>,
+    mut bulb: Local<Option<(Handle<Mesh>, Handle<StandardMaterial>)>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
+    let (bulb_mesh, bulb_material) = bulb
+        .get_or_insert_with(|| {
+            (
+                meshes.add(
+                    Sphere::new(BULB_RADIUS)
+                        .mesh()
+                        .ico(1)
+                        .expect("a small subdivision"),
+                ),
+                materials.add(StandardMaterial {
+                    base_color: LAMP_COLOR,
+                    emissive: LinearRgba::from(LAMP_COLOR) * BULB_GLOW,
+                    ..default()
+                }),
+            )
+        })
+        .clone();
     for (entity, structure) in &built {
         let definition = content.structure(structure.kind);
         commands
@@ -58,6 +81,9 @@ fn draw_structures(
                             shadow_maps_enabled: false,
                             ..default()
                         },
+                        Mesh3d(bulb_mesh.clone()),
+                        MeshMaterial3d(bulb_material.clone()),
+                        NotShadowCaster,
                         Transform::from_xyz(x, y, z),
                     ));
                 }

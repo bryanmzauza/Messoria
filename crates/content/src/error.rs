@@ -34,6 +34,12 @@ pub enum Problem {
     SpoilsIntoItself(String),
     #[error("item `{0}` has a color channel outside 0 to 1")]
     InvalidItemColor(String),
+    #[error("item `{item}` has an invalid model: {reason}")]
+    InvalidItemModel { item: String, reason: String },
+    #[error("the characters are invalid: {0}")]
+    InvalidCharacters(String),
+    #[error("the village is invalid: {0}")]
+    InvalidVillage(String),
     #[error("no item is dug from {0:?}")]
     UndiggableMaterial(Material),
     #[error("{material:?} is dug as both `{first}` and `{second}`")]

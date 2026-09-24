@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Problem,
     item::{ItemId, ItemKind, Items},
+    scenery::check_models,
 };
 
 /// Refers to a crop definition within a [`Catalog`](crate::Catalog), like
@@ -36,6 +37,12 @@ pub struct CropDef {
     pub harvest: u16,
     /// Color of the ripe produce, in sRGB, for drawing it.
     pub color: [f32; 3],
+    /// Models the plant is drawn with, from just planted to ripe: one more
+    /// than it has stages.
+    pub models: Vec<String>,
+    /// Whether the ripe model shows the produce; otherwise it is drawn on
+    /// the plant in the produce's color.
+    pub produce_shown: bool,
 }
 
 impl CropDef {
@@ -66,6 +73,9 @@ struct CropEntry {
     #[serde(default = "single")]
     harvest: u16,
     color: (f32, f32, f32),
+    models: Vec<String>,
+    #[serde(default)]
+    produce_shown: bool,
 }
 
 fn single() -> u16 {
@@ -120,6 +130,8 @@ impl CropsFile {
                 regrows_after: entry.regrows_after,
                 harvest: entry.harvest,
                 color: [red, green, blue],
+                models: entry.models,
+                produce_shown: entry.produce_shown,
             };
             validate(&crop)?;
             crops.definitions.push(crop);
@@ -158,6 +170,12 @@ fn validate(crop: &CropDef) -> Result<(), Problem> {
         .is_some_and(|days| days == 0 || u16::from(days) > crop.days_to_ripen())
     {
         return problem("it must take between one day and its full growth to regrow");
+    }
+    if crop.models.len() != crop.stages.len() + 1 {
+        return problem("it needs a model for each stage, and one for when it is ripe");
+    }
+    if check_models(&crop.models).is_err() {
+        return problem("its models must be .glb files inside the models folder");
     }
     Ok(())
 }

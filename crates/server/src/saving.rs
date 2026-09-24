@@ -25,6 +25,7 @@ use crate::{
     players::{AbsentPlayers, CharacterState, player_key, state_of},
     scenery::SceneryCell,
     terrain::EditedChunks,
+    village::Landmark,
 };
 
 /// Real time between two saves, besides the one at every dawn.
@@ -81,7 +82,7 @@ fn save_world(
     market: Single<&MarketState>,
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Option<&Crop>)>,
     gathered: Query<(&Prop, &SceneryCell, &Gathered)>,
-    structures: Query<(&Structure, Option<&Home>, Option<&Stored>)>,
+    structures: Query<(&Structure, Option<&Home>, Option<&Stored>), Without<Landmark>>,
     terrain: Res<Terrain>,
     mut edited: ResMut<EditedChunks>,
     characters: Query<CharacterState<'_>>,

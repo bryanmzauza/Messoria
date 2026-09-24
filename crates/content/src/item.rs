@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Problem,
     palette::{Rgb, checked_color},
+    scenery::check_models,
 };
 
 /// Refers to an item definition within a [`Catalog`](crate::Catalog).
@@ -35,6 +36,10 @@ pub struct ItemDef {
     /// Color the item is marked with on screen, for items that are not
     /// colored by what they grow into or come from.
     pub color: Option<Rgb>,
+    /// Model the item is drawn with, in the hand and in its icon, relative to
+    /// the models folder. Items without one are drawn as a lump of their
+    /// color.
+    pub model: Option<String>,
 }
 
 /// What an item is for, which decides what using it does.
@@ -117,6 +122,8 @@ struct ItemEntry {
     spoils_into: Option<String>,
     #[serde(default)]
     color: Option<(f32, f32, f32)>,
+    #[serde(default)]
+    model: Option<String>,
 }
 
 fn single() -> u16 {
@@ -187,6 +194,7 @@ impl ItemsFile {
                 shelf_life: entry.shelf_life,
                 spoils_into,
                 color,
+                model: entry.model,
             };
             validate(&item, &items.by_key)?;
             items.definitions.push(item);
@@ -215,6 +223,14 @@ fn validate(item: &ItemDef, by_key: &HashMap<String, ItemId>) -> Result<(), Prob
     }
     if item.spoils_into.is_some() && item.spoils_into == by_key.get(&item.key).copied() {
         return Err(Problem::SpoilsIntoItself(item.key.clone()));
+    }
+    if let Some(model) = &item.model
+        && let Err(reason) = check_models(std::slice::from_ref(model))
+    {
+        return Err(Problem::InvalidItemModel {
+            item: item.key.clone(),
+            reason,
+        });
     }
     Ok(())
 }

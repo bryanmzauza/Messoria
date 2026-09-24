@@ -180,11 +180,11 @@ after a server restart.
 
 Goal: the people and the village look the part.
 
-- [ ] Animated low-poly characters: idle, walking, running, using tools,
+- [x] Animated low-poly characters: idle, walking, running, using tools,
       with the held tool in hand
-- [ ] Village buildings around the square; the grocer in a proper shop
-- [ ] Crop models for every growth stage
-- [ ] Item icons in the hotbar, backpack and shop
+- [x] Village buildings around the square; the grocer in a proper shop
+- [x] Crop models for every growth stage
+- [x] Item icons in the hotbar, backpack and shop
 
 **Exit criterion:** the village square and a player at work look finished in
 screenshots.

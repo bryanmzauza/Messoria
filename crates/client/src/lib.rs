@@ -17,6 +17,7 @@ mod feedback;
 mod fields;
 mod furniture;
 mod hud;
+mod icons;
 mod input;
 mod inventory;
 mod menu;
@@ -32,6 +33,7 @@ mod structures;
 mod target;
 mod terrain;
 mod ui;
+mod viewmodel;
 mod wallet;
 mod weather;
 
@@ -75,6 +77,8 @@ impl Plugin for ClientPlugin {
             feedback::FeedbackPlugin,
             sounds::SoundsPlugin,
             particles::ParticlesPlugin,
+            icons::IconsPlugin,
+            viewmodel::ViewmodelPlugin,
         ))
         // What is on screen over it.
         .add_plugins((

@@ -13,9 +13,11 @@ mod crop;
 mod error;
 mod item;
 mod palette;
+mod people;
 mod scenery;
 mod shop;
 mod structure;
+mod village;
 
 pub use crate::{
     catalog::{Catalog, Sources},
@@ -23,7 +25,9 @@ pub use crate::{
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Quality, Tool},
     palette::{Palette, Rgb},
+    people::{Animations, Characters, Grip},
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
+    village::{Stall, Village},
 };

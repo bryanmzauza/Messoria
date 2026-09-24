@@ -43,6 +43,8 @@ pub struct PlayerInput {
     pub jump: bool,
     /// Run faster while moving forward.
     pub sprint: bool,
+    /// The hotbar slot whose item the character holds, for others to see.
+    pub held: u8,
 }
 
 impl MapEntities for PlayerInput {
@@ -335,7 +337,13 @@ pub struct Happening {
     pub what: Happened,
     /// Where it happened.
     pub at: Vec3,
+    /// The player who did it, whose character acts it out.
+    pub by: Option<PeerId>,
 }
+
+/// The item a character holds, as everyone sees it.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Holding(pub Option<ItemId>);
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Happened {
@@ -450,6 +458,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<Gathered>().replicate();
         app.component::<Structure>().replicate();
         app.component::<Stored>().replicate();
+        app.component::<Holding>().replicate();
 
         app.component::<PlayerId>().replicate();
 

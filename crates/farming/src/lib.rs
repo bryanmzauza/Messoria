@@ -140,9 +140,11 @@ mod tests {
     const CROPS: &str = r#"(
         crops: [
             (id: "turnip", name: "Turnip", seeds: "turnip_seeds", produce: "turnip",
-             seasons: [Spring], stages: [1, 1, 2], color: (1, 1, 1)),
+             seasons: [Spring], stages: [1, 1, 2], color: (1, 1, 1),
+             models: ["a.glb", "b.glb", "c.glb", "d.glb"]),
             (id: "berry", name: "Berry", seeds: "berry_seeds", produce: "berry",
-             seasons: [Spring, Summer], stages: [2, 2], regrows_after: 3, harvest: 2, color: (1, 0, 0)),
+             seasons: [Spring, Summer], stages: [2, 2], regrows_after: 3, harvest: 2, color: (1, 0, 0),
+             models: ["a.glb", "b.glb", "c.glb"]),
         ],
     )"#;
 
@@ -154,6 +156,8 @@ mod tests {
             scenery: SCENERY,
             palette: PALETTE,
             structures: "(structures: [])",
+            characters: "(models: [\"people/a.glb\"], scale: 1.0, hand: \"hand\", grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), scale: 1.0), animations: (idle: \"idle\", walk: \"walk\", run: \"run\", jump: \"jump\", fall: \"fall\", swing: \"swing\", work: \"work\", pick: \"pick\", greet: \"greet\"))",
+            village: "(stalls: [])",
         })
         .unwrap();
         let turnip = catalog.crop_id("turnip").unwrap();

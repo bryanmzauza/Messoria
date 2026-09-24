@@ -30,7 +30,10 @@ use messoria_shared::{
 use messoria_voxel::{CHUNK_SIZE, ChunkPos, Material};
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
-use crate::art::{DrawnSeason, Models, PaletteMaterials};
+use crate::{
+    art::{DrawnSeason, Models, PaletteMaterials},
+    camera::WorldCamera,
+};
 
 /// Horizontal distance, in chunks, within which chunks get cover.
 const COVER_RADIUS: i32 = 2;
@@ -203,7 +206,7 @@ fn grow_cover(
     terrain: Res<Terrain>,
     season: Res<DrawnSeason>,
     parts: Res<ModelParts>,
-    camera: Single<&Transform, With<Camera3d>>,
+    camera: Single<&Transform, With<WorldCamera>>,
     fields: Query<&Field>,
     props: Query<&Prop>,
     mut cover: ResMut<Cover>,

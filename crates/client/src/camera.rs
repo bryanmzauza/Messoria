@@ -62,6 +62,11 @@ pub(crate) struct LookSystems;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct CameraPlacement;
 
+/// The camera the world is seen through, among others that draw icons or
+/// what the player holds.
+#[derive(Component)]
+pub(crate) struct WorldCamera;
+
 /// Where the player is looking, and from where.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct View {
@@ -90,6 +95,7 @@ impl View {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Camera"),
+        WorldCamera,
         Camera3d::default(),
         SpatialListener::new(EAR_GAP),
         // The environment tints the fog to match the sky.
@@ -155,8 +161,8 @@ fn toggle_perspective(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {
 
 fn follow_player(
     view: Res<View>,
-    player: Query<&Transform, (With<InputMarker<PlayerInput>>, Without<Camera3d>)>,
-    mut camera: Single<&mut Transform, With<Camera3d>>,
+    player: Query<&Transform, (With<InputMarker<PlayerInput>>, Without<WorldCamera>)>,
+    mut camera: Single<&mut Transform, With<WorldCamera>>,
 ) {
     let Ok(player) = player.single() else {
         return;

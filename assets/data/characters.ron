@@ -1,0 +1,40 @@
+// How characters look and move.
+//
+// Every player is drawn with one of the `models`, picked from who they are,
+// so they look the same on every screen, at `scale`. What a character holds
+// hangs from the node called `hand`, placed by `grip` in that node's frame
+// (turned in degrees around x, y and z). In these models that node is the
+// shoulder and the arm reaches along -x to the hand; the grip stands a tool
+// up and a little forward while the arm hangs at rest.
+// `animations` names, for each thing a character does, the animation every
+// model plays for it.
+(
+    models: [
+        "characters/character-male-a.glb",
+        "characters/character-male-b.glb",
+        "characters/character-male-c.glb",
+        "characters/character-male-d.glb",
+        "characters/character-male-e.glb",
+        "characters/character-male-f.glb",
+        "characters/character-female-a.glb",
+        "characters/character-female-b.glb",
+        "characters/character-female-c.glb",
+        "characters/character-female-d.glb",
+        "characters/character-female-e.glb",
+        "characters/character-female-f.glb",
+    ],
+    scale: 2.5,
+    hand: "arm-right",
+    grip: (at: (-0.325, -0.125, -0.05), turn: (22.0, -21.0, -41.0), scale: 1.6),
+    animations: (
+        idle: "idle",
+        walk: "walk",
+        run: "sprint",
+        jump: "jump",
+        fall: "fall",
+        swing: "attack-melee-right",
+        work: "interact-right",
+        pick: "pick-up",
+        greet: "emote-yes",
+    ),
+)

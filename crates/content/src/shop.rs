@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Problem,
     item::{ItemId, Items, Quality},
+    scenery::check_models,
 };
 
 /// Refers to a shop definition within a [`Catalog`](crate::Catalog), like
@@ -30,6 +31,10 @@ pub struct ShopDef {
     pub buys: Vec<Offer>,
     /// What the shop sells.
     pub sells: Vec<Listing>,
+    /// Model the stall is drawn with, relative to the models folder.
+    pub stall: String,
+    /// Character model of whoever keeps the shop.
+    pub keeper: String,
 }
 
 /// An item a shop buys, and its base price per unit before the market moves
@@ -143,6 +148,8 @@ struct ShopEntry {
     daily_limit: u16,
     buys: Vec<(String, u32)>,
     sells: Vec<ListingEntry>,
+    stall: String,
+    keeper: String,
 }
 
 #[derive(Deserialize)]
@@ -221,6 +228,8 @@ impl ShopEntry {
             daily_limit: self.daily_limit,
             buys,
             sells,
+            stall: self.stall,
+            keeper: self.keeper,
         })
     }
 }
@@ -239,6 +248,9 @@ fn validate(shop: &ShopDef) -> Result<(), Problem> {
     }
     if shop.daily_limit == 0 {
         return problem("its daily limit must allow selling something");
+    }
+    if check_models(&[shop.stall.clone(), shop.keeper.clone()]).is_err() {
+        return problem("its stall and keeper must be .glb files inside the models folder");
     }
     if shop.buys.iter().any(|offer| offer.base_price == 0)
         || shop.sells.iter().any(|listing| listing.price == 0)

@@ -105,7 +105,7 @@ fn trade(
                     belongings.0 = inventory;
                     money.0 = wallet;
                     sold.set_if_neq(SoldToday(ledger));
-                    show.write(Show::at(Happened::Traded, stall.position));
+                    show.write(Show::at(Happened::Traded, stall.position, character.0));
                 }
                 Err(refusal) => {
                     tell.write(Tell {

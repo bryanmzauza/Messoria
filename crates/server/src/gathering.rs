@@ -141,7 +141,7 @@ fn gather(
                     commands.entity(entity).insert(Strikes(struck));
                 }
             }
-            show.write(Show::at(happened, work.target));
+            show.write(Show::at(happened, work.target, work.character));
             continue;
         }
 
@@ -167,7 +167,7 @@ fn gather(
         if !definition.stands_when_gathered() {
             scenery.clear(entity);
         }
-        show.write(Show::at(happened, work.target));
+        show.write(Show::at(happened, work.target, work.character));
     }
 }
 

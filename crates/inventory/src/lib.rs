@@ -319,6 +319,8 @@ mod tests {
             scenery: SCENERY,
             palette: PALETTE,
             structures: "(structures: [])",
+            characters: "(models: [\"people/a.glb\"], scale: 1.0, hand: \"hand\", grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), scale: 1.0), animations: (idle: \"idle\", walk: \"walk\", run: \"run\", jump: \"jump\", fall: \"fall\", swing: \"swing\", work: \"work\", pick: \"pick\", greet: \"greet\"))",
+            village: "(stalls: [])",
         })
         .unwrap();
         let id = |key| catalog.id(key).unwrap();

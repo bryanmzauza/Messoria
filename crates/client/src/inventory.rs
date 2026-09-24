@@ -28,8 +28,8 @@ use messoria_shared::{
 };
 
 use crate::{
-    art::item_color,
     clock::LocalClock,
+    icons::ItemIcons,
     panels::OpenPanel,
     ui::{self, ACCENT_COLOR, BACKDROP_COLOR, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, TITLE_SIZE},
 };
@@ -58,7 +58,9 @@ const HOVERED_EDGE: Color = Color::srgba(0.96, 0.92, 0.83, 0.5);
 const HELD_EDGE: Color = ACCENT_COLOR;
 /// The slot a picked-up stack came from, while it follows the cursor.
 const PICKED_FROM_COLOR: Color = Color::srgba(0.07, 0.05, 0.04, 0.35);
-const SWATCH_SIZE: f32 = 14.0;
+/// Size of an item's icon in a slot, and its distance from the slot's edge.
+const ICON_SIZE: f32 = 52.0;
+const ICON_INSET: f32 = 4.0;
 const SILVER: Color = Color::srgb(0.78, 0.8, 0.85);
 const GOLD: Color = Color::srgb(0.98, 0.78, 0.25);
 const FRESH: Color = Color::srgb(0.45, 0.78, 0.35);
@@ -125,9 +127,8 @@ struct SlotView {
 /// The pieces a stack is drawn with.
 #[derive(Clone, Copy)]
 struct SlotParts {
-    swatch: Entity,
+    icon: Entity,
     quality: Entity,
-    name: Entity,
     count: Entity,
     freshness: Entity,
     freshness_fill: Entity,
@@ -387,15 +388,15 @@ fn spawn_slot_body(commands: &mut Commands, slot: Entity) -> SlotParts {
             bottom: bottom.map_or(Val::Auto, px),
             ..default()
         };
-    let swatch = commands
+    let icon = commands
         .spawn((
             Node {
-                width: px(SWATCH_SIZE),
-                height: px(SWATCH_SIZE),
-                border_radius: BorderRadius::all(px(3)),
-                ..corner(Some(5.0), Some(5.0), None, None)
+                width: px(ICON_SIZE),
+                height: px(ICON_SIZE),
+                ..corner(Some(ICON_INSET), Some(ICON_INSET), None, None)
             },
-            BackgroundColor(Color::NONE),
+            ImageNode::default(),
+            Visibility::Hidden,
         ))
         .id();
     let quality = commands
@@ -407,14 +408,6 @@ fn spawn_slot_body(commands: &mut Commands, slot: Entity) -> SlotParts {
                 ..corner(None, Some(6.0), Some(6.0), None)
             },
             BackgroundColor(Color::NONE),
-        ))
-        .id();
-    let name = commands
-        .spawn((
-            corner(Some(5.0), Some(22.0), Some(3.0), None),
-            Text::new(""),
-            TextFont::from_font_size(11.0),
-            TextColor(TEXT_COLOR),
         ))
         .id();
     let count = commands
@@ -454,11 +447,10 @@ fn spawn_slot_body(commands: &mut Commands, slot: Entity) -> SlotParts {
         .id();
     commands
         .entity(slot)
-        .add_children(&[swatch, quality, name, count, freshness]);
+        .add_children(&[icon, quality, count, freshness]);
     SlotParts {
-        swatch,
+        icon,
         quality,
-        name,
         count,
         freshness,
         freshness_fill,
@@ -595,21 +587,19 @@ fn click_slots(
 
 /// Everything a stack is drawn with, worked out once per slot.
 struct StackLook {
-    tint: Color,
+    icon: Option<Handle<Image>>,
     quality: Color,
-    name: String,
     count: String,
     /// The part of its shelf life a perishable has left.
     freshness: Option<f32>,
 }
 
 impl StackLook {
-    fn of(content: &Content, stack: Option<&Stack>, today: Option<u32>) -> Self {
+    fn of(content: &Content, icons: &ItemIcons, stack: Option<&Stack>, today: Option<u32>) -> Self {
         let Some(stack) = stack else {
             return Self {
-                tint: Color::NONE,
+                icon: None,
                 quality: Color::NONE,
-                name: String::new(),
                 count: String::new(),
                 freshness: None,
             };
@@ -624,13 +614,12 @@ impl StackLook {
             _ => None,
         };
         Self {
-            tint: item_color(content, stack.item),
+            icon: icons.get(stack.item),
             quality: match stack.quality {
                 Quality::Normal => Color::NONE,
                 Quality::Silver => SILVER,
                 Quality::Gold => GOLD,
             },
-            name: definition.name.clone(),
             count: if stack.count > 1 {
                 stack.count.to_string()
             } else {
@@ -643,6 +632,7 @@ impl StackLook {
 
 fn show_slots(
     content: Res<Content>,
+    icons: Res<ItemIcons>,
     clock: Res<LocalClock>,
     held: Res<HeldSlot>,
     picked: Res<PickedSlot>,
@@ -669,7 +659,7 @@ fn show_slots(
         } else {
             stacks.get(view.place)
         };
-        parts.draw(&view.parts, &StackLook::of(&content, shown, today));
+        parts.draw(&view.parts, &StackLook::of(&content, &icons, shown, today));
         let edge = if held == view.place {
             HELD_EDGE
         } else if hovered {
@@ -691,7 +681,7 @@ fn show_slots(
     let (cursor, mut visibility) = cursor.into_inner();
     let carried = picked.0.and_then(|place| stacks.get(place));
     visibility.set_if_neq(ui::visible_if(carried.is_some()));
-    parts.draw(&cursor.0, &StackLook::of(&content, carried, today));
+    parts.draw(&cursor.0, &StackLook::of(&content, &icons, carried, today));
 }
 
 /// Access to the pieces of every drawn stack.
@@ -701,14 +691,21 @@ struct SlotPartsParams<'w, 's> {
     edges: Query<'w, 's, &'static mut BorderColor>,
     texts: Query<'w, 's, &'static mut Text>,
     nodes: Query<'w, 's, &'static mut Node>,
+    images: Query<'w, 's, &'static mut ImageNode>,
     visibilities: Query<'w, 's, &'static mut Visibility, Without<CursorStack>>,
 }
 
 impl SlotPartsParams<'_, '_> {
     fn draw(&mut self, parts: &SlotParts, look: &StackLook) {
-        self.color(parts.swatch, look.tint);
+        if let Ok(mut visibility) = self.visibilities.get_mut(parts.icon) {
+            visibility.set_if_neq(ui::visible_if(look.icon.is_some()));
+        }
+        if let (Some(icon), Ok(mut image)) = (&look.icon, self.images.get_mut(parts.icon))
+            && image.image != *icon
+        {
+            image.image = icon.clone();
+        }
         self.color(parts.quality, look.quality);
-        self.text(parts.name, &look.name);
         self.text(parts.count, &look.count);
         if let Ok(mut visibility) = self.visibilities.get_mut(parts.freshness) {
             visibility.set_if_neq(ui::visible_if(look.freshness.is_some()));

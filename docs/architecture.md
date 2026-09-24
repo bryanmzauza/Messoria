@@ -156,10 +156,10 @@ remote characters are interpolated between server snapshots.
 ## Content
 
 Game content (items, crops, shops and the market's tuning, scenery, the
-palette and structures) lives in RON files under `assets/data/`, never in
-code. Models live
-under `assets/models/`, and the catalog checks that every model it refers to
-is there.
+palette, structures, the village's layout and the characters) lives in RON
+files under `assets/data/`, never in code. Models live under
+`assets/models/`, and the catalog checks that every model it refers to is
+there.
 
 - Executables load the catalog before building the app. Any problem, from a
   syntax error to a reference to an item that does not exist, stops the
@@ -267,14 +267,39 @@ See [ADR 0009](adr/0009-action-feedback-and-collision.md).
 - The game menu, its options and the backpack window are client panels
   (`OpenPanel`), one at a time. Options are kept in `saves/settings.ron`.
 
+## Characters and icons
+
+See [ADR 0012](adr/0012-characters-village-and-icons.md).
+
+- Every character is drawn with a rigged model from `characters.ron`,
+  picked from its player's id so it looks the same on every screen. Each
+  model's animations are gathered into one graph, and a body plays idle,
+  walking, running, jumping or falling from its velocity, blending between
+  them. Happenings name who caused them (`Happening::by`), and that
+  character acts them out: swinging a tool, working the ground, picking up.
+- What a character holds hangs from its hand. The local player's hand
+  follows its hotbar at once; everyone else's follows the replicated
+  `Holding`, which the server derives from the held slot in `PlayerInput`.
+- In first person a second camera draws the held item over the world, on its
+  own render layer, so it never sinks into walls; it sways with the steps
+  and swings on each use.
+- Shopkeepers stand behind their stalls' counters, with some of their wares
+  on them, and greet whoever trades there.
+- Item icons are rendered by the client at startup from each item's model
+  (a lump of its color if it has none; seeds with what they grow into),
+  each by its own camera into an image, far below the valley on a render
+  layer nothing else uses. The hotbar, backpack, chest and shop show them.
+
 ## Village and economy
 
 See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
 
 - The village is a fixed area of the valley (`messoria_shared::village`),
   generated level and paved. Its ground cannot be dug, raised or tilled.
-- Each shop's stall is a replicated `Shopfront` entity placed by the server's
-  village layout. A client trades by sending `Trade` while its character
+- `village.ron` places each shop's stall and the village's buildings around
+  the square. At startup the server spawns a replicated `Shopfront` for each
+  stall and a `Structure` marked `Landmark` for each building; landmarks are
+  rebuilt from the data every time, so saves leave them out. A client trades by sending `Trade` while its character
   stands at the stall; the server checks the stall, the shop's hours and the
   trade rules.
 - Characters carry `Money` and `SoldToday` (their sales against the shops'

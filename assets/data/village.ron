@@ -1,0 +1,28 @@
+// The village square: where each shop trades and what stands around it.
+//
+// Places are in meters from the middle of the square, with -z away from where
+// players arrive, and turns are in degrees. A stall's turn is the way its
+// counter faces; a structure's is how far it is turned from facing -z, so
+// 180 faces the square from its far side. Every shop has one stall.
+(
+    stalls: [
+        (id: "grocer", at: (5.5, -4.6), turn: 180),
+        (id: "carpenter", at: (-5.5, -4.6), turn: 180),
+    ],
+    structures: [
+        (id: "fountain", at: (0.0, 0.5)),
+        (id: "grocery", at: (5.5, -9.8), turn: 180),
+        (id: "workshop", at: (-5.5, -9.8), turn: 180),
+        (id: "cottage", at: (11.2, 1.0), turn: 90),
+        (id: "cottage", at: (-11.2, 1.0), turn: 270),
+        (id: "cart", at: (-10.2, -5.5), turn: 20),
+        (id: "bench", at: (0.0, 4.9), turn: 90),
+        (id: "bench", at: (0.0, -3.9), turn: 90),
+        (id: "lantern", at: (4.2, 4.6)),
+        (id: "lantern", at: (-4.2, 4.6)),
+        (id: "lantern", at: (2.4, -4.4)),
+        (id: "lantern", at: (-2.4, -4.4)),
+        (id: "lantern", at: (8.4, 5.6)),
+        (id: "lantern", at: (-8.4, 5.6)),
+    ],
+)

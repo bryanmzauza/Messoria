@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use messoria_calendar::Weather;
 use messoria_shared::protocol::CurrentWeather;
 
-use crate::noise::unit_noise;
+use crate::{camera::WorldCamera, noise::unit_noise};
 
 const DROPS: u32 = 500;
 /// Half the width and the height of the box drops fall through, in meters.
@@ -51,7 +51,7 @@ const SNOW: Precipitation = Precipitation {
 fn draw_precipitation(
     time: Res<Time>,
     weather: Query<&CurrentWeather>,
-    camera: Single<&Transform, With<Camera3d>>,
+    camera: Single<&Transform, With<WorldCamera>>,
     mut gizmos: Gizmos,
 ) {
     let precipitation = match weather.single().map(|weather| weather.0) {

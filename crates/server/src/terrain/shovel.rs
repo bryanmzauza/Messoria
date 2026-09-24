@@ -109,7 +109,7 @@ fn apply_shovel_uses(
         let brush = tools::shovel_brush(shovel_use.target, shovel_use.action);
         reshape(&mut terrain, &brush, &mut edited, &mut chunk_changed);
         reshaped.write(GroundReshaped(brush));
-        show.write(Show::at(happened, shovel_use.target));
+        show.write(Show::at(happened, shovel_use.target, shovel_use.character));
     }
 }
 

@@ -15,7 +15,11 @@ use bevy::{
 };
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
-use crate::{camera::CameraPlacement, environment::Sky, ui::visible_if};
+use crate::{
+    camera::{CameraPlacement, WorldCamera},
+    environment::Sky,
+    ui::visible_if,
+};
 
 /// Radius of the dome, within the camera's far plane and beyond everything
 /// else.
@@ -258,7 +262,7 @@ fn shade_dome(
 /// the light, facing the camera.
 fn place_sky(
     sky: Res<Sky>,
-    camera: Single<&Transform, (With<Camera3d>, Without<Dome>, Without<Disc>)>,
+    camera: Single<&Transform, (With<WorldCamera>, Without<Dome>, Without<Disc>)>,
     mut dome: Single<&mut Transform, (With<Dome>, Without<Disc>)>,
     mut discs: Query<(&Disc, &mut Transform, &mut Visibility), Without<Dome>>,
 ) {

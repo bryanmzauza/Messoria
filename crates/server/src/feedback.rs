@@ -7,7 +7,7 @@
 
 use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::*;
-use messoria_shared::protocol::{FeedbackChannel, Happened, Happening, Notice};
+use messoria_shared::protocol::{FeedbackChannel, Happened, Happening, Notice, PlayerId};
 
 pub(crate) struct FeedbackPlugin;
 
@@ -28,13 +28,18 @@ pub(crate) struct Tell {
     pub notice: Notice,
 }
 
-/// Something happened at a place, for every player to hear and see.
+/// Something happened at a place, done by a character, for every player to
+/// hear and see.
 #[derive(Message, Clone, Copy, Debug)]
-pub(crate) struct Show(pub Happening);
+pub(crate) struct Show {
+    what: Happened,
+    at: Vec3,
+    by: Entity,
+}
 
 impl Show {
-    pub(crate) fn at(what: Happened, at: Vec3) -> Self {
-        Self(Happening { what, at })
+    pub(crate) fn at(what: Happened, at: Vec3, by: Entity) -> Self {
+        Self { what, at, by }
     }
 }
 
@@ -55,11 +60,17 @@ fn send_notices(
 
 fn send_happenings(
     mut shows: MessageReader<Show>,
+    players: Query<&PlayerId>,
     mut senders: Query<&mut MessageSender<Happening>>,
 ) {
-    for Show(happening) in shows.read() {
+    for show in shows.read() {
+        let happening = Happening {
+            what: show.what,
+            at: show.at,
+            by: players.get(show.by).ok().map(|player| player.0),
+        };
         for mut sender in &mut senders {
-            sender.send::<FeedbackChannel>(*happening);
+            sender.send::<FeedbackChannel>(happening);
         }
     }
 }

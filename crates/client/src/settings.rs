@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use bevy::{audio::Volume, prelude::*};
 use messoria_save::Settings;
 
-use crate::panels::OpenPanel;
+use crate::{camera::WorldCamera, panels::OpenPanel};
 
 pub(crate) struct SettingsPlugin {
     /// Where the settings are kept.
@@ -43,7 +43,7 @@ fn apply_volume(preferences: Res<Preferences>, mut volume: ResMut<GlobalVolume>)
 
 fn apply_field_of_view(
     preferences: Res<Preferences>,
-    mut cameras: Query<(&mut Projection, Ref<Camera3d>)>,
+    mut cameras: Query<(&mut Projection, Ref<WorldCamera>)>,
 ) {
     for (mut projection, camera) in &mut cameras {
         if (preferences.is_changed() || camera.is_added())

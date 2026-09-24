@@ -10,6 +10,8 @@ so they may look different from the originals.
 | `models/town/` | [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) 2.0 | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `models/furniture/` | [Furniture Kit](https://kenney.nl/assets/furniture-kit) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `models/survival/` | [Survival Kit](https://kenney.nl/assets/survival-kit) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `models/food/` | [Food Kit](https://kenney.nl/assets/food-kit) 2.0 | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `models/characters/` | [Mini Characters](https://kenney.nl/assets/mini-characters) 1.0 | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/impact/` | [Impact Sounds](https://kenney.nl/assets/impact-sounds) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/interface/` | [Interface Sounds](https://kenney.nl/assets/interface-sounds) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/rpg/` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |

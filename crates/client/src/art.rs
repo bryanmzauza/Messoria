@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 
 use bevy::{
+    camera::visibility::RenderLayers,
     gltf::{Gltf, GltfAssetLabel, GltfMaterialName},
     prelude::*,
     world_serialization::{WorldAsset, WorldAssetRoot},
@@ -30,7 +31,8 @@ impl Plugin for ArtPlugin {
             .init_resource::<PaletteMaterials>()
             .init_resource::<Models>()
             .add_systems(Startup, load_models)
-            .add_systems(PreUpdate, (follow_season, use_palette_materials));
+            .add_systems(PreUpdate, (follow_season, use_palette_materials))
+            .add_systems(Update, keep_on_layers);
     }
 }
 
@@ -41,6 +43,29 @@ pub(crate) struct DrawnSeason(pub Season);
 impl Default for DrawnSeason {
     fn default() -> Self {
         Self(Season::Spring)
+    }
+}
+
+/// Draws everything under this entity on one render layer, for a camera of
+/// its own, such as an icon's.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct DrawnOnLayer(pub usize);
+
+/// Models spawn their meshes without knowing about layers; this puts each
+/// on the layer of the entity it hangs under, if any.
+fn keep_on_layers(
+    added: Query<Entity, (Added<Mesh3d>, Without<RenderLayers>)>,
+    ancestors: Query<&ChildOf>,
+    layers: Query<&DrawnOnLayer>,
+    mut commands: Commands,
+) {
+    for mesh in &added {
+        if let Some(DrawnOnLayer(layer)) = ancestors
+            .iter_ancestors(mesh)
+            .find_map(|ancestor| layers.get(ancestor).ok())
+        {
+            commands.entity(mesh).insert(RenderLayers::layer(*layer));
+        }
     }
 }
 
@@ -136,7 +161,15 @@ fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResM
             content
                 .structures()
                 .flat_map(|(_, structure)| structure.parts.iter().map(|part| &part.model)),
-        );
+        )
+        .chain(content.items().filter_map(|(_, item)| item.model.as_ref()))
+        .chain(content.crops().flat_map(|(_, crop)| &crop.models))
+        .chain(
+            content
+                .shops()
+                .flat_map(|(_, shop)| [&shop.stall, &shop.keeper]),
+        )
+        .chain(&content.characters().models);
     for path in paths {
         if models.files.contains_key(path) {
             continue;

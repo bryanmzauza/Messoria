@@ -8,14 +8,16 @@
 use std::{collections::HashSet, time::Duration};
 
 use bevy::{ecs::message::Message, prelude::*};
-use lightyear::prelude::*;
+use lightyear::prelude::{input::native::ActionState, *};
 use messoria_content::{CropId, ItemKind, Tool};
 use messoria_inventory::HOTBAR_SLOTS;
 use messoria_shared::{
     content::Content,
     energy::Energy,
     movement::EYE_HEIGHT,
-    protocol::{Asleep, Belongings, Happened, ItemAction, MoveItem, Position, UseItem},
+    protocol::{
+        Asleep, Belongings, Happened, Holding, ItemAction, MoveItem, PlayerInput, Position, UseItem,
+    },
     tools::{self, ShovelAction},
 };
 
@@ -43,7 +45,10 @@ impl Plugin for InventoryPlugin {
                     .chain()
                     .after(MessageSystems::Receive),
             )
-            .add_systems(FixedUpdate, spoil_items.after(ClockSystems));
+            .add_systems(
+                FixedUpdate,
+                (spoil_items.after(ClockSystems), show_held_items),
+            );
     }
 }
 
@@ -193,7 +198,11 @@ fn use_items(
                 ) if request.action == ItemAction::Primary && *energy < Energy::FULL => {
                     belongings.0.take_one(slot);
                     energy.gain(nourishment);
-                    show.write(Show::at(Happened::Ate, feet.0 + Vec3::Y * EYE_HEIGHT));
+                    show.write(Show::at(
+                        Happened::Ate,
+                        feet.0 + Vec3::Y * EYE_HEIGHT,
+                        character.0,
+                    ));
                     true
                 }
                 _ => false,
@@ -201,6 +210,31 @@ fn use_items(
             if used {
                 used_this_frame.insert(client);
                 commands.entity(client).insert(LastItemUse(now));
+            }
+        }
+    }
+}
+
+/// Keeps what each character holds up to date, from the hotbar slot its
+/// player holds and what is in it.
+fn show_held_items(
+    mut characters: Query<(
+        Entity,
+        &ActionState<PlayerInput>,
+        &Belongings,
+        Option<&mut Holding>,
+    )>,
+    mut commands: Commands,
+) {
+    for (character, input, belongings, holding) in &mut characters {
+        let slot = usize::from(input.0.held).min(HOTBAR_SLOTS - 1);
+        let held = Holding(belongings.0.slot(slot).map(|stack| stack.item));
+        match holding {
+            Some(mut holding) => {
+                holding.set_if_neq(held);
+            }
+            None => {
+                commands.entity(character).insert(held);
             }
         }
     }

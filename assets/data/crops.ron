@@ -6,6 +6,9 @@
 // watered every day ripens as many days later as its stages add up to. Crops
 // with `regrows_after` keep producing, ripening again that many watered days
 // after each harvest. `color` is the ripe produce's color, in sRGB.
+// `models` draw the plant, from just planted to ripe, one more than it has
+// stages; produce is drawn on the ripe plant in its color unless the ripe
+// model shows it (`produce_shown`).
 (
     crops: [
         (
@@ -16,6 +19,13 @@
             seasons: [Spring],
             stages: [1, 1, 2],
             color: (0.93, 0.82, 0.9),
+            models: [
+                "nature/crops_leafsStageA.glb",
+                "nature/crops_leafsStageA.glb",
+                "nature/crops_leafsStageB.glb",
+                "nature/crop_turnip.glb",
+            ],
+            produce_shown: true,
         ),
         (
             id: "potato",
@@ -26,6 +36,12 @@
             stages: [2, 2, 2],
             harvest: 2,
             color: (0.72, 0.56, 0.36),
+            models: [
+                "nature/crops_leafsStageA.glb",
+                "nature/crops_leafsStageB.glb",
+                "nature/crops_leafsStageB.glb",
+                "nature/crops_leafsStageB.glb",
+            ],
         ),
         (
             id: "strawberry",
@@ -37,6 +53,13 @@
             regrows_after: 3,
             harvest: 2,
             color: (0.9, 0.15, 0.2),
+            models: [
+                "nature/crops_leafsStageA.glb",
+                "nature/crops_leafsStageA.glb",
+                "nature/crops_leafsStageB.glb",
+                "nature/crops_leafsStageB.glb",
+                "nature/crops_leafsStageB.glb",
+            ],
         ),
         (
             id: "tomato",
@@ -48,6 +71,13 @@
             regrows_after: 4,
             harvest: 2,
             color: (0.92, 0.25, 0.15),
+            models: [
+                "nature/crops_cornStageA.glb",
+                "nature/crops_cornStageA.glb",
+                "nature/crops_cornStageB.glb",
+                "nature/crops_cornStageC.glb",
+                "nature/crops_cornStageC.glb",
+            ],
         ),
         (
             id: "wheat",
@@ -58,6 +88,13 @@
             stages: [2, 3, 3],
             harvest: 3,
             color: (0.9, 0.78, 0.4),
+            models: [
+                "nature/crops_wheatStageA.glb",
+                "nature/crops_wheatStageA.glb",
+                "nature/crops_wheatStageB.glb",
+                "nature/crops_wheatStageB.glb",
+            ],
+            produce_shown: true,
         ),
     ],
 )
