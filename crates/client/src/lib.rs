@@ -15,6 +15,7 @@ mod cover;
 mod environment;
 mod feedback;
 mod fields;
+mod figures;
 mod furniture;
 mod hud;
 mod icons;
@@ -27,6 +28,7 @@ mod particles;
 mod scenery;
 mod settings;
 mod shops;
+mod skins;
 mod sky;
 mod sounds;
 mod structures;
@@ -77,6 +79,8 @@ impl Plugin for ClientPlugin {
             feedback::FeedbackPlugin,
             sounds::SoundsPlugin,
             particles::ParticlesPlugin,
+            figures::FiguresPlugin,
+            skins::SkinsPlugin,
             icons::IconsPlugin,
             viewmodel::ViewmodelPlugin,
         ))

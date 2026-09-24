@@ -319,7 +319,12 @@ mod tests {
             scenery: SCENERY,
             palette: PALETTE,
             structures: "(structures: [])",
-            characters: "(models: [\"people/a.glb\"], scale: 1.0, hand: \"hand\", grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), scale: 1.0), animations: (idle: \"idle\", walk: \"walk\", run: \"run\", jump: \"jump\", fall: \"fall\", swing: \"swing\", work: \"work\", pick: \"pick\", greet: \"greet\"))",
+            characters: r#"(
+                pixel: 0.1, texels: 1, skin_size: (4, 2),
+                limbs: (body: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), head: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_arm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_arm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_leg: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_leg: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))])),
+                grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
+                wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.0, 0.0, 0.0)]),
+            )"#,
             village: "(stalls: [])",
         })
         .unwrap();

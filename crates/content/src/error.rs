@@ -84,6 +84,8 @@ pub enum Problem {
     InvalidCover { index: usize, reason: String },
     #[error("model `{0}` is not in the models folder")]
     MissingModel(String),
+    #[error("skin `{0}` is not in the skins folder")]
+    MissingSkin(String),
     #[error("color `{0}` has a channel outside 0 to 1")]
     InvalidColor(String),
     #[error("the palette has no color for `{0}`")]

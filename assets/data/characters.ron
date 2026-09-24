@@ -1,40 +1,89 @@
-// How characters look and move.
+// How characters are built and dressed.
 //
-// Every player is drawn with one of the `models`, picked from who they are,
-// so they look the same on every screen, at `scale`. What a character holds
-// hangs from the node called `hand`, placed by `grip` in that node's frame
-// (turned in degrees around x, y and z). In these models that node is the
-// shoulder and the arm reaches along -x to the hand; the grip stands a tool
-// up and a little forward while the arm hangs at rest.
-// `animations` names, for each thing a character does, the animation every
-// model plays for it.
+// A character is a figure of boxes, each limb turning at its joint: the body
+// and the legs at the hips, measured from the feet, and the head and the arms
+// at the neck and the shoulders, measured from the body's joint. Lengths are
+// in figure pixels of `pixel` meters, and the figure faces -z. Each of a
+// limb's `boxes` spans `size` from `from`, relative to its joint; `inflate`
+// grows a box on every side, as hair grows over a head.
+//
+// Boxes are painted from skins of `skin_size` texels, `texels` of them per
+// figure pixel. A box's faces are unwrapped from `uv`: its top and bottom in
+// a row, then its right, front, left and back faces below them.
+//
+// A skin is laid in layers from the skins folder: a body, an outfit over it
+// and hair over both, painted in grays and tinted with a hair color (sRGB).
+// Every player is dressed from the `wardrobe`, one of each, picked from who
+// they are so they look the same on every screen. What a character holds sits
+// in the right hand, placed by `grip` from the arm's joint, its model fitted so
+// that its longest side is `tool_size` meters for tools and `item_size` for
+// anything else. Tools are turned by `turn` (degrees around x, y and z);
+// anything else is held upright.
 (
-    models: [
-        "characters/character-male-a.glb",
-        "characters/character-male-b.glb",
-        "characters/character-male-c.glb",
-        "characters/character-male-d.glb",
-        "characters/character-male-e.glb",
-        "characters/character-male-f.glb",
-        "characters/character-female-a.glb",
-        "characters/character-female-b.glb",
-        "characters/character-female-c.glb",
-        "characters/character-female-d.glb",
-        "characters/character-female-e.glb",
-        "characters/character-female-f.glb",
-    ],
-    scale: 2.5,
-    hand: "arm-right",
-    grip: (at: (-0.325, -0.125, -0.05), turn: (22.0, -21.0, -41.0), scale: 1.6),
-    animations: (
-        idle: "idle",
-        walk: "walk",
-        run: "sprint",
-        jump: "jump",
-        fall: "fall",
-        swing: "attack-melee-right",
-        work: "interact-right",
-        pick: "pick-up",
-        greet: "emote-yes",
+    pixel: 0.066,
+    texels: 2,
+    skin_size: (128, 128),
+    limbs: (
+        body: (
+            joint: (0.0, 8.0, 0.0),
+            boxes: [(from: (-4.5, 0.0, -2.5), size: (9.0, 8.0, 5.0), uv: (0, 80))],
+        ),
+        head: (
+            joint: (0.0, 8.0, 0.0),
+            boxes: [
+                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (0, 0)),
+                (from: (-5.5, 0.0, -5.0), size: (11.0, 10.0, 10.0), uv: (0, 40), inflate: 0.6),
+                (from: (-0.75, 3.0, -5.5), size: (1.5, 1.0, 0.5), uv: (76, 106)),
+            ],
+        ),
+        right_arm: (
+            joint: (6.25, 7.0, 0.0),
+            boxes: [
+                (from: (-1.75, -6.5, -1.75), size: (3.5, 8.0, 3.5), uv: (56, 80)),
+                (from: (-2.0, -9.0, -2.0), size: (4.0, 3.0, 4.0), uv: (84, 48)),
+            ],
+        ),
+        left_arm: (
+            joint: (-6.25, 7.0, 0.0),
+            boxes: [
+                (from: (-1.75, -6.5, -1.75), size: (3.5, 8.0, 3.5), uv: (84, 80)),
+                (from: (-2.0, -9.0, -2.0), size: (4.0, 3.0, 4.0), uv: (84, 62)),
+            ],
+        ),
+        right_leg: (
+            joint: (2.25, 8.0, 0.0),
+            boxes: [
+                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (84, 0)),
+                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (0, 106)),
+            ],
+        ),
+        left_leg: (
+            joint: (-2.25, 8.0, 0.0),
+            boxes: [
+                (from: (-2.0, -8.0, -2.0), size: (4.0, 8.0, 4.0), uv: (84, 24)),
+                (from: (-2.25, -8.0, -2.75), size: (4.5, 3.0, 5.0), uv: (38, 106)),
+            ],
+        ),
+    ),
+    grip: (at: (0.0, -7.5, 0.0), turn: (-70.0, 0.0, 0.0), tool_size: 0.95, item_size: 0.35),
+    wardrobe: (
+        bodies: ["body-fair.png", "body-light.png", "body-tan.png", "body-brown.png", "body-dark.png"],
+        outfits: [
+            "outfit-overalls.png",
+            "outfit-tunic.png",
+            "outfit-flannel.png",
+            "outfit-vest.png",
+            "outfit-dress.png",
+        ],
+        hair: ["hair-short.png", "hair-long.png", "hair-bob.png", "hair-curly.png", "hair-beard.png"],
+        hair_colors: [
+            (0.13, 0.1, 0.09),
+            (0.3, 0.2, 0.13),
+            (0.48, 0.32, 0.2),
+            (0.55, 0.25, 0.13),
+            (0.8, 0.42, 0.18),
+            (0.93, 0.78, 0.45),
+            (0.72, 0.72, 0.72),
+        ],
     ),
 )

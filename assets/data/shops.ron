@@ -5,8 +5,8 @@
 // moves, and `sells` items at a fixed price. A sold item that lists `seasons`
 // is only on sale in them. Each player can sell a shop at most `daily_limit`
 // units of each item a day. A shop's `stall` is the model its counter is
-// drawn with, and its `keeper` the character who stands behind it;
-// village.ron says where each stall stands.
+// drawn with, and its `keeper` how the character behind it is dressed (see
+// characters.ron); village.ron says where each stall stands.
 (
     // Prices shops pay are shared by the whole server: every unit anyone
     // sells saturates the market for that item and lowers its price, and the
@@ -31,7 +31,12 @@
             closed_on: [Sunday],
             daily_limit: 60,
             stall: "town/stall-red.glb",
-            keeper: "characters/character-female-c.glb",
+            keeper: (
+                body: "body-brown.png",
+                outfit: "outfit-grocer.png",
+                hair: "hair-bun.png",
+                hair_color: (0.2, 0.12, 0.08),
+            ),
             buys: [
                 ("turnip", 35),
                 ("potato", 40),
@@ -56,7 +61,12 @@
             closed_on: [Sunday],
             daily_limit: 60,
             stall: "town/stall-green.glb",
-            keeper: "characters/character-male-d.glb",
+            keeper: (
+                body: "body-light.png",
+                outfit: "outfit-carpenter.png",
+                hair: "hair-beard.png",
+                hair_color: (0.62, 0.3, 0.14),
+            ),
             buys: [
                 ("wood", 8),
                 ("stone", 6),

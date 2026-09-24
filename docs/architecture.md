@@ -271,18 +271,24 @@ See [ADR 0009](adr/0009-action-feedback-and-collision.md).
 
 See [ADR 0012](adr/0012-characters-village-and-icons.md).
 
-- Every character is drawn with a rigged model from `characters.ron`,
-  picked from its player's id so it looks the same on every screen. Each
-  model's animations are gathered into one graph, and a body plays idle,
-  walking, running, jumping or falling from its velocity, blending between
-  them. Happenings name who caused them (`Happening::by`), and that
-  character acts them out: swinging a tool, working the ground, picking up.
-- What a character holds hangs from its hand. The local player's hand
-  follows its hotbar at once; everyone else's follows the replicated
-  `Holding`, which the server derives from the held slot in `PlayerInput`.
-- In first person a second camera draws the held item over the world, on its
-  own render layer, so it never sinks into walls; it sways with the steps
-  and swings on each use.
+- Every character is a figure of boxes (`figures`), built from the limbs in
+  `characters.ron` and painted from a skin. `skins` lays each look's layers
+  (a body, an outfit, hair tinted with a hair color) into one image once they
+  load, and figures dressed alike share its material. Players are dressed
+  from the wardrobe by their id (`Characters::look_for`), so everyone sees
+  the same look for the same player; shopkeepers' looks are in `shops.ron`.
+- `avatars` poses figures every frame rather than playing recorded clips:
+  legs and arms swing with the distance walked, figures lean into a run and
+  spread their arms in the air, and sleepers lie in the nearest bed.
+  Happenings name who caused them (`Happening::by`), and that character acts
+  them out: chopping, digging, bending down to plant, watering, eating.
+- What a character holds is fitted to its hand by the size of its model.
+  The local player's hand follows its hotbar at once; everyone else's
+  follows the replicated `Holding`, which the server derives from the held
+  slot in `PlayerInput`.
+- In first person a second camera draws the player's own arm, holding the
+  item, over the world on its own render layer, so it never sinks into
+  walls; it sways with the steps and swings on each use.
 - Shopkeepers stand behind their stalls' counters, with some of their wares
   on them, and greet whoever trades there.
 - Item icons are rendered by the client at startup from each item's model

@@ -15,8 +15,9 @@ terrain with a shovel, farm crops through the seasons, sell their harvests at
 the village grocer, whose prices respond to what everyone sells, and live
 through days and nights that end when they go to sleep, under a sky that
 turns with the hours and a valley that turns with the seasons. They gather
-wood and stone, build cabins, and see each other as animated characters with
-their tools in hand, around a village square with shops and shopkeepers.
+wood and stone, build cabins, and see each other as blocky, hand-painted
+characters, each dressed their own way, with their tools in hand, around a
+village square with shops and shopkeepers.
 Worlds are saved and resume where they stopped. Music and a playtest are
 next. See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
@@ -101,7 +102,9 @@ Game content lives in `assets/data/`: items in
 gathering them gives in [`scenery.ron`](assets/data/scenery.ron), what
 players build in [`structures.ron`](assets/data/structures.ron), how the
 village is laid out in [`village.ron`](assets/data/village.ron), how
-characters look and move in [`characters.ron`](assets/data/characters.ron),
+characters are built and dressed in
+[`characters.ron`](assets/data/characters.ron), from the skins in
+[`assets/skins/`](assets/skins),
 and the colors of everything, season by season, in
 [`palette.ron`](assets/data/palette.ron). The game refuses to
 start, naming the problem, if a data file is invalid. Models come from CC0 art

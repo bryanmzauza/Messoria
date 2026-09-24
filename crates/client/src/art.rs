@@ -164,12 +164,7 @@ fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResM
         )
         .chain(content.items().filter_map(|(_, item)| item.model.as_ref()))
         .chain(content.crops().flat_map(|(_, crop)| &crop.models))
-        .chain(
-            content
-                .shops()
-                .flat_map(|(_, shop)| [&shop.stall, &shop.keeper]),
-        )
-        .chain(&content.characters().models);
+        .chain(content.shops().map(|(_, shop)| &shop.stall));
     for path in paths {
         if models.files.contains_key(path) {
             continue;

@@ -1,4 +1,4 @@
-# 0012 — Rigged characters, a village from data, icons rendered by the client
+# 0012 — Figures of boxes posed in code, a village from data, icons rendered by the client
 
 **Status:** accepted
 
@@ -10,6 +10,11 @@ name. The slice has to look like a game before a playtest: characters that
 move and work, a village with buildings and shopkeepers, and items that are
 recognized at a glance.
 
+The look we want for characters is chunky and hand-painted: figures of
+boxes with pixel-art skins, big heads, hands and boots, in the spirit of
+Hytale. No free pack has villagers in that style, and a small cast of
+models from a pack would make every tenth player a twin.
+
 Characters are simulated on the server and predicted or interpolated on
 clients (ADR 0001, ADR 0002); animation is purely a matter of looks and must
 not add to what is replicated every tick. Item icons have to match the
@@ -17,18 +22,25 @@ models used everywhere else, including models that later packs add.
 
 ## Decision
 
-- Characters, crops at every stage, stalls and shopkeepers, and item models
-  come from CC0 packs (ADR 0008). Which model plays which part is data:
-  `characters.ron` names the models, their scale, the node that holds items
-  and how it grips them, and the animation each model plays for each thing
-  a character does; items, crops and shops name their models.
-- Clients animate characters from what they already receive: velocity picks
-  idle, walking, running, jumping or falling, and happenings, which now name
-  the player who caused them, are acted out. Nothing about animation is
-  replicated. The one addition is `Holding`, the item a character holds,
-  which the server derives from the held slot sent with each input.
-- Every player's model is picked from their player id, so everyone sees the
-  same character for the same player without choosing or sending it.
+- A character is a figure of six limbs, each a few boxes turning at a
+  joint, described in `characters.ron`: sizes in figure pixels and where
+  each box's faces are painted from in a skin. Clients build the meshes
+  from that data.
+- Skins are laid in layers made for the game: a body, an outfit over it and
+  hair, painted in grays and tinted with a hair color. Clients lay each
+  look into one image when its layers have loaded. Every player is dressed
+  from the wardrobe by their player id, so everyone sees the same look for
+  the same player without choosing or sending it; shopkeepers' looks are
+  data in `shops.ron`.
+- Figures are posed in code rather than played from recorded animations:
+  limbs swing with the distance walked, figures lean into a run and spread
+  their arms in the air, sleepers lie in the nearest bed, and happenings,
+  which now name the player who caused them, are acted out. Nothing about
+  animation is replicated. The one addition is `Holding`, the item a
+  character holds, which the server derives from the held slot sent with
+  each input. Held models are fitted to the hand by their size.
+- Crops at every stage, stalls and item models come from CC0 packs
+  (ADR 0008); items, crops and shops name their models in data.
 - The village is laid out in `village.ron`: where each shop's stall stands
   and which buildings stand around the square, as structures (ADR 0011).
   Village buildings are rebuilt from the data at every start, so the world
@@ -36,13 +48,16 @@ models used everywhere else, including models that later packs add.
 - Item icons are rendered by each client at startup from the item models,
   by one camera per item into an image, on a render layer used by nothing
   else. Seeds show their bag with what they grow into.
-- The first-person view draws the held item with a second camera on its own
-  layer, over the world's picture.
+- The first-person view draws the player's own arm, holding the item, with
+  a second camera on its own layer, over the world's picture.
 
 ## Consequences
 
-- New characters, animations, crops and items need only models and data;
-  icons follow the models without drawn art to keep in sync.
+- A new outfit, hairstyle or skin tone is one painted layer and a line of
+  data, and multiplies the looks players can have. New items need only
+  models; icons and held items follow them without art to keep in sync.
+- Posing in code keeps figures and their motion small and data-free, but
+  every new action is written as code, not recorded in a tool.
 - Animation cannot disagree between peers in any way that matters, since it
   never affects the simulation; remote characters may start an action a
   little late, with the happening.

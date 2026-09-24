@@ -25,11 +25,13 @@ use messoria_shared::{
 use crate::{
     actions::INTERACT_KEY,
     art::Models,
-    avatars::{Keeper, spawn_body},
+    avatars::{Keeper, dress},
     camera::View,
     clock::LocalClock,
+    figures::FigureMeshes,
     icons::ItemIcons,
     panels::OpenPanel,
+    skins::Tailor,
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
@@ -84,6 +86,8 @@ fn build_stall(
     trigger: On<Add, Shopfront>,
     content: Res<Content>,
     models: Res<Models>,
+    meshes: Res<FigureMeshes>,
+    mut tailor: Tailor,
     stalls: Query<&Shopfront>,
     mut commands: Commands,
 ) {
@@ -129,7 +133,14 @@ fn build_stall(
             ChildOf(trigger.entity),
         ))
         .id();
-    spawn_body(&mut commands, &content, &models, keeper, &shop.keeper);
+    dress(
+        &mut commands,
+        &content,
+        &meshes,
+        &mut tailor,
+        keeper,
+        &shop.keeper,
+    );
 }
 
 fn spawn_shop_window(mut commands: Commands) {

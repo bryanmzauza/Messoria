@@ -30,6 +30,7 @@ const CHARACTERS_FILE: &str = "characters.ron";
 const VILLAGE_FILE: &str = "village.ron";
 /// Folder of the models, next to the data folder.
 const MODELS_FOLDER: &str = "models";
+const SKINS_FOLDER: &str = "skins";
 
 /// The text of every content file.
 #[derive(Clone, Copy, Debug)]
@@ -115,28 +116,38 @@ impl Catalog {
             .flat_map(|structure| structure.parts.iter().map(|part| &part.model));
         let item_models = catalog.items.iter().filter_map(|item| item.model.as_ref());
         let crop_models = catalog.crops.iter().flat_map(|crop| &crop.models);
-        let shop_models = catalog
-            .shops
-            .iter()
-            .flat_map(|shop| [&shop.stall, &shop.keeper]);
+        let shop_models = catalog.shops.iter().map(|shop| &shop.stall);
         let used = models_used
             .map(|model| (model, SCENERY_FILE))
             .chain(structure_models.map(|model| (model, STRUCTURES_FILE)))
             .chain(item_models.map(|model| (model, ITEMS_FILE)))
             .chain(crop_models.map(|model| (model, CROPS_FILE)))
-            .chain(shop_models.map(|model| (model, SHOPS_FILE)))
-            .chain(
-                catalog
-                    .characters
-                    .models
-                    .iter()
-                    .map(|model| (model, CHARACTERS_FILE)),
-            );
+            .chain(shop_models.map(|model| (model, SHOPS_FILE)));
         for (model, file) in used {
             if !models.join(model).is_file() {
                 return Err(ContentError {
                     file: data_dir.join(file),
                     problem: Problem::MissingModel(model.clone()),
+                });
+            }
+        }
+
+        let skins = data_dir.parent().unwrap_or(data_dir).join(SKINS_FOLDER);
+        let keeper_skins = catalog
+            .shops
+            .iter()
+            .flat_map(|shop| shop.keeper.layers())
+            .map(|skin| (skin, SHOPS_FILE));
+        let used = catalog
+            .characters
+            .skins_used()
+            .map(|skin| (skin.as_str(), CHARACTERS_FILE))
+            .chain(keeper_skins);
+        for (skin, file) in used {
+            if !skins.join(skin).is_file() {
+                return Err(ContentError {
+                    file: data_dir.join(file),
+                    problem: Problem::MissingSkin(skin.to_owned()),
                 });
             }
         }
@@ -461,7 +472,8 @@ mod tests {
                 closed_on: [Sunday], daily_limit: 20,
                 buys: [("turnip", 30), ("berries", 8)],
                 sells: [(item: "turnip_seeds", price: 10, seasons: [Spring]), (item: "compost", price: 5)],
-                stall: "town/stall.glb", keeper: "people/grocer.glb",
+                stall: "town/stall.glb",
+                keeper: (body: "b.png", outfit: "o.png", hair: "h.png", hair_color: (0.2, 0.1, 0.1)),
             ),
         ],
     )"#;
@@ -502,10 +514,24 @@ mod tests {
             scenery,
             palette,
             structures: "(structures: [])",
-            characters: "(models: [\"people/a.glb\"], scale: 1.0, hand: \"hand\", grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), scale: 1.0), animations: (idle: \"idle\", walk: \"walk\", run: \"run\", jump: \"jump\", fall: \"fall\", swing: \"swing\", work: \"work\", pick: \"pick\", greet: \"greet\"))",
+            characters: CHARACTERS,
             village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)])",
         })
     }
+
+    const CHARACTERS: &str = r#"(
+        pixel: 0.1, texels: 1, skin_size: (8, 8),
+        limbs: (
+            body: (joint: (0.0, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+            head: (joint: (0.0, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+            right_arm: (joint: (1.0, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+            left_arm: (joint: (-1.0, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+            right_leg: (joint: (0.5, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+            left_leg: (joint: (-0.5, 1.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]),
+        ),
+        grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
+        wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
+    )"#;
 
     fn valid() -> Catalog {
         catalog(ITEMS, CROPS, SHOPS, SCENERY, PALETTE).expect("the test content is valid")
@@ -702,7 +728,7 @@ mod tests {
     fn inconsistent_shops_are_rejected() {
         let cases = [
             (
-                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\", keeper: \"k.glb\"),"),
+                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\", keeper: (body: \"b.png\", outfit: \"o.png\", hair: \"h.png\", hair_color: (0.0, 0.0, 0.0))),"),
                 "shop `grocer` is defined more than once",
             ),
             (
