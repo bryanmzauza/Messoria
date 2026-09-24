@@ -26,11 +26,18 @@ struct Stall {
 }
 
 /// Every stall in the village. Counters face the way players arrive from.
-const STALLS: [Stall; 1] = [Stall {
-    shop: "grocer",
-    offset: Vec2::new(0.0, -3.0),
-    facing: PI,
-}];
+const STALLS: [Stall; 2] = [
+    Stall {
+        shop: "grocer",
+        offset: Vec2::new(0.0, -3.0),
+        facing: PI,
+    },
+    Stall {
+        shop: "carpenter",
+        offset: Vec2::new(-6.0, 1.0),
+        facing: PI,
+    },
+];
 
 fn build_stalls(content: Res<Content>, terrain: Res<Terrain>, mut commands: Commands) {
     for stall in &STALLS {

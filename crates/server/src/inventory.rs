@@ -22,6 +22,7 @@ use messoria_shared::{
 use crate::{
     day_cycle::{ClockSystems, DayStarted},
     feedback::Show,
+    gathering::GatherUse,
     players::ControlledCharacter,
 };
 
@@ -111,6 +112,7 @@ fn use_items(
     mut characters: Query<(&Position, &mut Belongings, &mut Energy), Without<Asleep>>,
     mut shovel_uses: MessageWriter<ShovelUse>,
     mut field_work: MessageWriter<FieldWork>,
+    mut gathering: MessageWriter<GatherUse>,
     mut show: MessageWriter<Show>,
     mut commands: Commands,
 ) {
@@ -143,6 +145,14 @@ fn use_items(
                         character: character.0,
                         target,
                         action: request.action.into(),
+                    });
+                    true
+                }
+                (&ItemKind::Tool(tool @ (Tool::Axe | Tool::Pickaxe)), Some(target)) => {
+                    gathering.write(GatherUse {
+                        character: character.0,
+                        target,
+                        tool: Some(tool),
                     });
                     true
                 }

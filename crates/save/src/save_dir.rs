@@ -233,7 +233,10 @@ mod tests {
     use messoria_voxel::{Material, Voxel};
 
     use super::*;
-    use crate::{profile::Profile, world::FieldState};
+    use crate::{
+        profile::Profile,
+        world::{FieldState, GatheredProp},
+    };
 
     fn catalog() -> Catalog {
         let data_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/data");
@@ -274,6 +277,11 @@ mod tests {
                     crop: None,
                 },
             ],
+            gathered: vec![GatheredProp {
+                kind: catalog.prop_id("oak").unwrap(),
+                cell: [12, 40],
+                day: 11,
+            }],
         }
     }
 
@@ -332,7 +340,7 @@ mod tests {
         let path = save.root().join(WORLD_FILE);
         let text = fs::read_to_string(&path)
             .unwrap()
-            .replacen("version: 1", "version: 9", 1);
+            .replacen("version: 2", "version: 9", 1);
         fs::write(&path, text).unwrap();
 
         let error = save.load(&catalog).unwrap_err();
@@ -341,9 +349,40 @@ mod tests {
             error.problem,
             Problem::Newer {
                 found: 9,
-                supported: 1
+                supported: 2
             }
         ));
+    }
+
+    #[test]
+    fn worlds_saved_before_gathering_load_with_nothing_gathered() {
+        let (catalog, save) = (catalog(), scratch("version-1"));
+        save.save_world(&catalog, &world(&catalog)).unwrap();
+        let path = save.root().join(WORLD_FILE);
+        let text = fs::read_to_string(&path).unwrap();
+        // Version 1 ended with the fields.
+        let fields_end = text.find("gathered:").expect("gathered scenery is saved");
+        let version_1 = format!("{})", &text[..fields_end]).replacen("version: 2", "version: 1", 1);
+        fs::write(&path, version_1).unwrap();
+
+        let loaded = save.load(&catalog).unwrap().expect("a world was saved");
+        assert_eq!(loaded.world.fields, world(&catalog).fields);
+        assert!(loaded.world.gathered.is_empty());
+    }
+
+    #[test]
+    fn gathered_props_of_kinds_that_no_longer_exist_are_forgotten() {
+        let (catalog, save) = (catalog(), scratch("lost-prop"));
+        save.save_world(&catalog, &world(&catalog)).unwrap();
+        let path = save.root().join(WORLD_FILE);
+        let text = fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"oak\"", "\"baobab\"");
+        fs::write(&path, text).unwrap();
+
+        let loaded = save.load(&catalog).unwrap().expect("a world was saved");
+        assert!(loaded.world.gathered.is_empty());
+        assert!(loaded.lost[0].contains("`baobab`"), "{:?}", loaded.lost);
     }
 
     #[test]

@@ -8,10 +8,10 @@
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
-use messoria_save::{FieldState, SaveDir, SaveError, WorldState};
+use messoria_save::{FieldState, GatheredProp, SaveDir, SaveError, WorldState};
 use messoria_shared::{
     content::Content,
-    protocol::{Crop, Fertilized, Field, MarketState, Watered, WorldClock},
+    protocol::{Crop, Fertilized, Field, Gathered, MarketState, Prop, Watered, WorldClock},
     terrain::Terrain,
 };
 
@@ -19,6 +19,7 @@ use crate::{
     Beginning, WorldSeed, WorldStart,
     day_cycle::DayStarted,
     players::{AbsentPlayers, CharacterState, player_key, state_of},
+    scenery::SceneryCell,
     terrain::EditedChunks,
 };
 
@@ -75,6 +76,7 @@ fn save_world(
     clock: Single<&WorldClock>,
     market: Single<&MarketState>,
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Option<&Crop>)>,
+    gathered: Query<(&Prop, &SceneryCell, &Gathered)>,
     terrain: Res<Terrain>,
     mut edited: ResMut<EditedChunks>,
     characters: Query<CharacterState<'_>>,
@@ -101,6 +103,14 @@ fn save_world(
                 watered,
                 fertilized,
                 crop: crop.map(|crop| crop.0),
+            })
+            .collect(),
+        gathered: gathered
+            .iter()
+            .map(|(prop, cell, gathered)| GatheredProp {
+                kind: prop.kind,
+                cell: cell.0,
+                day: gathered.day,
             })
             .collect(),
     };

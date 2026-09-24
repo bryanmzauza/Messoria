@@ -2,7 +2,8 @@
 //!
 //! A world is saved as a folder:
 //!
-//! - `world.ron`: the world's seed, clock, market and fields.
+//! - `world.ron`: the world's seed, clock, market and fields, and the scenery
+//!   players gathered.
 //! - `terrain.bin`: every chunk changed since the world was generated. The
 //!   rest is generated again, identically, when the world is loaded.
 //! - `players/<key>.ron`: one file per player who has joined.
@@ -37,5 +38,5 @@ pub use crate::{
     profile::Profile,
     save_dir::{SaveDir, SavedWorld, is_valid_player_key},
     settings::Settings,
-    world::{FieldState, WorldState},
+    world::{FieldState, GatheredProp, WorldState},
 };

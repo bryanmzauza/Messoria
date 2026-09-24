@@ -21,7 +21,7 @@ use messoria_shared::{
     energy::Energy,
     protocol::{
         Belongings, Crop, CurrentWeather, Deal, Fertilized, Field, Heading, MarketState, Money,
-        PlayerInput, Position, Shopfront, SoldToday, Trade, Watered,
+        PlayerInput, Position, SoldToday, Trade, Watered,
     },
     terrain::Terrain,
 };
@@ -86,13 +86,7 @@ fn play_a_morning(world: &mut HostedWorld, content: &Catalog) {
     );
 
     world.set_time("10:00");
-    let stall = *world
-        .world()
-        .query::<&Shopfront>()
-        .single(world.world())
-        .expect("the village has one stall");
-    world
-        .teleport(stall.position + Quat::from_rotation_y(stall.facing) * Vec3::new(0.0, 0.0, -1.5));
+    let stall = world.go_to_stall(content, "grocer");
     let berries = content.id("wild_berries").expect("wild berries exist");
     let slot = world.slot_of(berries).expect("players start with berries");
     for deal in [

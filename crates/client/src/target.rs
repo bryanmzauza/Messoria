@@ -1,23 +1,18 @@
 //! What the crosshair is on, named under it: a crop and how it is doing, a
-//! field, a stall or a piece of scenery.
+//! field, a stall, or a piece of scenery and how to gather it.
 
 use bevy::prelude::*;
-use lightyear::prelude::input::native::InputMarker;
 use messoria_calendar::WorldTime;
-use messoria_content::CropDef;
+use messoria_content::{CropDef, Tool};
 use messoria_farming::Planting;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
-    movement::EYE_HEIGHT,
-    obstacles::Obstacles,
-    protocol::{Crop, Fertilized, Field, PlayerInput, Position, Prop, Shopfront, Watered},
-    tools,
+    protocol::{Crop, Fertilized, Field, Gathered, Prop, Shopfront, Watered},
 };
 
 use crate::{
-    actions::{Aim, AimSystems},
-    camera::View,
+    actions::{Aim, AimSystems, INTERACT_KEY_NAME},
     clock::LocalClock,
     ui::{MUTED_TEXT_COLOR, TEXT_COLOR},
 };
@@ -90,47 +85,37 @@ fn spawn_description(mut commands: Commands) {
 }
 
 fn describe_target(
-    view: Res<View>,
     aim: Res<Aim>,
     content: Res<Content>,
     clock: Res<LocalClock>,
-    obstacles: Res<Obstacles>,
-    camera: Single<&Transform, With<Camera3d>>,
-    player: Query<&Position, With<InputMarker<PlayerInput>>>,
     fields: Query<(&Field, Option<&Crop>, Has<Watered>, Has<Fertilized>)>,
-    props: Query<&Prop>,
+    props: Query<(&Prop, Option<&Gathered>)>,
     stalls: Query<&Shopfront>,
     mut name: Single<&mut Text, (With<TargetName>, Without<TargetDetail>)>,
     mut detail: Single<&mut Text, With<TargetDetail>>,
 ) {
-    let described = match player.single() {
-        Ok(feet) if view.captured => {
-            let eyes = feet.0 + Vec3::Y * EYE_HEIGHT;
-            let ground = aim.0.map(|hit| (hit.point, hit.distance));
-            let reach = camera.translation.distance(eyes) + tools::REACH;
-            let obstacle = obstacles
-                .raycast(camera.translation, *camera.forward(), reach)
-                .filter(|&(_, distance)| {
-                    tools::in_reach(eyes, camera.translation + camera.forward() * distance)
-                });
-            match (obstacle, ground) {
-                (Some((thing, distance)), ground)
-                    if ground.is_none_or(|(_, ground)| distance < ground) =>
-                {
-                    describe_thing(&content, thing, &props, &stalls)
-                }
-                (_, Some((point, _))) => {
-                    let tile = tile_at(point);
-                    fields.iter().find(|(field, ..)| field.tile == tile).map(
-                        |(_, crop, watered, fertilized)| {
-                            describe_field(&content, clock.time(), crop, watered, fertilized)
-                        },
-                    )
-                }
-                (_, None) => None,
-            }
+    let today = clock.time().map(WorldTime::day);
+    let described = if let Some((thing, _)) = aim.thing {
+        if let Ok(stall) = stalls.get(thing) {
+            Some(Description {
+                name: format!("{}'s stall", content.shop(stall.shop).name),
+                detail: format!("Stand close and press {INTERACT_KEY_NAME} to trade"),
+            })
+        } else {
+            props
+                .get(thing)
+                .ok()
+                .map(|(prop, gathered)| describe_prop(&content, prop, gathered.copied(), today))
         }
-        _ => None,
+    } else if let Some(hit) = aim.ground {
+        let tile = tile_at(hit.point);
+        fields.iter().find(|(field, ..)| field.tile == tile).map(
+            |(_, crop, watered, fertilized)| {
+                describe_field(&content, clock.time(), crop, watered, fertilized)
+            },
+        )
+    } else {
+        None
     }
     .unwrap_or_default();
 
@@ -142,22 +127,37 @@ fn describe_target(
     }
 }
 
-fn describe_thing(
+/// A prop's name, and how to gather it or when it grows back.
+fn describe_prop(
     content: &Content,
-    thing: Entity,
-    props: &Query<&Prop>,
-    stalls: &Query<&Shopfront>,
-) -> Option<Description> {
-    if let Ok(stall) = stalls.get(thing) {
-        return Some(Description {
-            name: format!("{}'s stall", content.shop(stall.shop).name),
-            detail: "Stand close and press E to trade".to_owned(),
-        });
+    prop: &Prop,
+    gathered: Option<Gathered>,
+    today: Option<u32>,
+) -> Description {
+    let definition = content.prop(prop.kind);
+    let detail = match (&definition.gather, gathered) {
+        (None, _) => String::new(),
+        (Some(gathering), Some(gathered)) => match (gathering.regrows_after, today) {
+            (Some(days), Some(today)) => {
+                let left = (gathered.day + u32::from(days)).saturating_sub(today);
+                match left {
+                    0 | 1 => "Grows back tomorrow".to_owned(),
+                    left => format!("Grows back in {left} days"),
+                }
+            }
+            _ => String::new(),
+        },
+        (Some(gathering), None) => match gathering.tool {
+            Some(Tool::Axe) => "Chop it with an axe".to_owned(),
+            Some(Tool::Pickaxe) => "Break it with a pickaxe".to_owned(),
+            Some(_) => String::new(),
+            None => format!("Press {INTERACT_KEY_NAME} to pick"),
+        },
+    };
+    Description {
+        name: definition.name.clone(),
+        detail,
     }
-    props.get(thing).ok().map(|prop| Description {
-        name: content.prop(prop.kind).name.clone(),
-        detail: String::new(),
-    })
 }
 
 fn describe_field(
@@ -194,7 +194,7 @@ fn crop_state(
 ) -> String {
     let mut state = Vec::new();
     if planting.is_ripe(definition) {
-        state.push("Ripe, press E to harvest".to_owned());
+        state.push(format!("Ripe, press {INTERACT_KEY_NAME} to harvest"));
     } else {
         let days = definition
             .days_to_ripen()
@@ -240,7 +240,7 @@ mod tests {
         planting.days_grown = days;
         assert_eq!(
             crop_state(definition, planting, Some(spring_day), false),
-            "Ripe, press E to harvest"
+            format!("Ripe, press {INTERACT_KEY_NAME} to harvest")
         );
     }
 }

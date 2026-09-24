@@ -14,7 +14,7 @@ use bevy::{
     world_serialization::{WorldAsset, WorldAssetRoot},
 };
 use messoria_calendar::{Season, WorldTime};
-use messoria_content::{Palette, Rgb};
+use messoria_content::{CropDef, ItemId, ItemKind, Palette, Rgb};
 use messoria_shared::content::Content;
 
 use crate::clock::LocalClock;
@@ -96,10 +96,40 @@ pub(crate) fn srgb([red, green, blue]: Rgb) -> Color {
     Color::srgb(red, green, blue)
 }
 
+const TOOL_COLOR: Color = Color::srgb(0.62, 0.64, 0.68);
+const FERTILIZER_COLOR: Color = Color::srgb(0.35, 0.26, 0.17);
+const GOODS_COLOR: Color = Color::srgb(0.75, 0.62, 0.45);
+
+/// The color an item is marked with until items have icons: the one its
+/// data gives, else its crop's color for seeds and produce, its ground's for
+/// ground, and a color per kind for the rest.
+pub(crate) fn item_color(content: &Content, item: ItemId) -> Color {
+    let definition = content.item(item);
+    if let Some(color) = definition.color {
+        return srgb(color);
+    }
+    let crop_color = |crop: &CropDef| srgb(crop.color);
+    match &definition.kind {
+        ItemKind::Seed => content.crop_grown_from(item).map_or(GOODS_COLOR, |crop| {
+            crop_color(content.crop(crop)).darker(0.15)
+        }),
+        ItemKind::Tool(_) => TOOL_COLOR,
+        ItemKind::Fertilizer => FERTILIZER_COLOR,
+        // What the ground looks like once dug up: soil rather than grass.
+        ItemKind::Terrain { materials } => materials.first().map_or(GOODS_COLOR, |&material| {
+            srgb(content.palette().ground(material.exposed(), Season::Summer))
+        }),
+        ItemKind::Food { .. } | ItemKind::Goods => content
+            .crops()
+            .find(|(_, crop)| crop.produce == item)
+            .map_or(GOODS_COLOR, |(_, crop)| crop_color(crop)),
+    }
+}
+
 fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResMut<Models>) {
     let paths = content
         .props()
-        .flat_map(|(_, prop)| &prop.models)
+        .flat_map(|(_, prop)| prop.models_used())
         .chain(content.cover().iter().flat_map(|cover| &cover.models));
     for path in paths {
         if models.files.contains_key(path) {

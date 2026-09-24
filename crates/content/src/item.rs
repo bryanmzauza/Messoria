@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use messoria_voxel::Material;
 use serde::{Deserialize, Serialize};
 
-use crate::error::Problem;
+use crate::{
+    error::Problem,
+    palette::{Rgb, checked_color},
+};
 
 /// Refers to an item definition within a [`Catalog`](crate::Catalog).
 ///
@@ -16,7 +19,7 @@ use crate::error::Problem;
 pub struct ItemId(pub(crate) u16);
 
 /// Everything the game knows about one kind of item.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ItemDef {
     /// The id used in data files, such as `"wild_berries"`.
     pub key: String,
@@ -29,6 +32,9 @@ pub struct ItemDef {
     pub shelf_life: Option<u16>,
     /// What the item becomes when it spoils.
     pub spoils_into: Option<ItemId>,
+    /// Color the item is marked with on screen, for items that are not
+    /// colored by what they grow into or come from.
+    pub color: Option<Rgb>,
 }
 
 /// What an item is for, which decides what using it does.
@@ -52,7 +58,7 @@ pub enum ItemKind {
     Goods,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Tool {
     /// Digs and raises the ground.
     Shovel,
@@ -60,6 +66,17 @@ pub enum Tool {
     Hoe,
     /// Waters tilled soil for the day.
     WateringCan,
+    /// Fells trees and cuts up logs.
+    Axe,
+    /// Breaks rocks.
+    Pickaxe,
+}
+
+impl Tool {
+    /// Whether the tool gathers scenery, as the axe and the pickaxe do.
+    pub fn gathers(self) -> bool {
+        matches!(self, Self::Axe | Self::Pickaxe)
+    }
 }
 
 /// How good an item is. Only harvests vary in quality; everything else is
@@ -95,6 +112,8 @@ struct ItemEntry {
     shelf_life: Option<u16>,
     #[serde(default)]
     spoils_into: Option<String>,
+    #[serde(default)]
+    color: Option<(f32, f32, f32)>,
 }
 
 fn single() -> u16 {
@@ -151,6 +170,12 @@ impl ItemsFile {
                 .as_deref()
                 .map(|key| items.resolve(|| format!("item `{}`", entry.id), key))
                 .transpose()?;
+            let color = entry
+                .color
+                .map(|color| {
+                    checked_color(color).ok_or_else(|| Problem::InvalidItemColor(entry.id.clone()))
+                })
+                .transpose()?;
             let item = ItemDef {
                 key: entry.id,
                 name: entry.name,
@@ -158,6 +183,7 @@ impl ItemsFile {
                 max_stack: entry.stack,
                 shelf_life: entry.shelf_life,
                 spoils_into,
+                color,
             };
             validate(&item, &items.by_key)?;
             items.definitions.push(item);

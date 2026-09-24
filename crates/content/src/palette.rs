@@ -64,15 +64,19 @@ pub(crate) struct PaletteFile {
     seasons: HashMap<Season, HashMap<String, (f32, f32, f32)>>,
 }
 
+/// A color as written in a data file, if every channel is between 0 and 1.
+pub(crate) fn checked_color((red, green, blue): (f32, f32, f32)) -> Option<Rgb> {
+    let color = [red, green, blue];
+    color
+        .iter()
+        .all(|channel| (0.0..=1.0).contains(channel))
+        .then_some(color)
+}
+
 impl PaletteFile {
     pub(crate) fn resolve(self) -> Result<Palette, Problem> {
-        let rgb = |name: &str, (red, green, blue): (f32, f32, f32)| {
-            let color = [red, green, blue];
-            if color.iter().all(|channel| (0.0..=1.0).contains(channel)) {
-                Ok(color)
-            } else {
-                Err(Problem::InvalidColor(name.to_owned()))
-            }
+        let rgb = |name: &str, color: (f32, f32, f32)| {
+            checked_color(color).ok_or_else(|| Problem::InvalidColor(name.to_owned()))
         };
         let colors = self
             .colors

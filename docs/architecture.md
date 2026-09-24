@@ -197,10 +197,11 @@ is there.
 
 See [ADR 0008](adr/0008-scenery-and-art.md).
 
-- The server scatters props from the world's seed after startup and
+- The server scatters props from the world's seed at startup, over the
+  valley as generated and before saved terrain is laid over it, and
   replicates each as a `Prop` entity (kind, model, position, turn, scale). Its
   `Scenery` resource keeps their footprints, where the shovel and the hoe
-  cannot work.
+  cannot work, and finds the prop a player works on.
 - Clients draw props from their glTF models, and grow ground cover for the
   chunks near the camera, merged into one mesh per palette material.
 - Every mesh whose material name is in the palette is drawn with a shared
@@ -209,6 +210,19 @@ See [ADR 0008](adr/0008-scenery-and-art.md).
 - `environment` blends the sky's colors and the light through the day into
   the `Sky` resource, and `sky` draws the dome, the sun or moon and the
   clouds from it. Fog fades the land into the horizon's color.
+
+## Gathering
+
+See [ADR 0010](adr/0010-gathered-scenery.md).
+
+- Using the axe or the pickaxe on a prop, or `Gather` (by hand), becomes a
+  `GatherUse` for the server's `gathering` module, which counts strikes,
+  gives the yield and marks the prop `Gathered` with the day. At dawn,
+  kinds that grow back lose `Gathered` once enough days have passed.
+- What a gathered prop leaves standing decides whether it is still an
+  obstacle and keeps its ground; clients draw it as its remains, and draw
+  fruit on props that can be picked.
+- The world file lists gathered props by kind and scattering cell.
 
 ## Feedback and feel
 

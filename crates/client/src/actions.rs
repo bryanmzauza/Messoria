@@ -1,13 +1,15 @@
-//! Using the held item and harvesting.
+//! Using the held item, harvesting and gathering by hand.
 //!
 //! The left mouse button uses the held item and the right button uses it the
-//! other way, where it has one. Items that act on the world aim at the
+//! other way, where it has one. Items that act on the ground aim at the
 //! terrain under the crosshair: the shovel shows the ground it will move, and
-//! farming items the field square they work. Tools repeat while the button is
-//! held; seeds, fertilizer and food act once per click. `E` harvests the ripe
-//! crop under the crosshair, unless it opens a shop. The server carries out
-//! every use, so the world changes when its update arrives. Aim markers turn
-//! red over the village, whose ground cannot be worked.
+//! farming items the field square they work. The axe and the pickaxe aim at
+//! the tree or rock under the crosshair. Tools repeat while the button is
+//! held; seeds, fertilizer and food act once per click. `F` picks what is
+//! under the crosshair, such as berries, or harvests the ripe crop there,
+//! unless it opens a shop. The server carries out every use, so the world
+//! changes when its update arrives. Aim markers turn red over the village,
+//! whose ground cannot be worked.
 
 use std::time::Duration;
 
@@ -18,8 +20,10 @@ use messoria_shared::{
     content::Content,
     fields::{tile_at, tile_center},
     movement::EYE_HEIGHT,
+    obstacles::Obstacles,
     protocol::{
-        ActionChannel, Belongings, HarvestRequest, ItemAction, PlayerInput, Position, UseItem,
+        ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerInput, Position,
+        UseItem,
     },
     terrain::Terrain,
     tools, village,
@@ -32,7 +36,10 @@ use crate::{
     shops::ShopSystems,
 };
 
-const HARVEST_KEY: KeyCode = KeyCode::KeyE;
+/// Harvests, picks by hand, and opens shops at their stalls.
+pub(crate) const INTERACT_KEY: KeyCode = KeyCode::KeyF;
+/// How the interact key is named on screen.
+pub(crate) const INTERACT_KEY_NAME: &str = "F";
 const AIM_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
 const PROTECTED_AIM_COLOR: Color = Color::srgba(1.0, 0.3, 0.25, 0.8);
 /// Lifts aim markers off the surface so they are not hidden inside it.
@@ -59,9 +66,14 @@ impl Plugin for ActionsPlugin {
     }
 }
 
-/// The terrain under the crosshair, if it is within the character's reach.
+/// What is under the crosshair within the character's reach: the ground, or
+/// something standing on it, such as a tree or a stall, whichever is nearer.
 #[derive(Resource, Default)]
-pub(crate) struct Aim(pub Option<RayHit>);
+pub(crate) struct Aim {
+    pub ground: Option<RayHit>,
+    /// The entity standing there, and the point on it aimed at.
+    pub thing: Option<(Entity, Vec3)>,
+}
 
 /// Finds what the crosshair is on.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -79,12 +91,15 @@ enum Handling {
     FieldSupply,
     /// Used on oneself, once per click.
     Consumable,
+    /// Strikes the aimed tree or rock, repeatedly.
+    Gatherer,
 }
 
 fn handling(kind: &ItemKind) -> Option<Handling> {
     match kind {
         ItemKind::Tool(Tool::Shovel) => Some(Handling::Shovel),
         ItemKind::Tool(Tool::Hoe | Tool::WateringCan) => Some(Handling::FieldTool),
+        ItemKind::Tool(Tool::Axe | Tool::Pickaxe) => Some(Handling::Gatherer),
         ItemKind::Seed | ItemKind::Fertilizer => Some(Handling::FieldSupply),
         ItemKind::Food { .. } => Some(Handling::Consumable),
         ItemKind::Terrain { .. } | ItemKind::Goods => None,
@@ -99,11 +114,12 @@ fn held_handling(content: &Content, held: &HeldSlot, belongings: &Belongings) ->
 fn aim(
     view: Res<View>,
     terrain: Res<Terrain>,
+    obstacles: Res<Obstacles>,
     camera: Single<&Transform, With<Camera3d>>,
     player: Query<&Position, With<InputMarker<PlayerInput>>>,
     mut aim: ResMut<Aim>,
 ) {
-    aim.0 = None;
+    *aim = Aim::default();
     let Ok(feet) = player.single() else {
         return;
     };
@@ -113,10 +129,21 @@ fn aim(
     // Aim along the view, which in third person starts behind the character,
     // but measure reach from the character's eyes as the server does.
     let eyes = feet.0 + Vec3::Y * EYE_HEIGHT;
-    let max_distance = camera.translation.distance(eyes) + tools::REACH;
-    aim.0 = terrain
-        .raycast(camera.translation, *camera.forward(), max_distance)
+    let (origin, direction) = (camera.translation, *camera.forward());
+    let max_distance = origin.distance(eyes) + tools::REACH;
+    let ground = terrain
+        .raycast(origin, direction, max_distance)
         .filter(|hit| tools::in_reach(eyes, hit.point));
+    let thing = obstacles
+        .raycast(origin, direction, max_distance)
+        .map(|(entity, distance)| (entity, distance, origin + direction * distance))
+        .filter(|&(_, _, point)| tools::in_reach(eyes, point));
+    match thing {
+        Some((entity, distance, point)) if ground.is_none_or(|hit| distance < hit.distance) => {
+            aim.thing = Some((entity, point));
+        }
+        _ => aim.ground = ground,
+    }
 }
 
 fn use_held_item(
@@ -152,8 +179,12 @@ fn use_held_item(
     let target = match handling {
         Handling::Consumable if action == ItemAction::Primary => None,
         Handling::Consumable => return,
-        Handling::Shovel | Handling::FieldTool | Handling::FieldSupply => match aim.0 {
+        Handling::Shovel | Handling::FieldTool | Handling::FieldSupply => match aim.ground {
             Some(hit) => Some(hit.point),
+            None => return,
+        },
+        Handling::Gatherer => match aim.thing {
+            Some((_, point)) => Some(point),
             None => return,
         },
     };
@@ -172,16 +203,20 @@ fn use_held_item(
     }
 }
 
+/// Picks what stands under the crosshair, or harvests the crop there.
 fn harvest(
     keys: Res<ButtonInput<KeyCode>>,
     view: Res<View>,
     aim: Res<Aim>,
-    mut sender: Query<&mut MessageSender<HarvestRequest>, With<Client>>,
+    mut harvests: Query<&mut MessageSender<HarvestRequest>, With<Client>>,
+    mut gathers: Query<&mut MessageSender<Gather>, With<Client>>,
 ) {
-    if !view.captured || !keys.just_pressed(HARVEST_KEY) {
+    if !view.captured || !keys.just_pressed(INTERACT_KEY) {
         return;
     }
-    if let (Some(hit), Ok(mut sender)) = (aim.0, sender.single_mut()) {
+    if let (Some((_, point)), Ok(mut sender)) = (aim.thing, gathers.single_mut()) {
+        sender.send::<ActionChannel>(Gather { target: point });
+    } else if let (Some(hit), Ok(mut sender)) = (aim.ground, harvests.single_mut()) {
         sender.send::<ActionChannel>(HarvestRequest { target: hit.point });
     }
 }
@@ -193,7 +228,7 @@ fn draw_aim(
     player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
     mut gizmos: Gizmos,
 ) {
-    let (Some(hit), Ok(belongings)) = (aim.0, player.single()) else {
+    let (Some(hit), Ok(belongings)) = (aim.ground, player.single()) else {
         return;
     };
     // Gizmo shapes are drawn facing +Z; this lays them on the ground.
@@ -219,6 +254,6 @@ fn draw_aim(
                 Isometry3d::new(Vec3::new(center.x, hit.point.y + AIM_LIFT, center.y), flat);
             gizmos.rect(square, Vec2::ONE, color(0.0));
         }
-        Some(Handling::Consumable) | None => {}
+        Some(Handling::Consumable | Handling::Gatherer) | None => {}
     }
 }

@@ -2,7 +2,7 @@
 //! on screen, and the backpack window.
 //!
 //! Number keys and the mouse wheel pick the held slot, whose item is named
-//! above the hotbar for a moment. Tab opens the backpack window, which holds
+//! above the hotbar for a moment. `E` opens the backpack window, which holds
 //! the backpack above the hotbar. There, clicking a stack picks it up and
 //! it follows the cursor; clicking another slot puts it there, merging with
 //! a stack of the same item or swapping with anything else. Hovering over a
@@ -16,7 +16,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use lightyear::prelude::{input::native::InputMarker, *};
-use messoria_calendar::{Season, WorldTime};
+use messoria_calendar::WorldTime;
 use messoria_content::{ItemId, ItemKind, Quality, Tool};
 use messoria_inventory::{HOTBAR_SLOTS, SLOTS, Stack};
 use messoria_shared::{
@@ -25,12 +25,13 @@ use messoria_shared::{
 };
 
 use crate::{
+    art::item_color,
     clock::LocalClock,
     panels::OpenPanel,
     ui::{self, ACCENT_COLOR, BACKDROP_COLOR, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, TITLE_SIZE},
 };
 
-const TOGGLE_KEY: KeyCode = KeyCode::Tab;
+const TOGGLE_KEY: KeyCode = KeyCode::KeyE;
 /// Number keys in hotbar order: 1 to 9, then 0 for the tenth slot.
 const HOTBAR_KEYS: [KeyCode; HOTBAR_SLOTS] = [
     KeyCode::Digit1,
@@ -59,9 +60,6 @@ const SILVER: Color = Color::srgb(0.78, 0.8, 0.85);
 const GOLD: Color = Color::srgb(0.98, 0.78, 0.25);
 const FRESH: Color = Color::srgb(0.45, 0.78, 0.35);
 const STALE: Color = Color::srgb(0.85, 0.35, 0.2);
-const TOOL_TINT: Color = Color::srgb(0.62, 0.64, 0.68);
-const FERTILIZER_TINT: Color = Color::srgb(0.35, 0.26, 0.17);
-const GOODS_TINT: Color = Color::srgb(0.75, 0.62, 0.45);
 /// Distance of the hotbar from the bottom of the screen.
 pub(crate) const HOTBAR_BOTTOM: f32 = 16.0;
 /// How long the held item's name shows after it changes, the last part of
@@ -435,7 +433,7 @@ fn choose_held_slot(
     }
 }
 
-/// Tab opens the backpack window, or closes it; it also takes the place of
+/// `E` opens the backpack window, or closes it; it also takes the place of
 /// any other open window but the game menu.
 fn toggle_backpack(
     keys: Res<ButtonInput<KeyCode>>,
@@ -530,7 +528,7 @@ impl StackLook {
             _ => None,
         };
         Self {
-            tint: tint(content, stack.item),
+            tint: item_color(content, stack.item),
             quality: match stack.quality {
                 Quality::Normal => Color::NONE,
                 Quality::Silver => SILVER,
@@ -544,32 +542,6 @@ impl StackLook {
             },
             freshness,
         }
-    }
-}
-
-/// The color an item is marked with until items have icons: its crop's
-/// color for seeds and produce, its ground's for ground, and a color per
-/// kind for the rest.
-fn tint(content: &Content, item: ItemId) -> Color {
-    let crop_color = |crop: &messoria_content::CropDef| {
-        let [r, g, b] = crop.color;
-        Color::srgb(r, g, b)
-    };
-    match &content.item(item).kind {
-        ItemKind::Seed => content.crop_grown_from(item).map_or(GOODS_TINT, |crop| {
-            crop_color(content.crop(crop)).darker(0.15)
-        }),
-        ItemKind::Tool(_) => TOOL_TINT,
-        ItemKind::Fertilizer => FERTILIZER_TINT,
-        // What the ground looks like once dug up: soil rather than grass.
-        ItemKind::Terrain { materials } => materials.first().map_or(GOODS_TINT, |&material| {
-            let [r, g, b] = content.palette().ground(material.exposed(), Season::Summer);
-            Color::srgb(r, g, b)
-        }),
-        ItemKind::Food { .. } | ItemKind::Goods => content
-            .crops()
-            .find(|(_, crop)| crop.produce == item)
-            .map_or(GOODS_TINT, |(_, crop)| crop_color(crop)),
     }
 }
 
@@ -783,6 +755,8 @@ fn describe(content: &Content, stack: &Stack, today: Option<u32>) -> String {
         }
         ItemKind::Tool(Tool::Hoe) => "Tills the ground for planting.".to_owned(),
         ItemKind::Tool(Tool::WateringCan) => "Waters tilled soil for the day.".to_owned(),
+        ItemKind::Tool(Tool::Axe) => "Fells trees and cuts up logs, for wood.".to_owned(),
+        ItemKind::Tool(Tool::Pickaxe) => "Breaks rocks, for stone.".to_owned(),
         ItemKind::Seed => match content.crop_grown_from(stack.item) {
             Some(crop) => {
                 let crop = content.crop(crop);

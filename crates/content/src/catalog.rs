@@ -88,7 +88,7 @@ impl Catalog {
         let models_used = catalog
             .props
             .iter()
-            .flat_map(|prop| &prop.models)
+            .flat_map(PropDef::models_used)
             .chain(catalog.cover.iter().flat_map(|cover| &cover.models));
         for model in models_used {
             if !models.join(model).is_file() {
@@ -129,7 +129,7 @@ impl Catalog {
             .and_then(|file| file.resolve(&items))
             .map_err(in_file(SHOPS_FILE))?;
         let scenery: Scenery = parse::<SceneryFile>(sources.scenery)
-            .and_then(SceneryFile::resolve)
+            .and_then(|file| file.resolve(&items))
             .map_err(in_file(SCENERY_FILE))?;
         let palette = parse::<PaletteFile>(sources.palette)
             .and_then(PaletteFile::resolve)

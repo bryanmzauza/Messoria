@@ -6,7 +6,7 @@ use std::fmt;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, PropId, ShopId};
+use messoria_content::{ItemId, PropId, ShopId, Tool};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -99,6 +99,13 @@ pub struct Crop(pub Planting);
 /// A client asking to harvest the ripe crop in the field at `target`.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct HarvestRequest {
+    pub target: Vec3,
+}
+
+/// A client asking to gather, by hand, the prop at `target`, such as a berry
+/// bush. Props gathered with a tool are gathered by using it.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Gather {
     pub target: Vec3,
 }
 
@@ -198,6 +205,13 @@ pub struct Prop {
     pub scale: f32,
 }
 
+/// A prop gathered on `day`: it stands as what its kind leaves behind until
+/// it grows back, if it ever does.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Gathered {
+    pub day: u32,
+}
+
 /// A client giving money to another player.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GiveMoney {
@@ -230,6 +244,12 @@ pub enum Notice {
     OutOfSeason,
     NotRipe,
     TooEarlyToSleep,
+    /// Gathering that takes this tool.
+    NeedsTool(Tool),
+    /// Gathering by hand, not with a tool.
+    PickByHand,
+    /// Gathering what has not grown back yet.
+    NothingToGather,
     Trade(Refusal),
 }
 
@@ -246,6 +266,15 @@ impl fmt::Display for Notice {
             Self::OutOfSeason => "That does not grow in this season.",
             Self::NotRipe => "That is not ripe yet.",
             Self::TooEarlyToSleep => "It is too early to sleep; bedtime is at 18:00.",
+            Self::NeedsTool(tool) => match tool {
+                Tool::Axe => "That takes an axe.",
+                Tool::Pickaxe => "That takes a pickaxe.",
+                Tool::Shovel => "That takes a shovel.",
+                Tool::Hoe => "That takes a hoe.",
+                Tool::WateringCan => "That takes a watering can.",
+            },
+            Self::PickByHand => "Pick that by hand.",
+            Self::NothingToGather => "There is nothing to gather there yet.",
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -278,6 +307,8 @@ pub enum Happened {
     Planted,
     Fertilized,
     Harvested,
+    /// A tool struck a prop being gathered.
+    Struck(Tool),
     Traded,
     Ate,
 }
@@ -348,6 +379,8 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<HarvestRequest>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Gather>()
+            .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<SleepRequest>()
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<Trade>()
@@ -370,6 +403,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<MarketState>().replicate();
         app.component::<Shopfront>().replicate();
         app.component::<Prop>().replicate();
+        app.component::<Gathered>().replicate();
 
         app.component::<PlayerId>().replicate();
 

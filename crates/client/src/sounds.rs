@@ -12,6 +12,7 @@ use bevy::{
     prelude::*,
 };
 use messoria_calendar::Season;
+use messoria_content::Tool;
 use messoria_shared::{
     protocol::{Happened, PlayerId},
     terrain::Terrain,
@@ -58,6 +59,7 @@ enum Cue {
     Footstep(Ground),
     Dig,
     DigStone,
+    Chop,
     Raise,
     Till,
     Water,
@@ -83,13 +85,14 @@ enum Ground {
 }
 
 impl Cue {
-    const ALL: [Self; 19] = [
+    const ALL: [Self; 20] = [
         Self::Footstep(Ground::Grass),
         Self::Footstep(Ground::Soil),
         Self::Footstep(Ground::Hard),
         Self::Footstep(Ground::Snow),
         Self::Dig,
         Self::DigStone,
+        Self::Chop,
         Self::Raise,
         Self::Till,
         Self::Water,
@@ -120,6 +123,11 @@ impl Cue {
             Self::Footstep(Ground::Snow) => numbered("footstep_snow"),
             Self::Dig => numbered("impactSoft_medium"),
             Self::DigStone => numbered("impactMining"),
+            Self::Chop => {
+                let mut recordings = numbered("impactWood_medium");
+                recordings.push("rpg/chop.ogg".to_owned());
+                recordings
+            }
             Self::Raise | Self::Till => numbered("impactSoft_heavy"),
             Self::Water => listed(&[
                 "interface/drop_001.ogg",
@@ -142,14 +150,16 @@ impl Cue {
 
     fn of(happened: Happened) -> Self {
         match happened {
-            Happened::Dug(Material::Stone) => Self::DigStone,
-            Happened::Dug(Material::Grass | Material::Soil | Material::Sand) => Self::Dig,
+            Happened::Dug(Material::Stone) | Happened::Struck(Tool::Pickaxe) => Self::DigStone,
+            Happened::Dug(Material::Grass | Material::Soil | Material::Sand)
+            | Happened::Struck(Tool::Shovel | Tool::Hoe | Tool::WateringCan) => Self::Dig,
             Happened::Raised => Self::Raise,
             Happened::Tilled => Self::Till,
             Happened::Watered => Self::Water,
             Happened::Planted => Self::Plant,
             Happened::Fertilized => Self::Fertilize,
             Happened::Harvested => Self::Harvest,
+            Happened::Struck(Tool::Axe) => Self::Chop,
             Happened::Traded => Self::Coins,
             Happened::Ate => Self::Eat,
         }

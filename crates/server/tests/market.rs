@@ -11,7 +11,7 @@ use messoria_content::{Catalog, Quality};
 use messoria_economy::{Market, PriceBasis};
 use messoria_shared::{
     content::load_content,
-    protocol::{Deal, MarketState, Shopfront, SoldToday, Trade},
+    protocol::{Deal, MarketState, SoldToday},
     terrain::Terrain,
     village,
 };
@@ -24,15 +24,19 @@ fn produce_sells_at_the_market_price_up_to_the_daily_limit() {
     let turnip = content.id("turnip").expect("turnips exist");
     let mut world = HostedWorld::new(content.clone());
     world.set_time("10:00");
-    world.go_to_stall();
+    world.go_to_stall(&content, "grocer");
 
     world.give(&content, "turnip", limit + 10);
     let slot = world.slot_of(turnip).expect("the turnips are carried");
     let before = world.coins();
-    world.trade(Deal::Sell {
-        slot,
-        count: limit + 10,
-    });
+    world.trade(
+        &content,
+        "grocer",
+        Deal::Sell {
+            slot,
+            count: limit + 10,
+        },
+    );
 
     let offer = content
         .shop(grocer)
@@ -48,7 +52,7 @@ fn produce_sells_at_the_market_price_up_to_the_daily_limit() {
     );
 
     let after_first_sale = world.coins();
-    world.trade(Deal::Sell { slot, count: 1 });
+    world.trade(&content, "grocer", Deal::Sell { slot, count: 1 });
     assert_eq!(
         world.coins(),
         after_first_sale,
@@ -65,8 +69,8 @@ fn produce_sells_at_the_market_price_up_to_the_daily_limit() {
     assert!(sales_today(&mut world).is_empty());
 
     world.set_time("10:00");
-    world.go_to_stall();
-    world.trade(Deal::Sell { slot, count: 1 });
+    world.go_to_stall(&content, "grocer");
+    world.trade(&content, "grocer", Deal::Sell { slot, count: 1 });
     assert!(
         world.coins() > after_first_sale,
         "a new day brings a new limit"
@@ -78,21 +82,29 @@ fn seeds_are_bought_only_while_the_shop_is_open() {
     let content = load_content().expect("the shipped content is valid");
     let seeds = content.id("turnip_seeds").expect("turnip seeds exist");
     let mut world = HostedWorld::new(content.clone());
-    world.go_to_stall();
+    world.go_to_stall(&content, "grocer");
     let (coins, carried) = (world.coins(), world.carried(seeds));
 
     // The world starts at dawn, before the grocer opens.
-    world.trade(Deal::Buy {
-        item: seeds,
-        count: 5,
-    });
+    world.trade(
+        &content,
+        "grocer",
+        Deal::Buy {
+            item: seeds,
+            count: 5,
+        },
+    );
     assert_eq!((world.coins(), world.carried(seeds)), (coins, carried));
 
     world.set_time("09:00");
-    world.trade(Deal::Buy {
-        item: seeds,
-        count: 5,
-    });
+    world.trade(
+        &content,
+        "grocer",
+        Deal::Buy {
+            item: seeds,
+            count: 5,
+        },
+    );
     let price = price_of(&content, "turnip_seeds");
     assert_eq!(world.coins(), coins - 5 * price);
     assert_eq!(world.carried(seeds), carried + 5);
@@ -102,14 +114,18 @@ fn seeds_are_bought_only_while_the_shop_is_open() {
 fn trading_needs_the_character_at_the_stall() {
     let content = load_content().expect("the shipped content is valid");
     let seeds = content.id("turnip_seeds").expect("turnip seeds exist");
-    let mut world = HostedWorld::new(content);
+    let mut world = HostedWorld::new(content.clone());
     world.set_time("10:00");
     let coins = world.coins();
 
-    world.trade(Deal::Buy {
-        item: seeds,
-        count: 1,
-    });
+    world.trade(
+        &content,
+        "grocer",
+        Deal::Buy {
+            item: seeds,
+            count: 1,
+        },
+    );
     assert_eq!(world.coins(), coins, "players start far from the village");
 }
 
@@ -117,8 +133,8 @@ fn trading_needs_the_character_at_the_stall() {
 fn the_village_ground_cannot_be_dug() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
-    let stall = world.go_to_stall();
-    let target = stall + Vec3::new(2.0, 0.0, 2.0);
+    let stall = world.go_to_stall(&content, "grocer");
+    let target = stall.position + Vec3::new(2.0, 0.0, 2.0);
     let before = world.world().resource::<Terrain>().0.clone();
 
     let shovel = world.slot_holding(&content, "shovel");
@@ -132,32 +148,6 @@ fn the_village_ground_cannot_be_dug() {
         "the terrain changed"
     );
     assert!(village::reaches(target, 0.0));
-}
-
-impl HostedWorld {
-    /// Puts the host's character in front of the grocer's counter, and
-    /// returns where the stall stands.
-    fn go_to_stall(&mut self) -> Vec3 {
-        let stall = *self
-            .world()
-            .query::<&Shopfront>()
-            .single(self.world())
-            .expect("the village has one stall");
-        let front = Quat::from_rotation_y(stall.facing) * Vec3::new(0.0, 0.0, -1.5);
-        self.teleport(stall.position + front);
-        stall.position
-    }
-
-    fn trade(&mut self, deal: Deal) {
-        let shop = self
-            .world()
-            .query::<&Shopfront>()
-            .single(self.world())
-            .expect("the village has one stall")
-            .shop;
-        self.send(Trade { shop, deal });
-        self.run(common::PAUSE_BETWEEN_USES);
-    }
 }
 
 fn market(world: &mut HostedWorld) -> Market {

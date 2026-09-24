@@ -2,7 +2,8 @@
 //!
 //! Each obstacle is an upright cylinder. The server and every client build
 //! the same set from the same replicated props and stalls, so movement
-//! predicted by a client collides exactly as the server's does.
+//! predicted by a client collides exactly as the server's does. A prop that
+//! leaves nothing standing once gathered stops being an obstacle then.
 
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ use bevy::prelude::*;
 
 use crate::{
     content::Content,
-    protocol::{Prop, Shopfront},
+    protocol::{Gathered, Prop, Shopfront},
 };
 
 /// Size of the cells obstacles are indexed by, in meters.
@@ -30,6 +31,8 @@ impl Plugin for ObstaclesPlugin {
         app.init_resource::<Obstacles>()
             .add_observer(block_with_prop)
             .add_observer(clear_prop)
+            .add_observer(clear_gathered)
+            .add_observer(block_with_regrown)
             .add_observer(block_with_stall);
     }
 }
@@ -177,27 +180,64 @@ fn cell_of(point: Vec2) -> IVec2 {
 
 fn block_with_prop(
     trigger: On<Add, Prop>,
-    props: Query<&Prop>,
+    props: Query<(&Prop, Has<Gathered>)>,
     content: Res<Content>,
     mut obstacles: ResMut<Obstacles>,
 ) {
-    let Ok(prop) = props.get(trigger.entity) else {
-        return;
-    };
-    let definition = content.prop(prop.kind);
-    if definition.blocks {
-        obstacles.insert(Obstacle {
-            center: prop.position.xz(),
-            radius: definition.radius * prop.scale,
-            bottom: prop.position.y - REACH_DOWN,
-            top: prop.position.y + REACH_UP,
-            owner: trigger.entity,
-        });
+    if let Ok((prop, gathered)) = props.get(trigger.entity) {
+        block_with(&mut obstacles, &content, trigger.entity, prop, gathered);
     }
 }
 
 fn clear_prop(trigger: On<Remove, Prop>, mut obstacles: ResMut<Obstacles>) {
     obstacles.remove_owned_by(trigger.entity);
+}
+
+fn clear_gathered(
+    trigger: On<Add, Gathered>,
+    props: Query<&Prop>,
+    content: Res<Content>,
+    mut obstacles: ResMut<Obstacles>,
+) {
+    if let Ok(prop) = props.get(trigger.entity)
+        && !content.prop(prop.kind).stands_when_gathered()
+    {
+        obstacles.remove_owned_by(trigger.entity);
+    }
+}
+
+fn block_with_regrown(
+    trigger: On<Remove, Gathered>,
+    props: Query<&Prop>,
+    content: Res<Content>,
+    mut obstacles: ResMut<Obstacles>,
+) {
+    if let Ok(prop) = props.get(trigger.entity)
+        && !content.prop(prop.kind).stands_when_gathered()
+    {
+        block_with(&mut obstacles, &content, trigger.entity, prop, false);
+    }
+}
+
+/// Makes `prop` an obstacle, if it stands in the way.
+fn block_with(
+    obstacles: &mut Obstacles,
+    content: &Content,
+    owner: Entity,
+    prop: &Prop,
+    gathered: bool,
+) {
+    let definition = content.prop(prop.kind);
+    let standing = !gathered || definition.stands_when_gathered();
+    if definition.blocks && standing {
+        obstacles.insert(Obstacle {
+            center: prop.position.xz(),
+            radius: definition.radius * prop.scale,
+            bottom: prop.position.y - REACH_DOWN,
+            top: prop.position.y + REACH_UP,
+            owner,
+        });
+    }
 }
 
 fn block_with_stall(

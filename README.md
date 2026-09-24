@@ -72,23 +72,25 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
-held item, left and right mouse buttons to use it, `E` to harvest a ripe crop
-or, at a stall, to open its shop, `Tab` to open the backpack (click a stack to
-pick it up and a slot to put it down, and give money to other players beside
-it), `Z` to sleep or get up (from 18:00), `F5` to switch between first and
-third person, `Esc` for the game menu (options, and saving and quitting).
-What the crosshair is on is named under it, and the game says why when an
-action does nothing.
+held item, left and right mouse buttons to use it, `F` to harvest a ripe
+crop, pick berries or, at a stall, open its shop, `E` to open the backpack
+(click a stack to pick it up and a slot to put it down, and give money to
+other players beside it), `Z` to sleep or get up (from 18:00), `F5` to
+switch between first and third person, `Esc` for the game menu (options, and
+saving and quitting). What the crosshair is on is named under it, and the
+game says why when an action does nothing.
 The shovel digs and raises ground; the hoe tills a field, seeds are planted in
-it and the watering can waters it; food is eaten. The village lies straight
-ahead of where players arrive; its grocer opens from 09:00 to 17:00, except on
-Sundays.
+it and the watering can waters it; food is eaten. The axe fells trees for
+wood, leaving stumps that grow back in a week, and the pickaxe breaks rocks
+for stone. The village lies straight ahead of where players arrive: its
+grocer buys crops and sells seeds from 09:00 to 17:00, and its carpenter buys
+wood and stone and sells tools from 08:00 to 18:00, both closed on Sundays.
 
 Game content lives in `assets/data/`: items in
 [`items.ron`](assets/data/items.ron), crops in
 [`crops.ron`](assets/data/crops.ron), shops and market prices in
-[`shops.ron`](assets/data/shops.ron), trees, rocks and ground cover in
-[`scenery.ron`](assets/data/scenery.ron), and the colors of everything, season
+[`shops.ron`](assets/data/shops.ron), trees, rocks, ground cover and what
+gathering them gives in [`scenery.ron`](assets/data/scenery.ron), and the colors of everything, season
 by season, in [`palette.ron`](assets/data/palette.ron). The game refuses to
 start, naming the problem, if a data file is invalid. Models come from CC0 art
 and sound packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).

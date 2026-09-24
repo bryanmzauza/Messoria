@@ -1,23 +1,24 @@
 //! Scenery: trees, bushes and rocks scattered across the valley.
 //!
-//! The same seed always scatters the same scenery, so a world does not save
-//! it. Each kind of prop is scattered over a grid of its own: every cell has
-//! a chance of one prop, higher in groves and lower in clearings, placed at a
-//! random spot in the cell if the ground there suits it and nothing else
-//! stands too close. The village, the clearing where players arrive and
-//! tilled fields stay free.
+//! The same seed always scatters the same scenery, over the valley as it was
+//! generated, so a world does not save it; it saves only which props players
+//! gathered. Each kind of prop is scattered over a grid of its own: every
+//! cell has a chance of one prop, higher in groves and lower in clearings,
+//! placed at a random spot in the cell if the ground there suits it and
+//! nothing else stands too close. The village and the clearing where players
+//! arrive stay free. A kind's cell and the kind name a prop in the save.
 //!
-//! Nobody can dig, raise or till the ground a prop stands on.
+//! Nobody can dig, raise or till the ground a prop stands on, until it is
+//! gathered and leaves nothing standing.
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
 use lightyear::prelude::*;
-use messoria_content::Catalog;
+use messoria_content::{Catalog, PropId};
 use messoria_shared::{
     content::Content,
-    fields::tile_center,
-    protocol::{Field, Prop},
+    protocol::{Gathered, Prop},
     terrain::Terrain,
     village,
 };
@@ -25,8 +26,8 @@ use messoria_voxel::ChunkMap;
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::{
-    WorldSeed,
-    terrain::{ground_height, half_width},
+    Beginning, WorldSeed, WorldStart,
+    terrain::{WorldBuilding, ground_height, half_width},
 };
 
 /// Radius of the clearing around the world's origin, where players arrive.
@@ -44,50 +45,85 @@ pub(crate) struct SceneryPlugin;
 
 impl Plugin for SceneryPlugin {
     fn build(&self, app: &mut App) {
-        // After startup, once the terrain and a saved world's fields exist.
-        app.init_resource::<Scenery>()
-            .add_systems(PostStartup, grow_scenery);
+        app.init_resource::<Scenery>().add_systems(
+            Startup,
+            grow_scenery
+                .after(WorldBuilding::Generate)
+                .before(WorldBuilding::Restore),
+        );
     }
 }
 
-/// Where props stand, to keep the ground under them as it is.
+/// The cell of its kind's scattering grid a prop grew in.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SceneryCell(pub [u16; 2]);
+
+/// Where props stand, to keep the ground under them as it is and to find the
+/// prop a player works on.
 #[derive(Resource, Default)]
 pub(crate) struct Scenery {
     /// Footprints, indexed by the cell their center is in.
-    footprints: HashMap<IVec2, Vec<(Vec2, f32)>>,
+    footprints: HashMap<IVec2, Vec<Footprint>>,
     largest_footprint: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Footprint {
+    center: Vec2,
+    radius: f32,
+    prop: Entity,
 }
 
 impl Scenery {
     /// Whether a disc of `radius` around `point` reaches the ground under a
     /// prop.
     pub(crate) fn blocks(&self, point: Vec3, radius: f32) -> bool {
+        self.near(point.xz(), radius).next().is_some()
+    }
+
+    /// The prop whose footprint is nearest `point`, if one is within `slack`
+    /// of it.
+    pub(crate) fn prop_at(&self, point: Vec3, slack: f32) -> Option<Entity> {
         let center = point.xz();
+        self.near(center, slack)
+            .min_by(|a, b| {
+                let gap =
+                    |footprint: &Footprint| footprint.center.distance(center) - footprint.radius;
+                gap(a).total_cmp(&gap(b))
+            })
+            .map(|footprint| footprint.prop)
+    }
+
+    /// Frees the ground under `prop`, which no longer stands there.
+    pub(crate) fn clear(&mut self, prop: Entity) {
+        for footprints in self.footprints.values_mut() {
+            footprints.retain(|footprint| footprint.prop != prop);
+        }
+    }
+
+    /// Footprints a disc of `radius` around `center` reaches.
+    fn near(&self, center: Vec2, radius: f32) -> impl Iterator<Item = &Footprint> {
         let reach = radius + self.largest_footprint;
         let (min, max) = (cell_of(center - reach), cell_of(center + reach));
-        (min.y..=max.y).any(|z| {
-            (min.x..=max.x).any(|x| {
-                self.footprints.get(&IVec2::new(x, z)).is_some_and(|props| {
-                    props
-                        .iter()
-                        .any(|&(prop, footprint)| prop.distance(center) < radius + footprint)
-                })
-            })
-        })
+        (min.y..=max.y)
+            .flat_map(move |z| (min.x..=max.x).map(move |x| IVec2::new(x, z)))
+            .filter_map(|cell| self.footprints.get(&cell))
+            .flatten()
+            .filter(move |footprint| footprint.center.distance(center) < radius + footprint.radius)
     }
 
     /// Whether a prop with `footprint` at `center` would come too close to
     /// one already placed.
     fn crowds(&self, center: Vec2, footprint: f32) -> bool {
-        self.blocks(center.extend(0.0).xzy(), footprint + GAP)
+        self.near(center, footprint + GAP).next().is_some()
     }
 
-    fn insert(&mut self, center: Vec2, footprint: f32) {
-        self.largest_footprint = self.largest_footprint.max(footprint);
+    fn insert(&mut self, footprint: Footprint) {
+        self.largest_footprint = self.largest_footprint.max(footprint.radius);
         self.footprints
-            .entry(cell_of(center))
+            .entry(cell_of(footprint.center))
             .or_default()
-            .push((center, footprint));
+            .push(footprint);
     }
 }
 
@@ -95,40 +131,74 @@ fn cell_of(point: Vec2) -> IVec2 {
     (point / INDEX_CELL).floor().as_ivec2()
 }
 
+/// A prop the seed grew, and where in its kind's grid.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Grown {
+    entity: Entity,
+    prop: Prop,
+    cell: [u16; 2],
+}
+
 fn grow_scenery(
     content: Res<Content>,
     seed: Res<WorldSeed>,
+    beginning: Res<Beginning>,
     terrain: Res<Terrain>,
-    fields: Query<&Field>,
     mut scenery: ResMut<Scenery>,
     mut commands: Commands,
 ) {
-    let tilled: Vec<Vec2> = fields.iter().map(|field| tile_center(field.tile)).collect();
-    let free = |point: Vec2| {
-        point.length() >= ARRIVAL_CLEARING
-            && !village::reaches(point.extend(0.0).xzy(), VILLAGE_MARGIN)
-            && tilled.iter().all(|tile| tile.distance(point) > 1.5)
+    let grown = scatter(seed.0, &content, &terrain, free, &mut scenery, || {
+        commands.spawn_empty().id()
+    });
+    let gathered: HashMap<(PropId, [u16; 2]), u32> = match &beginning.0 {
+        WorldStart::New { .. } => HashMap::new(),
+        WorldStart::Resume(saved) => saved
+            .world
+            .gathered
+            .iter()
+            .map(|gathered| ((gathered.kind, gathered.cell), gathered.day))
+            .collect(),
     };
-    let props = scatter(seed.0, &content, &terrain, free, &mut scenery);
-    info!("grew {} props of scenery", props.len());
-    commands.spawn_batch(
-        props
-            .into_iter()
-            .map(|prop| (prop, Replicate::to_clients(NetworkTarget::All))),
+    info!(
+        "grew {} props of scenery, {} of them gathered",
+        grown.len(),
+        gathered.len()
     );
+    for Grown { entity, prop, cell } in grown {
+        let mut spawned = commands.entity(entity);
+        spawned.insert((
+            prop,
+            SceneryCell(cell),
+            Replicate::to_clients(NetworkTarget::All),
+        ));
+        if let Some(&day) = gathered.get(&(prop.kind, cell)) {
+            spawned.insert(Gathered { day });
+            if !content.prop(prop.kind).stands_when_gathered() {
+                scenery.clear(entity);
+            }
+        }
+    }
+}
+
+/// Where the seed may grow scenery: away from the arrival clearing and the
+/// village.
+fn free(point: Vec2) -> bool {
+    point.length() >= ARRIVAL_CLEARING && !village::reaches(point.extend(0.0).xzy(), VILLAGE_MARGIN)
 }
 
 /// Scatters every kind of prop over the valley, where `free` allows,
-/// recording their footprints in `scenery`.
+/// recording their footprints in `scenery`. Each prop grown gets an entity
+/// from `entity`.
 fn scatter(
     seed: u64,
     content: &Catalog,
     terrain: &ChunkMap,
     free: impl Fn(Vec2) -> bool,
     scenery: &mut Scenery,
-) -> Vec<Prop> {
+    mut entity: impl FnMut() -> Entity,
+) -> Vec<Grown> {
     let half_width = half_width();
-    let mut props = Vec::new();
+    let mut grown = Vec::new();
     for (index, (kind, definition)) in content.props().enumerate() {
         #[expect(
             clippy::cast_possible_truncation,
@@ -165,18 +235,27 @@ fn scatter(
                 if !suits {
                     continue;
                 }
-                scenery.insert(spot, footprint);
-                props.push(Prop {
-                    kind,
-                    model: u8::try_from(model).unwrap_or(u8::MAX),
-                    position: point,
-                    turn,
-                    scale,
+                let prop_entity = entity();
+                scenery.insert(Footprint {
+                    center: spot,
+                    radius: footprint,
+                    prop: prop_entity,
+                });
+                grown.push(Grown {
+                    entity: prop_entity,
+                    prop: Prop {
+                        kind,
+                        model: u8::try_from(model).unwrap_or(u8::MAX),
+                        position: point,
+                        turn,
+                        scale,
+                    },
+                    cell: [x, z],
                 });
             }
         }
     }
-    props
+    grown
 }
 
 /// How much of a grove `point` is in, from 0 in a clearing to about 2 in the
@@ -221,16 +300,15 @@ mod tests {
     use super::*;
     use crate::terrain::farm;
 
-    fn free(point: Vec2) -> bool {
-        point.length() >= ARRIVAL_CLEARING
-            && !village::reaches(point.extend(0.0).xzy(), VILLAGE_MARGIN)
-    }
-
-    fn grow(seed: u64) -> (Vec<Prop>, Scenery) {
+    fn grow(seed: u64) -> (Vec<Grown>, Scenery) {
         let content = load_content().expect("the shipped content is valid");
         let mut scenery = Scenery::default();
-        let props = scatter(seed, &content, &farm(), free, &mut scenery);
-        (props, scenery)
+        let mut next = 0;
+        let grown = scatter(seed, &content, &farm(), free, &mut scenery, || {
+            next += 1;
+            Entity::from_raw_u32(next).expect("a valid index")
+        });
+        (grown, scenery)
     }
 
     #[test]
@@ -245,19 +323,19 @@ mod tests {
     #[test]
     fn every_kind_grows_and_none_crowds_another() {
         let content = load_content().expect("the shipped content is valid");
-        let (props, _) = grow(7);
-        assert!((500..5_000).contains(&props.len()), "{} props", props.len());
+        let (grown, _) = grow(7);
+        assert!((500..5_000).contains(&grown.len()), "{} props", grown.len());
         for (kind, definition) in content.props() {
             assert!(
-                props.iter().any(|prop| prop.kind == kind),
+                grown.iter().any(|grown| grown.prop.kind == kind),
                 "no {} grew",
                 definition.name
             );
         }
         let footprint = |prop: &Prop| content.prop(prop.kind).radius * prop.scale;
-        for (index, prop) in props.iter().enumerate() {
+        for (index, Grown { prop, .. }) in grown.iter().enumerate() {
             assert!(free(prop.position.xz()), "a prop grew at {}", prop.position);
-            for other in &props[index + 1..] {
+            for Grown { prop: other, .. } in &grown[index + 1..] {
                 let apart = prop.position.xz().distance(other.position.xz());
                 assert!(
                     apart >= footprint(prop) + footprint(other),
@@ -269,14 +347,28 @@ mod tests {
     }
 
     #[test]
-    fn the_ground_under_props_is_kept() {
-        let (props, scenery) = grow(7);
-        let prop = props[0];
+    fn a_kind_and_a_cell_name_one_prop() {
+        let (grown, _) = grow(7);
+        let mut named = std::collections::HashSet::new();
+        for grown in &grown {
+            assert!(named.insert((grown.prop.kind, grown.cell)));
+        }
+    }
+
+    #[test]
+    fn the_ground_under_props_is_kept_until_they_are_cleared() {
+        let (grown, mut scenery) = grow(7);
+        let Grown { entity, prop, .. } = grown[0];
         assert!(scenery.blocks(prop.position, 0.0));
         assert!(scenery.blocks(prop.position + Vec3::new(1.0, 0.0, 0.0), 1.5));
+        assert_eq!(scenery.prop_at(prop.position, 0.5), Some(entity));
         assert!(
             !scenery.blocks(Vec3::ZERO, 1.5),
             "the arrival clearing is free"
         );
+
+        scenery.clear(entity);
+        assert!(!scenery.blocks(prop.position, 0.0));
+        assert_eq!(scenery.prop_at(prop.position, 0.0), None);
     }
 }

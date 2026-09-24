@@ -13,6 +13,7 @@ mod connections;
 mod day_cycle;
 mod feedback;
 mod fields;
+mod gathering;
 mod inventory;
 mod market;
 mod players;
@@ -126,6 +127,7 @@ impl Plugin for ServerPlugin {
                 market::MarketPlugin,
                 village::VillagePlugin,
                 scenery::SceneryPlugin,
+                gathering::GatheringPlugin,
                 terrain::TerrainPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,

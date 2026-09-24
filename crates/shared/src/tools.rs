@@ -29,6 +29,8 @@ pub const SHOVEL_ENERGY: u16 = 2;
 pub const HOE_ENERGY: u16 = 2;
 /// Energy watering one field costs.
 pub const WATERING_ENERGY: u16 = 1;
+/// Energy each strike of an axe or a pickaxe costs.
+pub const GATHERING_ENERGY: u16 = 2;
 
 /// What a shovel does with each of an item's actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -158,10 +158,10 @@ without reading the code.
 
 Goal: the valley gives more than what is planted.
 
-- [ ] Axe and pickaxe; trees give wood, rocks give stone
-- [ ] Berry bushes to pick, regrowing every few days
-- [ ] Gathered scenery is kept in the save; trees grow back from stumps
-- [ ] A carpenter who buys wood and stone
+- [x] Axe and pickaxe; trees give wood, rocks give stone
+- [x] Berry bushes to pick, regrowing every few days
+- [x] Gathered scenery is kept in the save; trees grow back from stumps
+- [x] A carpenter who buys wood and stone
 
 **Exit criterion:** a player can earn a day's money from gathering alone,
 and a restarted server keeps every cleared tree and rock.

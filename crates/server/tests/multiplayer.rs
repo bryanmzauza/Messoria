@@ -195,17 +195,19 @@ fn a_purchase_made_over_the_network_reaches_the_buyer() {
         .single_mut(world)
         .expect("the world has a clock")
         .0 = WorldTime::at(0, "10:00".parse().expect("valid time")).expect("within the day");
+    let content = load_content().expect("the shipped content is valid");
+    let grocer = content.shop_id("grocer").expect("the grocer exists");
     let stall = *world
         .query::<&Shopfront>()
-        .single(world)
-        .expect("the village has one stall");
+        .iter(world)
+        .find(|stall| stall.shop == grocer)
+        .expect("the grocer has a stall");
     world
         .query_filtered::<&mut Position, With<PlayerId>>()
         .single_mut(world)
         .expect("one character")
         .0 = stall.position + Quat::from_rotation_y(stall.facing) * Vec3::new(0.0, 0.0, -1.5);
 
-    let content = load_content().expect("the shipped content is valid");
     let seeds = content.id("turnip_seeds").expect("turnip seeds exist");
     let price = content
         .shop(stall.shop)

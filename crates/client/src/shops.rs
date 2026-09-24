@@ -1,6 +1,6 @@
 //! Village shops on screen: their stalls, and the window for trading at one.
 //!
-//! `E` next to a stall opens its shop; `E` again, Escape or walking away
+//! `F` next to a stall opens its shop; `F` again, Escape or walking away
 //! closes it. The window lists what the shop buys among what the player
 //! carries, and what it sells. Every price and every refusal is worked out
 //! with the same trade rules the server applies, on copies of the player's
@@ -23,18 +23,21 @@ use messoria_shared::{
 };
 
 use crate::{
+    actions::INTERACT_KEY,
+    art::item_color,
     camera::View,
     clock::LocalClock,
     panels::OpenPanel,
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
-const INTERACT_KEY: KeyCode = KeyCode::KeyE;
 /// Units bought at once with the second buy button.
 const BULK_PURCHASE: u16 = 10;
 
 const WOOD_COLOR: Color = Color::srgb(0.45, 0.3, 0.18);
 const AWNING_COLORS: [Color; 2] = [Color::srgb(0.75, 0.2, 0.18), Color::srgb(0.93, 0.88, 0.78)];
+/// Crates on a stall show what the shop buys; these fill in for a shop that
+/// buys fewer than two things.
 const CRATE_COLORS: [Color; 2] = [Color::srgb(0.9, 0.55, 0.15), Color::srgb(0.4, 0.62, 0.25)];
 
 pub(crate) struct ShopsPlugin;
@@ -48,7 +51,7 @@ impl Plugin for ShopsPlugin {
     }
 }
 
-/// Opens and closes shops; systems that also answer `E` run after it.
+/// Opens and closes shops; systems that also answer `F` run after it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ShopSystems;
 
@@ -63,10 +66,11 @@ struct ShopListing;
 #[derive(Component, Clone, Copy)]
 struct DealButton(Deal);
 
-/// A stall: a counter under a striped awning, with crates of produce. Built
-/// facing -Z, then turned the way the stall faces.
+/// A stall: a counter under a striped awning, with crates of what the shop
+/// buys. Built facing -Z, then turned the way the stall faces.
 fn build_stall(
     trigger: On<Add, Shopfront>,
+    content: Res<Content>,
     stalls: Query<&Shopfront>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -84,7 +88,13 @@ fn build_stall(
     };
     let wood = matte(WOOD_COLOR);
     let awning = AWNING_COLORS.map(&mut matte);
-    let crates = CRATE_COLORS.map(&mut matte);
+    let buys = &content.shop(stall.shop).buys;
+    let crates: [_; 2] = std::array::from_fn(|index| {
+        let color = buys.get(index).map_or(CRATE_COLORS[index], |offer| {
+            item_color(&content, offer.item)
+        });
+        matte(color)
+    });
     let counter = meshes.add(Cuboid::new(2.4, 1.0, 0.7));
     let post = meshes.add(Cuboid::new(0.12, 2.6, 0.12));
     let stripe = meshes.add(Cuboid::new(0.7, 0.08, 2.0));
@@ -149,7 +159,7 @@ fn spawn_shop_window(mut commands: Commands) {
         ));
 }
 
-/// `E` at a stall opens its shop, and closes it again; walking away closes
+/// `F` at a stall opens its shop, and closes it again; walking away closes
 /// it too. Consumes the key press, so it does not also harvest.
 fn open_or_close_shop(
     mut keys: ResMut<ButtonInput<KeyCode>>,

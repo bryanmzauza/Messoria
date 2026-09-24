@@ -22,6 +22,6 @@ pub use crate::{
     error::{ContentError, Problem},
     item::{ItemDef, ItemId, ItemKind, Quality, Tool},
     palette::{Palette, Rgb},
-    scenery::{CoverDef, PropDef, PropId},
+    scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
 };

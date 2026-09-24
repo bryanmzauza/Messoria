@@ -44,5 +44,21 @@
                 (item: "wheat_seeds", price: 15, seasons: [Summer, Autumn]),
             ],
         ),
+        (
+            id: "carpenter",
+            name: "Carpenter",
+            opens: "08:00",
+            closes: "18:00",
+            closed_on: [Sunday],
+            daily_limit: 60,
+            buys: [
+                ("wood", 8),
+                ("stone", 6),
+            ],
+            sells: [
+                (item: "axe", price: 120),
+                (item: "pickaxe", price: 150),
+            ],
+        ),
     ],
 )

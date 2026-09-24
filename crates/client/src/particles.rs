@@ -1,5 +1,5 @@
 //! Bursts of small bits where things happen: soil flying from a shovel,
-//! water splashing, leaves shaken off a harvest.
+//! chips from an axe, water splashing, leaves shaken off a harvest.
 //!
 //! Particles are tiny cubes thrown upward and pulled down again, shrinking
 //! away over their short lives. They are only for show and never touch the
@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use bevy::{light::NotShadowCaster, prelude::*};
+use messoria_content::Tool;
 use messoria_shared::protocol::Happened;
 use messoria_voxel::Material;
 
@@ -29,6 +30,7 @@ impl Plugin for ParticlesPlugin {
 enum Burst {
     Soil,
     Stone,
+    Chips,
     Sand,
     Water,
     Leaves,
@@ -49,9 +51,10 @@ struct Style {
 }
 
 impl Burst {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::Soil,
         Self::Stone,
+        Self::Chips,
         Self::Sand,
         Self::Water,
         Self::Leaves,
@@ -65,13 +68,14 @@ impl Burst {
             Happened::Dug(Material::Grass | Material::Soil)
             | Happened::Raised
             | Happened::Tilled => Some(Self::Soil),
-            Happened::Dug(Material::Stone) => Some(Self::Stone),
+            Happened::Dug(Material::Stone) | Happened::Struck(Tool::Pickaxe) => Some(Self::Stone),
+            Happened::Struck(Tool::Axe) => Some(Self::Chips),
             Happened::Dug(Material::Sand) => Some(Self::Sand),
             Happened::Watered => Some(Self::Water),
             Happened::Harvested => Some(Self::Leaves),
             Happened::Traded => Some(Self::Coins),
             Happened::Fertilized | Happened::Planted => Some(Self::Fertilizer),
-            Happened::Ate => None,
+            Happened::Struck(Tool::Shovel | Tool::Hoe | Tool::WateringCan) | Happened::Ate => None,
         }
     }
 
@@ -87,6 +91,14 @@ impl Burst {
         match self {
             Self::Soil => earth(Color::srgb(0.36, 0.25, 0.16)),
             Self::Stone => earth(Color::srgb(0.52, 0.52, 0.5)),
+            Self::Chips => Style {
+                color: Color::srgb(0.78, 0.62, 0.4),
+                count: 10,
+                size: 0.07,
+                rise: 2.4,
+                spread: 1.8,
+                life: 0.6,
+            },
             Self::Sand => earth(Color::srgb(0.82, 0.73, 0.52)),
             Self::Water => Style {
                 color: Color::srgb(0.45, 0.68, 0.95),

@@ -27,10 +27,30 @@ impl Plugin for TerrainPlugin {
         app.add_message::<TerrainEdited>()
             .add_message::<GroundReshaped>()
             .init_resource::<EditedChunks>()
-            .add_systems(Startup, generate_world)
+            .configure_sets(
+                Startup,
+                (WorldBuilding::Generate, WorldBuilding::Restore).chain(),
+            )
+            .add_systems(
+                Startup,
+                (
+                    generate_valley.in_set(WorldBuilding::Generate),
+                    restore_edits.in_set(WorldBuilding::Restore),
+                ),
+            )
             .add_systems(PostUpdate, note_edited_chunks)
             .add_plugins((shovel::ShovelPlugin, streaming::StreamingPlugin));
     }
+}
+
+/// Building the terrain at startup: first the valley as generated, then the
+/// changes players made to it laid over it. Whatever is placed from the seed
+/// alone, such as scenery, is placed in between, on the generated valley, so
+/// that the same seed always places it the same way.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum WorldBuilding {
+    Generate,
+    Restore,
 }
 
 /// Voxels changed by an edit, to be forwarded to clients that have the chunk.
@@ -50,13 +70,16 @@ pub(crate) struct EditedChunks {
     pub unsaved: bool,
 }
 
-fn generate_world(
+fn generate_valley(mut terrain: ResMut<Terrain>) {
+    **terrain = farm();
+}
+
+fn restore_edits(
     beginning: Res<Beginning>,
     mut terrain: ResMut<Terrain>,
     mut edited: ResMut<EditedChunks>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
 ) {
-    **terrain = farm();
     if let WorldStart::Resume(saved) = &beginning.0 {
         for (position, chunk) in &saved.terrain {
             terrain.insert(*position, chunk.clone());

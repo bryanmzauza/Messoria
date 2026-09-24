@@ -10,6 +10,13 @@
 // relative to the models folder; each prop uses one of its models, drawn at
 // a scale between the two given.
 //
+// A prop players can `gather` gives the items it `yields`, by hand (with the
+// interact key) or after `strikes` uses of the `tool` it names. What
+// `remains` is nothing, which frees the ground, `Itself` (without its
+// `fruit`, drawn in that color while it can be picked) or another `model`,
+// such as a stump, drawn at `scale` times the prop's. Props that leave
+// something standing may grow back after `regrows_after` days.
+//
 // `cover` is the small plants on grassy ground, which only clients draw.
 (
     props: [
@@ -24,6 +31,13 @@
             clustering: 0.8,
             max_slope: 0.6,
             grows_on: [Grass],
+            gather: (
+                tool: Axe,
+                strikes: 5,
+                yields: [("wood", 5)],
+                remains: Model(model: "nature/stump_round.glb", scale: 0.5),
+                regrows_after: 7,
+            ),
         ),
         (
             id: "leafy_tree",
@@ -36,6 +50,13 @@
             clustering: 0.7,
             max_slope: 0.7,
             grows_on: [Grass],
+            gather: (
+                tool: Axe,
+                strikes: 4,
+                yields: [("wood", 4)],
+                remains: Model(model: "nature/stump_round.glb", scale: 0.5),
+                regrows_after: 7,
+            ),
         ),
         (
             id: "pine",
@@ -53,6 +74,13 @@
             clustering: 0.9,
             max_slope: 1.2,
             grows_on: [Grass, Stone],
+            gather: (
+                tool: Axe,
+                strikes: 3,
+                yields: [("wood", 3)],
+                remains: Model(model: "nature/stump_old.glb", scale: 0.5),
+                regrows_after: 6,
+            ),
         ),
         (
             id: "bush",
@@ -72,6 +100,24 @@
             blocks: false,
         ),
         (
+            id: "berry_bush",
+            name: "Berry bush",
+            models: ["nature/plant_bushLarge.glb"],
+            scale: (2.2, 2.8),
+            radius: 0.25,
+            spacing: 16.0,
+            density: 0.3,
+            clustering: 0.5,
+            max_slope: 0.6,
+            grows_on: [Grass],
+            gather: (
+                yields: [("wild_berries", 3)],
+                remains: Itself,
+                regrows_after: 3,
+                fruit: (0.72, 0.1, 0.24),
+            ),
+        ),
+        (
             id: "boulder",
             name: "Boulder",
             models: ["nature/rock_largeA.glb", "nature/rock_largeB.glb", "nature/rock_largeC.glb"],
@@ -82,6 +128,7 @@
             clustering: 0.3,
             max_slope: 1.5,
             grows_on: [Grass, Stone],
+            gather: (tool: Pickaxe, strikes: 6, yields: [("stone", 8)]),
         ),
         (
             id: "standing_stone",
@@ -94,6 +141,7 @@
             clustering: 0.2,
             max_slope: 2.0,
             grows_on: [Grass, Stone],
+            gather: (tool: Pickaxe, strikes: 4, yields: [("stone", 5)]),
         ),
         (
             id: "log",
@@ -106,6 +154,7 @@
             clustering: 0.5,
             max_slope: 0.4,
             grows_on: [Grass],
+            gather: (tool: Axe, strikes: 2, yields: [("wood", 3)]),
         ),
         (
             id: "stump",
@@ -118,6 +167,7 @@
             clustering: 0.6,
             max_slope: 0.6,
             grows_on: [Grass],
+            gather: (tool: Axe, strikes: 2, yields: [("wood", 1)]),
         ),
     ],
 

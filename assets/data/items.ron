@@ -2,12 +2,16 @@
 //
 // `id` is how other data files and saves refer to an item. Optional fields:
 // `stack` (most items per inventory slot, 1 if omitted), `shelf_life` (days
-// until a perishable item spoils) and `spoils_into` (what it then becomes).
+// until a perishable item spoils), `spoils_into` (what it then becomes) and
+// `color` (what it is marked with on screen, for items no crop or ground
+// colors).
 (
     items: [
         (id: "shovel", name: "Shovel", kind: Tool(Shovel)),
         (id: "hoe", name: "Hoe", kind: Tool(Hoe)),
         (id: "watering_can", name: "Watering can", kind: Tool(WateringCan)),
+        (id: "axe", name: "Axe", kind: Tool(Axe)),
+        (id: "pickaxe", name: "Pickaxe", kind: Tool(Pickaxe)),
 
         // Digging yields the item listing the dug material; raising the
         // ground uses soil.
@@ -28,6 +32,9 @@
         (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost"),
         (id: "wheat", name: "Wheat", kind: Goods, stack: 99),
 
+        // Gathered from the scenery; scenery.ron says what gives what.
+        (id: "wood", name: "Wood", kind: Goods, stack: 99, color: (0.6, 0.42, 0.25)),
+
         (
             id: "wild_berries",
             name: "Wild berries",
@@ -44,6 +51,8 @@
         ("shovel", 1),
         ("hoe", 1),
         ("watering_can", 1),
+        ("axe", 1),
+        ("pickaxe", 1),
         ("turnip_seeds", 15),
         ("potato_seeds", 10),
         ("strawberry_seeds", 5),

@@ -19,8 +19,9 @@ use messoria_shared::{
     fields::{tile_at, tile_center},
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Belongings, Crop, Field, Happening, HarvestRequest, ItemAction, Money,
-        Notice, PlayerInput, Position, SleepRequest, UseItem, Watered, WorldClock,
+        ActionChannel, Belongings, Crop, Deal, Field, Happening, HarvestRequest, ItemAction, Money,
+        Notice, PlayerInput, Position, Shopfront, SleepRequest, Trade, UseItem, Watered,
+        WorldClock,
     },
     terrain::Terrain,
 };
@@ -254,6 +255,31 @@ impl HostedWorld {
                     .is_some_and(|stack| stack.item == item)
             })
             .and_then(|slot| u8::try_from(slot).ok())
+    }
+
+    /// The stall of the shop with id `shop`.
+    pub fn stall(&mut self, content: &Catalog, shop: &str) -> Shopfront {
+        let shop = content.shop_id(shop).expect("the shop exists");
+        let world = self.app.world_mut();
+        *world
+            .query::<&Shopfront>()
+            .iter(world)
+            .find(|stall| stall.shop == shop)
+            .expect("the shop has a stall")
+    }
+
+    /// Puts the host's character in front of the counter of `shop`'s stall.
+    pub fn go_to_stall(&mut self, content: &Catalog, shop: &str) -> Shopfront {
+        let stall = self.stall(content, shop);
+        let front = Quat::from_rotation_y(stall.facing) * Vec3::new(0.0, 0.0, -1.5);
+        self.teleport(stall.position + front);
+        stall
+    }
+
+    pub fn trade(&mut self, content: &Catalog, shop: &str, deal: Deal) {
+        let shop = content.shop_id(shop).expect("the shop exists");
+        self.send(Trade { shop, deal });
+        self.run(PAUSE_BETWEEN_USES);
     }
 
     pub fn heard(&self) -> &Heard {
