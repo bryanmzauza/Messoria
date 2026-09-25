@@ -15,9 +15,10 @@ use crate::{
     stacks::{self, SlotEntry},
 };
 
-/// Version of the format this game writes. Version 1 had no gathered
-/// scenery, and versions 1 and 2 no structures.
-const VERSION: u32 = 3;
+/// Version of the format this game writes. Worlds of versions 1 to 3 grew
+/// from a smaller valley, which the seed no longer grows: their terrain,
+/// scenery, fields and buildings would not fit the valley it grows now.
+const VERSION: u32 = 4;
 
 /// Everything about a world that is not terrain or players.
 #[derive(Clone, Debug, PartialEq)]
@@ -75,11 +76,7 @@ struct WorldFile {
     /// Saturation of each item, by item id.
     market: Vec<(String, f32)>,
     fields: Vec<FieldEntry>,
-    // Absent from version 1 files, which read as nothing gathered.
-    #[serde(default)]
     gathered: Vec<GatheredEntry>,
-    // Absent from version 1 and 2 files, which read as nothing built.
-    #[serde(default)]
     structures: Vec<StructureEntry>,
 }
 
@@ -170,7 +167,8 @@ impl WorldState {
 
     pub(crate) fn from_ron(text: &str, mut resolver: Resolver<'_>) -> Result<Self, Problem> {
         let file: WorldFile = match version_of(text)? {
-            1 | 2 | VERSION => ron::from_str(text)?,
+            VERSION => ron::from_str(text)?,
+            found @ 1..=3 => return Err(Problem::OlderValley(found)),
             // Files from older versions of the format are read and upgraded here.
             found => return Err(unreadable(found, VERSION)),
         };

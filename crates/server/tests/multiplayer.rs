@@ -23,12 +23,15 @@ use messoria_shared::{
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Asleep, Belongings, Deal, ItemAction, Money, PlayerId, PlayerInput,
+        ActionChannel, Asleep, Belongings, Deal, Field, ItemAction, Money, PlayerId, PlayerInput,
         Position, Shopfront, SleepRequest, Structure, Trade, UseItem, WorldClock,
     },
+    scenery::Scenery,
     terrain::Terrain,
     tools,
+    valley::Valley,
 };
+use messoria_worldgen::column_of;
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -302,6 +305,77 @@ fn sleeping_through_the_night_starts_a_new_day() {
                 .is_some_and(|(energy, asleep)| *energy == Energy::FULL && !asleep);
             day == Some(1) && rested
         },
+    );
+}
+
+/// A client learns the valley from the seed and grows the scenery of the
+/// terrain it is sent, and is sent only what stands near its character.
+#[test]
+fn a_client_is_sent_the_valley_and_what_stands_near_it() {
+    let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
+    let mut server = server_app(server_addr);
+    let mut client = client_app(server_addr, Behavior::StandStill);
+    run_until(
+        &mut server,
+        &mut client,
+        "the client to grow the scenery around its character",
+        |_, client| {
+            local_character_if_any(client).is_some_and(|feet| {
+                client
+                    .world()
+                    .resource::<Scenery>()
+                    .is_loaded(column_of(feet.xz()))
+            })
+        },
+    );
+    let seed = |app: &App| app.world().resource::<Valley>().seed();
+    assert_eq!(seed(&client), seed(&server));
+
+    let feet = local_character(&mut client);
+    let field = |at: Vec3| Field {
+        tile: at.xz().floor().as_ivec2(),
+        height: at.y,
+    };
+    let (near, far) = (
+        feet + Vec3::new(3.0, 0.0, 3.0),
+        feet + Vec3::new(600.0, 0.0, 0.0),
+    );
+    for at in [near, far] {
+        server
+            .world_mut()
+            .spawn((field(at), Replicate::to_clients(NetworkTarget::All)));
+    }
+    let has_field = |client: &mut App, at: Vec3| {
+        let tile = field(at).tile;
+        client
+            .world_mut()
+            .query::<&Field>()
+            .iter(client.world())
+            .any(|field| field.tile == tile)
+    };
+    run_until(
+        &mut server,
+        &mut client,
+        "the near field to arrive",
+        |_, client| has_field(client, near),
+    );
+    for _ in 0..60 {
+        server.update();
+        client.update();
+    }
+    assert!(!has_field(&mut client, far), "a field far away was sent");
+
+    let world = server.world_mut();
+    world
+        .query_filtered::<&mut Position, With<PlayerId>>()
+        .single_mut(world)
+        .expect("one character")
+        .0 = far + Vec3::new(2.0, 0.0, 2.0);
+    run_until(
+        &mut server,
+        &mut client,
+        "the far field to arrive and the near one to go",
+        |_, client| has_field(client, far) && !has_field(client, near),
     );
 }
 

@@ -24,8 +24,10 @@ use messoria_shared::{
         Notice, PlayerInput, Position, Shopfront, SleepRequest, Structure, Trade, UseItem, Watered,
         WorldClock,
     },
+    scenery::Scenery,
     terrain::Terrain,
 };
+use messoria_worldgen::column_of;
 
 /// Updates to run while waiting for something; far more than it takes.
 const PATIENCE: u32 = 2_000;
@@ -90,7 +92,21 @@ impl HostedWorld {
         world.run_until("the host to control a character", |world| {
             world.character().is_some()
         });
+        world.run_until("the ground around the host to load", Self::settled);
         world
+    }
+
+    /// Whether the terrain and the scenery around the host's character are
+    /// loaded, which the server does over a few updates after it moves far.
+    fn settled(&mut self) -> bool {
+        let (feet, _) = self.character().expect("the host has a character");
+        let world = self.app.world();
+        let column = column_of(feet.xz());
+        let around = (-1..=1).flat_map(|z| (-1..=1).map(move |x| column + IVec2::new(x, z)));
+        world.resource::<Terrain>().distance(feet).is_some()
+            && around
+                .into_iter()
+                .all(|column| world.resource::<Scenery>().is_loaded(column))
     }
 
     pub fn character(&mut self) -> Option<(Vec3, Belongings)> {
@@ -244,6 +260,7 @@ impl HostedWorld {
             .single_mut(world)
             .expect("the host has a character")
             .0 = feet;
+        self.run_until("the ground around the host to load", Self::settled);
         self.run(PAUSE_BETWEEN_USES);
     }
 

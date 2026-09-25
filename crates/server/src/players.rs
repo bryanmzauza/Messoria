@@ -19,10 +19,10 @@ use messoria_shared::{
     content::Content,
     energy::Energy,
     protocol::{Belongings, Heading, Money, PlayerId, Position, SoldToday, Velocity, WorldClock},
-    terrain::Terrain,
+    valley::Valley,
 };
 
-use crate::{Beginning, WorldStart, terrain::ground_height};
+use crate::{Beginning, WorldStart};
 
 /// Distance from the world origin at which players appear.
 const SPAWN_RADIUS: f32 = 3.0;
@@ -99,7 +99,7 @@ fn remember_saved_players(beginning: Res<Beginning>, mut absent: ResMut<AbsentPl
 fn spawn_player(
     trigger: On<Add, Connected>,
     clients: Query<&RemoteId, With<ClientOf>>,
-    terrain: Res<Terrain>,
+    valley: Res<Valley>,
     content: Res<Content>,
     clock: Single<&WorldClock>,
     mut absent: ResMut<AbsentPlayers>,
@@ -114,8 +114,7 @@ fn spawn_player(
         back_after_absence(state, &content, today)
     } else {
         let spawn = spawn_point(peer);
-        let ground = ground_height(&terrain, spawn.x, spawn.z).unwrap_or_default();
-        newcomer(&content, spawn.with_y(ground), today)
+        newcomer(&content, spawn.with_y(valley.height(spawn.xz())), today)
     };
 
     let character = commands

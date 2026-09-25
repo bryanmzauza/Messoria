@@ -18,6 +18,7 @@ mod fields;
 mod figures;
 mod furniture;
 mod ground;
+mod horizon;
 mod hud;
 mod icons;
 mod input;
@@ -39,6 +40,7 @@ mod terrain;
 mod ui;
 mod viewmodel;
 mod wallet;
+mod water;
 mod weather;
 mod wind;
 
@@ -66,6 +68,8 @@ impl Plugin for ClientPlugin {
             picture::PicturePlugin,
             ground::GroundPlugin,
             terrain::TerrainPlugin,
+            horizon::HorizonPlugin,
+            water::WaterPlugin,
             fields::FieldsPlugin,
             weather::WeatherPlugin,
             avatars::AvatarPlugin,

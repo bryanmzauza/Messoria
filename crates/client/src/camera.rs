@@ -19,8 +19,12 @@ use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
 
 use crate::{avatars::AvatarSystems, panels::OpenPanel, settings::Preferences};
 
-/// Distance at which terrain is fully swallowed by fog, in meters.
-const FOG_VISIBILITY: f32 = 180.0;
+/// Distance at which the land is all but swallowed by haze, in meters: far
+/// past the full terrain, into the coarse land drawn out to the horizon.
+const FOG_VISIBILITY: f32 = 1400.0;
+/// Farthest the world camera sees: across the valley, to the dome of the
+/// sky around it.
+const FAR_PLANE: f32 = 3000.0;
 /// Radians of rotation per pixel of mouse movement, at a mouse sensitivity
 /// of one.
 const RADIANS_PER_PIXEL: f32 = 0.0025;
@@ -111,6 +115,10 @@ fn spawn_camera(mut commands: Commands) {
         Name::new("Camera"),
         WorldCamera,
         Camera3d::default(),
+        Projection::Perspective(PerspectiveProjection {
+            far: FAR_PLANE,
+            ..default()
+        }),
         SpatialListener::new(EAR_GAP),
         // The environment tints the fog to match the sky.
         DistanceFog {

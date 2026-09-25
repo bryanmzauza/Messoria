@@ -24,6 +24,7 @@ crates/
   inventory/         messoria-inventory         Slots, stacks, quality and spoilage
   save/              messoria-save              Versioned save files for worlds and players
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
+  worldgen/          messoria-worldgen          The valley grown from the seed: its shape, river, roads and scenery
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
   client/            messoria-client            Rendering, input, camera, UI, audio
@@ -50,7 +51,7 @@ starts, never ahead of time:
 
 ```
 bins, tools ──► client ──┐
-           └──► server ──┴──► shared ──► domain crates (calendar, content, economy, farming, inventory, save, voxel)
+           └──► server ──┴──► shared ──► domain crates (calendar, content, economy, farming, inventory, save, voxel, worldgen)
 ```
 
 - **Domain crates do not depend on Bevy.** They hold pure data structures and
@@ -94,18 +95,37 @@ which groups are added.
   input goes unapplied.
 - lightyear drops messages left unread at the end of a frame, so systems that
   receive messages run every frame (`PreUpdate`), never in `FixedUpdate`.
+- Interest management (`messoria_server::interest`): every column of the
+  world is a lightyear room. Fields, structures, stalls and characters are
+  put in the room of the column they stand in, characters changing rooms as
+  they walk, and each client joins the rooms around its character, as far as
+  it holds terrain. What is in no room (the clock, the market) reaches
+  everyone. See [ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
 
 ## Terrain
 
 See [ADR 0004](adr/0004-terrain-representation.md),
-[ADR 0005](adr/0005-terrain-edits-and-shading.md) and
-[ADR 0013](adr/0013-picture-and-painted-ground.md).
+[ADR 0005](adr/0005-terrain-edits-and-shading.md),
+[ADR 0013](adr/0013-picture-and-painted-ground.md) and
+[ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
 
-- The server generates the farm valley at startup and owns the authoritative
-  `Terrain` resource. A client's `Terrain` holds only the chunks streamed to it.
-  A hosted world shares one `Terrain` between its server and client.
-- Chunks within a client's view radius are streamed nearest first, a few per
-  tick; chunks beyond a wider radius are unloaded.
+- `messoria-worldgen` grows the valley from the seed: `Landscape` gives the
+  ground's height and material anywhere, the river's course and the roads,
+  and generates any column of chunks; `props_in_column` grows the scenery of
+  a column. The world is 64 by 64 columns of three chunks, two kilometers
+  across. `messoria_shared::valley::Valley` holds the `Landscape`: the server
+  from the start, a client once `TerrainUpdate::World` tells it the seed.
+- The server owns the authoritative `Terrain` resource, holding the columns
+  within a few columns of any player: `terrain::loading` generates missing
+  ones nearest first, several at a time on every core, and unloads those
+  nobody is near. Edited chunks are parked while their columns are unloaded.
+  A client's `Terrain` holds only the columns streamed to it; a hosted world
+  shares one between its server and client.
+- Loading and unloading a column writes `ColumnLoaded` or `ColumnUnloaded`
+  (`LoadColumns` systems run before the scenery grows on them).
+- Columns within a client's view radius are streamed whole, nearest first, a
+  few per tick, with what was gathered on them; columns beyond a wider
+  radius are unloaded.
 - Clients dig or raise by using the shovel (`UseItem`). The server checks
   reach, rate, the target and nearby players, applies the brush and forwards
   the changed voxels to every client holding the chunk.
@@ -117,6 +137,11 @@ See [ADR 0004](adr/0004-terrain-representation.md),
   and tints them by the season.
 - Any change to `Terrain` emits `ChunkChanged` for each chunk whose mesh
   depends on it; the client remeshes those under a per-frame time budget.
+- The client draws in full the loaded columns near its camera
+  (`FullColumns`), and the rest of the valley coarsely from its shape
+  (`horizon`): tiles of the heightfield on a coarse grid, in the same ground,
+  leaving out the columns drawn in full with skirts beside them. `water`
+  lays the river's water along its whole course.
 
 ## Days
 
@@ -140,8 +165,10 @@ See [ADR 0007](adr/0007-save-format.md).
   stops the program.
 - `ServerPlugin` receives a `WorldSetup`. Each part of the server sets up its
   share of the world at startup from the `Beginning` resource: the clock and
-  weather seed, the terrain laid over the generated valley, the market, the
-  fields and the players who have been in the world.
+  weather seed, the chunks players edited (parked until their columns
+  load), what was gathered, the market, the fields and the players who have
+  been in the world. Worlds saved before the valley grew (world format 3 and
+  earlier) are refused.
 - The server saves a new world at once, then every five minutes, at each
   dawn and when the app exits. Players who leave are kept by key and written
   with the next save; returning players find their character as they left
@@ -217,11 +244,13 @@ See [ADR 0013](adr/0013-picture-and-painted-ground.md).
 See [ADR 0008](adr/0008-scenery-and-art.md) and
 [ADR 0014](adr/0014-block-models-painted-for-the-game.md).
 
-- The server scatters props from the world's seed at startup, over the
-  valley as generated and before saved terrain is laid over it, and
-  replicates each as a `Prop` entity (kind, model, position, turn, scale). Its
-  `Scenery` resource keeps their footprints, where the shovel and the hoe
-  cannot work, and finds the prop a player works on.
+- Server and clients grow the props of every column they load from the seed
+  (`messoria_shared::scenery`): the `Scenery` resource keeps each prop, named
+  by its `PropKey` (kind and scattering cell), its footprint, where the
+  shovel and the hoe cannot work, and what was gathered. It finds the prop a
+  player works on. No prop is replicated. The client also grows the tall
+  props of the columns past its terrain, for a few hundred meters, and draws
+  them standing.
 - Models are block models with an embedded pixel-art atlas, made in meters.
   Clients draw props from them, and grow ground cover for the chunks near the
   camera, merged into one mesh per material, each vertex keeping its height
@@ -239,8 +268,10 @@ See [ADR 0010](adr/0010-gathered-scenery.md).
 
 - Using the axe or the pickaxe on a prop, or `Gather` (by hand), becomes a
   `GatherUse` for the server's `gathering` module, which counts strikes,
-  gives the yield and marks the prop `Gathered` with the day. At dawn,
-  kinds that grow back lose `Gathered` once enough days have passed.
+  gives the yield and records in `Scenery` the day the prop was gathered. At
+  dawn, kinds that grow back are forgotten as gathered once enough days have
+  passed. Each change writes `SceneryChanged`, which moves obstacles, redraws
+  the prop and is sent to the clients that have its column.
 - What a gathered prop leaves standing decides whether it is still an
   obstacle and keeps its ground; clients draw it as its remains, and draw
   fruit on props that can be picked.
@@ -278,9 +309,11 @@ See [ADR 0009](adr/0009-action-feedback-and-collision.md).
 - The client shows notices above the hotbar, and plays a spatial sound and
   throws particles where each happening happened. Footsteps sound by the
   ground under each character.
-- `messoria_shared::obstacles` builds upright cylinders from replicated props
-  and stalls on every peer; movement pushes bodies out of them, so predicted
-  and authoritative movement collide alike. Sprinting is part of
+- `messoria_shared::obstacles` builds upright cylinders from the props grown
+  on the loaded columns and from replicated stalls, and boxes from
+  structures, on every peer; movement pushes bodies out of them, so predicted
+  and authoritative movement collide alike. Each obstacle belongs to a
+  `Blocker`: an entity, or a prop by its key. Sprinting is part of
   `PlayerInput`.
 - The client names what the crosshair is on from the terrain it aims at and
   a ray cast against the same obstacles.
@@ -338,4 +371,5 @@ See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
 - Trades run on copies of a character's state, which replace the originals
   only if the trade happens. Clients price their shop window with the same
   functions on copies of their own state.
-- `GiveMoney` moves money to another player, all of it or none.
+- `GiveMoney` moves money to another player, all of it or none. Clients
+  only know the players near them, so money is given to someone nearby.

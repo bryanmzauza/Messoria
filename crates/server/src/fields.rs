@@ -19,6 +19,7 @@ use messoria_shared::{
         Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, Happened, HarvestRequest,
         Notice, Position, Watered, WorldClock,
     },
+    scenery::Scenery,
     terrain::Terrain,
     tools, village,
 };
@@ -31,7 +32,6 @@ use crate::{
     feedback::{Show, Tell},
     inventory::{FieldTask, FieldWork, ItemUseSystems},
     players::ControlledCharacter,
-    scenery::Scenery,
     terrain::GroundReshaped,
 };
 

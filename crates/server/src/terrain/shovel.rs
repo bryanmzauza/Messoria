@@ -8,18 +8,19 @@ use messoria_shared::{
     energy::Energy,
     movement::{BODY_RADIUS, EYE_HEIGHT},
     protocol::{Asleep, Belongings, Happened, Notice, PlayerId, Position, WorldClock},
+    scenery::Scenery,
     terrain::{ChunkChanged, Terrain},
     tools::{self, ShovelAction},
     village,
 };
 use messoria_voxel::Brush;
+use messoria_worldgen::editable;
 
-use super::{GroundReshaped, TerrainEdited, editable, reshape};
+use super::{GroundReshaped, TerrainEdited, reshape};
 use crate::{
     building::Built,
     feedback::{Show, Tell},
     inventory::{ItemUseSystems, ShovelUse},
-    scenery::Scenery,
 };
 
 /// How far from the surface a target may be. Requests for points deep in the
@@ -129,7 +130,7 @@ fn validate(
     characters: &Query<&Position, With<PlayerId>>,
 ) -> Result<(), Refusal> {
     let target = shovel_use.target;
-    if !target.is_finite() || !editable(target) {
+    if !target.is_finite() || !editable(target.y) {
         return Err(Refusal::Malformed("target outside the editable world"));
     }
     if !tools::in_reach(feet + Vec3::Y * EYE_HEIGHT, target) {

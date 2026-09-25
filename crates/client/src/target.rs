@@ -9,7 +9,10 @@ use messoria_farming::Planting;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
-    protocol::{Crop, Fertilized, Field, Gathered, Prop, Shopfront, Structure, Watered},
+    obstacles::Blocker,
+    protocol::{Crop, Fertilized, Field, Shopfront, Structure, Watered},
+    scenery::Scenery,
+    valley::PropKey,
 };
 
 use crate::{
@@ -90,26 +93,26 @@ fn describe_target(
     content: Res<Content>,
     clock: Res<LocalClock>,
     fields: Query<(&Field, Option<&Crop>, Has<Watered>, Has<Fertilized>)>,
-    props: Query<(&Prop, Option<&Gathered>)>,
+    scenery: Res<Scenery>,
     stalls: Query<&Shopfront>,
     structures: Query<&Structure>,
     mut name: Single<&mut Text, (With<TargetName>, Without<TargetDetail>)>,
     mut detail: Single<&mut Text, With<TargetDetail>>,
 ) {
     let today = clock.time().map(WorldTime::day);
-    let described = if let Some((thing, _)) = aim.thing {
+    let described = if let Some((Blocker::Prop(key), _)) = aim.thing {
+        Some(describe_prop(&content, key, scenery.gathered(key), today))
+    } else if let Some((Blocker::Thing(thing), _)) = aim.thing {
         if let Ok(stall) = stalls.get(thing) {
             Some(Description {
                 name: format!("{}'s stall", content.shop(stall.shop).name),
                 detail: format!("Stand close and press {INTERACT_KEY_NAME} to trade"),
             })
-        } else if let Ok(structure) = structures.get(thing) {
-            Some(describe_structure(&content, structure))
         } else {
-            props
+            structures
                 .get(thing)
                 .ok()
-                .map(|(prop, gathered)| describe_prop(&content, prop, gathered.copied(), today))
+                .map(|structure| describe_structure(&content, structure))
         }
     } else if let Some(hit) = aim.ground {
         let tile = tile_at(hit.point);
@@ -144,11 +147,12 @@ fn describe_structure(content: &Content, structure: &Structure) -> Description {
     }
 }
 
-/// A prop's name, and how to gather it or when it grows back.
+/// A prop's name, and how to gather it or when it grows back, if it was
+/// gathered on the day `gathered`.
 fn describe_prop(
     content: &Content,
-    prop: &Prop,
-    gathered: Option<Gathered>,
+    prop: PropKey,
+    gathered: Option<u32>,
     today: Option<u32>,
 ) -> Description {
     let definition = content.prop(prop.kind);
@@ -156,7 +160,7 @@ fn describe_prop(
         (None, _) => String::new(),
         (Some(gathering), Some(gathered)) => match (gathering.regrows_after, today) {
             (Some(days), Some(today)) => {
-                let left = (gathered.day + u32::from(days)).saturating_sub(today);
+                let left = (gathered + u32::from(days)).saturating_sub(today);
                 match left {
                     0 | 1 => "Grows back tomorrow".to_owned(),
                     left => format!("Grows back in {left} days"),

@@ -10,6 +10,7 @@ use messoria_content::Purpose;
 use messoria_shared::{
     content::Content,
     movement::EYE_HEIGHT,
+    obstacles::Blocker,
     protocol::{ActionChannel, Asleep, PlayerInput, Position, SleepRequest, Structure},
     tools,
 };
@@ -64,7 +65,7 @@ fn use_furniture(
         keys.clear_just_pressed(INTERACT_KEY);
         return;
     }
-    let Some((thing, _)) = aim.thing.filter(|_| view.captured) else {
+    let Some((Blocker::Thing(thing), _)) = aim.thing.filter(|_| view.captured) else {
         return;
     };
     let Ok(structure) = structures.get(thing) else {

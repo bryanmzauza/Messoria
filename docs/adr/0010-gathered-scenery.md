@@ -1,6 +1,8 @@
 # 0010 — Gathered scenery is saved by seed cell, over the generated valley
 
-**Status:** accepted
+**Status:** accepted. Props are no longer replicated entities; what was
+gathered is sent with the terrain, see
+[ADR 0015](0015-a-larger-valley-grown-on-both-sides.md).
 
 ## Context
 

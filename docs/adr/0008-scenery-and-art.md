@@ -1,7 +1,9 @@
 # 0008 — Scenery from the seed, art from CC0 packs through one palette
 
 **Status:** accepted. Where models come from and how the palette colors
-them are superseded by [ADR 0014](0014-block-models-painted-for-the-game.md).
+them are superseded by [ADR 0014](0014-block-models-painted-for-the-game.md),
+and how props are scattered and replicated by
+[ADR 0015](0015-a-larger-valley-grown-on-both-sides.md).
 
 ## Context
 

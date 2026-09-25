@@ -5,7 +5,10 @@
 //! [`GatherUse`]; picking by hand arrives as a `Gather` request. A prop
 //! gathered with a tool takes a number of strikes, each spending energy, and
 //! gives its yield with the last. Once gathered it stands as what its kind
-//! leaves behind, and grows back at a dawn if its kind does.
+//! leaves behind, and grows back at a dawn if its kind does. What was
+//! gathered is kept by the scenery, which the save reads.
+
+use std::collections::HashMap;
 
 use bevy::{ecs::message::Message, prelude::*};
 use lightyear::prelude::*;
@@ -14,18 +17,19 @@ use messoria_shared::{
     content::Content,
     energy::Energy,
     movement::EYE_HEIGHT,
-    protocol::{
-        Asleep, Belongings, Gather, Gathered, Happened, Notice, Position, Prop, WorldClock,
-    },
+    protocol::{Asleep, Belongings, Gather, Happened, Notice, Position, WorldClock},
+    scenery::{Scenery, SceneryChanged},
     tools,
+    valley::PropKey,
 };
 
 use crate::{
+    Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
     feedback::{Show, Tell},
     inventory::ItemUseSystems,
     players::ControlledCharacter,
-    scenery::Scenery,
+    terrain::Restoring,
 };
 
 /// How far from a prop's footprint a target may be and still be on it:
@@ -37,6 +41,8 @@ pub(crate) struct GatheringPlugin;
 impl Plugin for GatheringPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<GatherUse>()
+            .init_resource::<Strikes>()
+            .add_systems(Startup, restore_gathered.in_set(Restoring))
             .add_systems(
                 PreUpdate,
                 (
@@ -57,9 +63,21 @@ pub(crate) struct GatherUse {
     pub tool: Option<Tool>,
 }
 
-/// Strikes a prop took toward being gathered.
-#[derive(Component, Clone, Copy, Debug, Default)]
-struct Strikes(u8);
+/// Strikes props took toward being gathered.
+#[derive(Resource, Default)]
+struct Strikes(HashMap<PropKey, u8>);
+
+fn restore_gathered(beginning: Res<Beginning>, mut scenery: ResMut<Scenery>) {
+    if let WorldStart::Resume(saved) = &beginning.0 {
+        scenery.remember_gathered(saved.world.gathered.iter().map(|gathered| {
+            let key = PropKey {
+                kind: gathered.kind,
+                cell: gathered.cell,
+            };
+            (key, gathered.day)
+        }));
+    }
+}
 
 fn pick_by_hand(
     mut clients: Query<(&mut MessageReceiver<Gather>, &ControlledCharacter)>,
@@ -78,13 +96,13 @@ fn gather(
     content: Res<Content>,
     clock: Single<&WorldClock>,
     mut scenery: ResMut<Scenery>,
+    mut strikes: ResMut<Strikes>,
     mut uses: MessageReader<GatherUse>,
     characters: Query<&Position>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
-    mut props: Query<(&Prop, Has<Gathered>, Option<&mut Strikes>)>,
     mut tell: MessageWriter<Tell>,
     mut show: MessageWriter<Show>,
-    mut commands: Commands,
+    mut changed: MessageWriter<SceneryChanged>,
 ) {
     for work in uses.read() {
         let (Ok(feet), Ok((mut energy, mut belongings))) = (
@@ -97,13 +115,10 @@ fn gather(
         {
             continue;
         }
-        let Some(entity) = scenery.prop_at(work.target, TARGET_SLACK) else {
+        let Some(key) = scenery.prop_at(work.target, TARGET_SLACK) else {
             continue;
         };
-        let Ok((prop, gathered, strikes)) = props.get_mut(entity) else {
-            continue;
-        };
-        let definition = content.prop(prop.kind);
+        let definition = content.prop(key.kind);
         let Some(gathering) = &definition.gather else {
             continue;
         };
@@ -111,7 +126,7 @@ fn gather(
             character: work.character,
             notice,
         };
-        if gathered {
+        if scenery.gathered(key).is_some() {
             tell.write(refuse(Notice::NothingToGather));
             continue;
         }
@@ -131,16 +146,11 @@ fn gather(
             continue;
         }
 
-        let struck = strikes.as_deref().map_or(0, |strikes| strikes.0) + 1;
+        let struck = strikes.0.get(&key).copied().unwrap_or(0) + 1;
         let happened = work.tool.map_or(Happened::Harvested, Happened::Struck);
         if struck < gathering.strikes {
             energy.try_spend(tools::GATHERING_ENERGY);
-            match strikes {
-                Some(mut strikes) => strikes.0 = struck,
-                None => {
-                    commands.entity(entity).insert(Strikes(struck));
-                }
-            }
+            strikes.0.insert(key, struck);
             show.write(Show::at(happened, work.target, work.character));
             continue;
         }
@@ -160,13 +170,9 @@ fn gather(
         if work.tool.is_some() {
             energy.try_spend(tools::GATHERING_ENERGY);
         }
-        commands
-            .entity(entity)
-            .remove::<Strikes>()
-            .insert(Gathered { day: today });
-        if !definition.stands_when_gathered() {
-            scenery.clear(entity);
-        }
+        strikes.0.remove(&key);
+        scenery.gather(key, today);
+        changed.write(SceneryChanged(key));
         show.write(Show::at(happened, work.target, work.character));
     }
 }
@@ -176,21 +182,27 @@ fn grow_back(
     content: Res<Content>,
     mut days: MessageReader<DayStarted>,
     clock: Single<&WorldClock>,
-    props: Query<(Entity, &Prop, &Gathered)>,
-    mut commands: Commands,
+    mut scenery: ResMut<Scenery>,
+    mut changed: MessageWriter<SceneryChanged>,
 ) {
     if days.read().count() == 0 {
         return;
     }
     let today = clock.0.day();
-    for (entity, prop, gathered) in &props {
-        let regrows_after = content
-            .prop(prop.kind)
-            .gather
-            .as_ref()
-            .and_then(|gathering| gathering.regrows_after);
-        if regrows_after.is_some_and(|days| today >= gathered.day + u32::from(days)) {
-            commands.entity(entity).remove::<Gathered>();
-        }
+    let grown_back: Vec<PropKey> = scenery
+        .gathered_props()
+        .filter(|&(key, day)| {
+            content
+                .prop(key.kind)
+                .gather
+                .as_ref()
+                .and_then(|gathering| gathering.regrows_after)
+                .is_some_and(|days| today >= day + u32::from(days))
+        })
+        .map(|(key, _)| key)
+        .collect();
+    for key in grown_back {
+        scenery.regrow(key);
+        changed.write(SceneryChanged(key));
     }
 }

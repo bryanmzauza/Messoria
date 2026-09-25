@@ -9,18 +9,15 @@ use lightyear::prelude::*;
 use messoria_shared::{
     content::Content,
     protocol::{Shopfront, Structure},
-    terrain::Terrain,
+    valley::Valley,
     village,
 };
-
-use crate::terrain::ground_height;
 
 pub(crate) struct VillagePlugin;
 
 impl Plugin for VillagePlugin {
     fn build(&self, app: &mut App) {
-        // After startup, once the terrain the village stands on exists.
-        app.add_systems(PostStartup, lay_out_village);
+        app.add_systems(Startup, lay_out_village);
     }
 }
 
@@ -28,11 +25,10 @@ impl Plugin for VillagePlugin {
 #[derive(Component)]
 pub(crate) struct Landmark;
 
-fn lay_out_village(content: Res<Content>, terrain: Res<Terrain>, mut commands: Commands) {
+fn lay_out_village(content: Res<Content>, valley: Res<Valley>, mut commands: Commands) {
     let on_ground = |(x, z): (f32, f32)| {
         let place = village::CENTER + Vec2::new(x, z);
-        let ground = ground_height(&terrain, place.x, place.y).unwrap_or_default();
-        Vec3::new(place.x, ground, place.y)
+        Vec3::new(place.x, valley.height(place), place.y)
     };
     let layout = content.village();
     for stall in &layout.stalls {

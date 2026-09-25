@@ -24,7 +24,8 @@ use messoria_calendar::Season;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
-    protocol::{Field, Prop},
+    protocol::Field,
+    scenery::{Scenery, SceneryChanged},
     terrain::{ChunkChanged, Terrain},
 };
 use messoria_voxel::{CHUNK_SIZE, ChunkPos, Material};
@@ -180,14 +181,16 @@ fn model_parts(
     Some(parts)
 }
 
-/// Marks the cover of chunks whose ground changed, where fields or props
-/// appeared or went, and all of it when the season turns.
+/// Marks the cover of chunks whose ground changed, where fields appeared or
+/// went or props were gathered or grew back, and all of it when the season
+/// turns.
 fn note_stale_cover(
     mut changes: MessageReader<ChunkChanged>,
     season: Res<DrawnSeason>,
     fields: Query<&Field, Added<Field>>,
     mut removed_fields: RemovedComponents<Field>,
-    props: Query<&Prop, Added<Prop>>,
+    scenery: Res<Scenery>,
+    mut props: MessageReader<SceneryChanged>,
     mut cover: ResMut<Cover>,
 ) {
     let cover = &mut *cover;
@@ -198,7 +201,7 @@ fn note_stale_cover(
             .stale
             .insert(chunk_at(Vec3::new(center.x, field.height, center.y)));
     }
-    for prop in &props {
+    for prop in props.read().filter_map(|changed| scenery.prop(changed.0)) {
         cover.stale.insert(chunk_at(prop.position));
     }
     // Where a field was, is not known any more: regrow all of the cover.
@@ -218,7 +221,7 @@ fn grow_cover(
     parts: Res<ModelParts>,
     camera: Single<&Transform, With<WorldCamera>>,
     fields: Query<&Field>,
-    props: Query<&Prop>,
+    scenery: Res<Scenery>,
     mut cover: ResMut<Cover>,
     mut palettes: Palettes,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -272,21 +275,8 @@ fn grow_cover(
             commands.entity(entity).despawn();
         }
         let origin = chunk.origin().as_vec3();
-        let nearby_props: Vec<(Vec2, f32)> = props
-            .iter()
-            .filter(|prop| prop.position.distance(origin + Vec3::splat(16.0)) < 40.0)
-            .map(|prop| {
-                (
-                    prop.position.xz(),
-                    content.prop(prop.kind).radius * prop.scale,
-                )
-            })
-            .collect();
         let clear = |point: Vec3| {
-            !tilled.contains(&tile_at(point))
-                && nearby_props.iter().all(|&(center, footprint)| {
-                    center.distance(point.xz()) > footprint + PROP_CLEARANCE
-                })
+            !tilled.contains(&tile_at(point)) && !scenery.blocks(point, PROP_CLEARANCE)
         };
 
         let entities = plant_chunk(&content, &terrain, season.0, &parts, chunk, clear)

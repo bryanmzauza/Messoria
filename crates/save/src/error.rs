@@ -27,6 +27,10 @@ pub enum Problem {
     Newer { found: u32, supported: u32 },
     #[error("has format version {0}, which this version of the game cannot read")]
     UnknownVersion(u32),
+    #[error(
+        "was saved in a valley this version of the game no longer grows (format {0}); start a new world"
+    )]
+    OlderValley(u32),
     #[error("is not a terrain file")]
     NotTerrain,
     #[error("is truncated")]

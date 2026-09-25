@@ -22,6 +22,7 @@ messoria-save = { path = "crates/save" }
 messoria-server = { path = "crates/server" }
 messoria-shared = { path = "crates/shared" }
 messoria-voxel = { path = "crates/voxel" }
+messoria-worldgen = { path = "crates/worldgen" }
 
 # Every crate opts into the Bevy features it needs; the server must stay free of
 # rendering, windowing and audio.
@@ -67,8 +68,12 @@ opt-level = 1
 opt-level = 3
 debug = false
 
-# Meshing and collision queries are hot loops; keep them fast in debug builds.
+# Meshing, collision queries and generating the valley are hot loops; keep
+# them fast in debug builds.
 [profile.dev.package.messoria-voxel]
+opt-level = 3
+
+[profile.dev.package.messoria-worldgen]
 opt-level = 3
 
 [profile.release]

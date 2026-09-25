@@ -9,8 +9,10 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 ## Status
 
-Early development. Players share a wooded farm valley over the network,
-hosted from the game or on a dedicated server, reshape its smooth voxel
+Early development. Players share a valley two kilometers across, with
+farmland around a village, roads, a river, woods, hills and mountains all
+grown from the world's seed, over the network, hosted from the game or on a
+dedicated server. They reshape its smooth voxel
 terrain with a shovel, farm crops through the seasons, sell their harvests at
 the village grocer, whose prices respond to what everyone sells, and live
 through days and nights that end when they go to sleep, under a sky that
@@ -18,9 +20,11 @@ turns with the hours and a valley that turns with the seasons. They gather
 wood and stone, build cabins, and see each other as blocky, hand-painted
 characters, each dressed their own way, with their tools in hand, around a
 village square with shops and shopkeepers.
-The valley is lit and its ground painted to match. Worlds are saved and
-resume where they stopped. Art of our own for the whole valley is next, then
-music and a playtest. See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
+The valley is lit, its ground painted and everything in it drawn in one
+style of our own, out to the horizon. Worlds are saved and resume where they
+stopped. Farm lots, a larger village with villagers to befriend and looks of
+your own are next, then music and a playtest. See the
+[roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -61,11 +65,15 @@ cargo server -- --start-time 21:00           # start a new world's clock at a gi
 cargo server -- --minute-length 20           # make days pass quickly, for testing
 cargo bots -- --server 127.0.0.1 --bots 4    # add simulated players
 cargo bots -- --bots 2 --farm                # bots that farm and log their harvests
+cargo bots -- --bots 8 --roam                # bots that run all over the valley
 ```
 
 Worlds are saved in `saves/`: the game's own world in `saves/local`, a
 dedicated server's in `saves/world`. They are saved every few minutes, at
-dawn and on exit, and resume where they stopped. The game keeps who you are in
+dawn and on exit, and resume where they stopped. Worlds saved before the
+valley grew to its present size cannot be resumed; start a new one. A
+dedicated server logs every minute how long its updates take against the
+length of a tick. The game keeps who you are in
 `saves/profile.ron`, so servers recognize you when you come back, and your
 options in `saves/settings.ron`.
 

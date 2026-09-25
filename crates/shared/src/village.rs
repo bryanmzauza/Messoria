@@ -5,9 +5,9 @@
 use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 
 /// Middle of the village square, on the ground plane.
-pub const CENTER: Vec2 = Vec2::new(0.0, -30.0);
+pub const CENTER: Vec2 = messoria_worldgen::VILLAGE_CENTER;
 /// Radius of the protected ground around the center, in meters.
-pub const RADIUS: f32 = 14.0;
+pub const RADIUS: f32 = messoria_worldgen::VILLAGE_RADIUS;
 
 /// Whether a disc of `radius` around `point` reaches onto the village's
 /// ground.

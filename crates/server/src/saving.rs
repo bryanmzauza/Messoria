@@ -11,10 +11,8 @@ use bevy::prelude::*;
 use messoria_save::{FieldState, GatheredProp, SaveDir, SaveError, StructureState, WorldState};
 use messoria_shared::{
     content::Content,
-    protocol::{
-        Crop, Fertilized, Field, Gathered, MarketState, Prop, Stored, Structure, Watered,
-        WorldClock,
-    },
+    protocol::{Crop, Fertilized, Field, MarketState, Stored, Structure, Watered, WorldClock},
+    scenery::Scenery,
     terrain::Terrain,
 };
 
@@ -23,7 +21,6 @@ use crate::{
     building::Home,
     day_cycle::DayStarted,
     players::{AbsentPlayers, CharacterState, player_key, state_of},
-    scenery::SceneryCell,
     terrain::EditedChunks,
     village::Landmark,
 };
@@ -81,7 +78,7 @@ fn save_world(
     clock: Single<&WorldClock>,
     market: Single<&MarketState>,
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Option<&Crop>)>,
-    gathered: Query<(&Prop, &SceneryCell, &Gathered)>,
+    scenery: Res<Scenery>,
     structures: Query<(&Structure, Option<&Home>, Option<&Stored>), Without<Landmark>>,
     terrain: Res<Terrain>,
     mut edited: ResMut<EditedChunks>,
@@ -111,12 +108,12 @@ fn save_world(
                 crop: crop.map(|crop| crop.0),
             })
             .collect(),
-        gathered: gathered
-            .iter()
-            .map(|(prop, cell, gathered)| GatheredProp {
+        gathered: scenery
+            .gathered_props()
+            .map(|(prop, day)| GatheredProp {
                 kind: prop.kind,
-                cell: cell.0,
-                day: gathered.day,
+                cell: prop.cell,
+                day,
             })
             .collect(),
         structures: structures
@@ -134,14 +131,7 @@ fn save_world(
     let save_dir = &saving.save_dir;
     let mut result = save_dir.save_world(&content, &world);
     if edited.unsaved {
-        result = result.and_then(|()| {
-            save_dir.save_terrain(
-                edited
-                    .chunks
-                    .iter()
-                    .filter_map(|&position| Some((position, terrain.get(position)?))),
-            )
-        });
+        result = result.and_then(|()| save_dir.save_terrain(edited.current(&terrain)));
         edited.unsaved = result.is_err();
     }
     for character in &characters {

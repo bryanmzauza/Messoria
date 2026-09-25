@@ -14,16 +14,19 @@ use messoria_save::SaveDir;
 use messoria_server::WorldSetup;
 use messoria_shared::{
     content::load_content,
-    obstacles::Obstacles,
-    protocol::{Deal, Gather, Gathered, Notice, Prop},
+    obstacles::{Blocker, Obstacles},
+    protocol::{Deal, Gather, Notice},
+    scenery::Scenery,
     terrain::Terrain,
+    valley::{PlacedProp, PropKey},
 };
 
 #[test]
 fn a_felled_tree_gives_wood_and_leaves_a_stump_that_grows_back() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
-    let (tree, oak) = world.nearest_prop(&content, "oak");
+    let oak = world.nearest_prop(&content, "oak");
+    let tree = oak.key;
     let gathering = gathering_of(&content, oak);
     let wood = content.id("wood").expect("wood exists");
     let axe = world.slot_holding(&content, "axe");
@@ -82,7 +85,8 @@ fn berries_are_picked_by_hand_and_grow_back() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
     let berries = content.id("wild_berries").expect("wild berries exist");
-    let (bush, berry_bush) = world.nearest_prop(&content, "berry_bush");
+    let berry_bush = world.nearest_prop(&content, "berry_bush");
+    let bush = berry_bush.key;
     let gathering = gathering_of(&content, berry_bush);
     let target = world.stand_by(&content, berry_bush);
     let before = world.carried(berries);
@@ -110,7 +114,7 @@ fn berries_are_picked_by_hand_and_grow_back() {
 fn trees_are_not_felled_by_hand_nor_rocks_with_an_axe() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
-    let (_, oak) = world.nearest_prop(&content, "oak");
+    let oak = world.nearest_prop(&content, "oak");
     let target = world.stand_by(&content, oak);
     world.send(Gather { target });
     world.run(common::PAUSE_BETWEEN_USES);
@@ -119,7 +123,7 @@ fn trees_are_not_felled_by_hand_nor_rocks_with_an_axe() {
         Some(&Notice::NeedsTool(Tool::Axe))
     );
 
-    let (_, boulder) = world.nearest_prop(&content, "boulder");
+    let boulder = world.nearest_prop(&content, "boulder");
     let target = world.stand_by(&content, boulder);
     let axe = world.slot_holding(&content, "axe");
     world.use_item(axe, target);
@@ -137,7 +141,7 @@ fn broken_rocks_and_felled_trees_stay_so_after_a_restart() {
         .expect("an empty folder opens a new world");
     let mut world = HostedWorld::with_world(content.clone(), setup);
 
-    let (_, boulder) = world.nearest_prop(&content, "boulder");
+    let boulder = world.nearest_prop(&content, "boulder");
     let target = world.stand_by(&content, boulder);
     let pickaxe = world.slot_holding(&content, "pickaxe");
     for _ in 0..gathering_of(&content, boulder).strikes {
@@ -153,7 +157,7 @@ fn broken_rocks_and_felled_trees_stay_so_after_a_restart() {
         "nothing stands where the rock was"
     );
 
-    let (_, oak) = world.nearest_prop(&content, "oak");
+    let oak = world.nearest_prop(&content, "oak");
     let target = world.stand_by(&content, oak);
     let axe = world.slot_holding(&content, "axe");
     for _ in 0..gathering_of(&content, oak).strikes {
@@ -166,11 +170,9 @@ fn broken_rocks_and_felled_trees_stay_so_after_a_restart() {
         WorldSetup::open(save_dir, &content, WorldTime::FIRST_DAWN).expect("the saved world loads");
     let mut resumed = HostedWorld::with_world(content, setup);
     for prop in [boulder, oak] {
-        let entity = resumed
-            .prop_at(prop.position)
-            .expect("the seed grows it again");
+        resumed.teleport(prop.position + Vec3::new(3.0, 0.0, 0.0));
         assert!(
-            resumed.gathered(entity).is_some(),
+            resumed.gathered(prop.key).is_some(),
             "{prop:?} is still gathered"
         );
     }
@@ -178,45 +180,36 @@ fn broken_rocks_and_felled_trees_stay_so_after_a_restart() {
     assert!(resumed.obstacle_ahead(oak).is_some());
 }
 
-fn gathering_of(content: &Catalog, prop: Prop) -> Gathering {
+fn gathering_of(content: &Catalog, prop: PlacedProp) -> Gathering {
     content
-        .prop(prop.kind)
+        .prop(prop.key.kind)
         .gather
         .clone()
         .expect("the prop can be gathered")
 }
 
 impl HostedWorld {
-    /// The standing prop of kind `key` nearest where players arrive.
-    fn nearest_prop(&mut self, content: &Catalog, key: &str) -> (Entity, Prop) {
+    /// The standing prop of kind `key` nearest where players arrive, among
+    /// those grown around the host.
+    fn nearest_prop(&mut self, content: &Catalog, key: &str) -> PlacedProp {
         let kind = content.prop_id(key).expect("the prop exists");
-        let world = self.world();
-        world
-            .query_filtered::<(Entity, &Prop), Without<Gathered>>()
-            .iter(world)
-            .filter(|(_, prop)| prop.kind == kind)
-            .min_by(|(_, a), (_, b)| a.position.length().total_cmp(&b.position.length()))
-            .map(|(entity, prop)| (entity, *prop))
-            .expect("the valley grows some")
+        let scenery = self.world().resource::<Scenery>();
+        scenery
+            .props()
+            .filter(|prop| prop.key.kind == kind && scenery.gathered(prop.key).is_none())
+            .min_by(|a, b| a.position.length().total_cmp(&b.position.length()))
+            .copied()
+            .expect("the valley grows some near where players arrive")
     }
 
-    fn prop_at(&mut self, position: Vec3) -> Option<Entity> {
-        let world = self.world();
-        world
-            .query::<(Entity, &Prop)>()
-            .iter(world)
-            .find(|(_, prop)| prop.position == position)
-            .map(|(entity, _)| entity)
-    }
-
-    fn gathered(&mut self, prop: Entity) -> Option<Gathered> {
-        self.world().get::<Gathered>(prop).copied()
+    fn gathered(&mut self, prop: PropKey) -> Option<u32> {
+        self.world().resource::<Scenery>().gathered(prop)
     }
 
     /// Puts the host's character a step from `prop`, on the side facing
     /// where players arrive, and returns a point on the prop to aim at.
-    fn stand_by(&mut self, content: &Catalog, prop: Prop) -> Vec3 {
-        let footprint = content.prop(prop.kind).radius * prop.scale;
+    fn stand_by(&mut self, content: &Catalog, prop: PlacedProp) -> Vec3 {
+        let footprint = content.prop(prop.key.kind).radius * prop.scale;
         let toward_arrival = (-prop.position.xz()).normalize_or(Vec2::X);
         let spot = prop.position.xz() + toward_arrival * (footprint + 1.2);
         let ground = self
@@ -229,7 +222,7 @@ impl HostedWorld {
     }
 
     /// The obstacle a ray across `prop`'s middle, at waist height, meets.
-    fn obstacle_ahead(&mut self, prop: Prop) -> Option<Entity> {
+    fn obstacle_ahead(&mut self, prop: PlacedProp) -> Option<Blocker> {
         let start = prop.position + Vec3::new(-3.0, 1.0, 0.0);
         self.world()
             .resource::<Obstacles>()

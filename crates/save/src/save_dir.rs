@@ -360,7 +360,7 @@ mod tests {
         let path = save.root().join(WORLD_FILE);
         let text = fs::read_to_string(&path)
             .unwrap()
-            .replacen("version: 3", "version: 9", 1);
+            .replacen("version: 4", "version: 9", 1);
         fs::write(&path, text).unwrap();
 
         let error = save.load(&catalog).unwrap_err();
@@ -369,26 +369,24 @@ mod tests {
             error.problem,
             Problem::Newer {
                 found: 9,
-                supported: 3
+                supported: 4
             }
         ));
     }
 
     #[test]
-    fn worlds_saved_before_gathering_load_with_nothing_gathered() {
-        let (catalog, save) = (catalog(), scratch("version-1"));
+    fn worlds_of_the_smaller_valley_are_refused_with_a_reason() {
+        let (catalog, save) = (catalog(), scratch("smaller-valley"));
         save.save_world(&catalog, &world(&catalog)).unwrap();
         let path = save.root().join(WORLD_FILE);
-        let text = fs::read_to_string(&path).unwrap();
-        // Version 1 ended with the fields.
-        let fields_end = text.find("gathered:").expect("gathered scenery is saved");
-        let version_1 = format!("{})", &text[..fields_end]).replacen("version: 3", "version: 1", 1);
-        fs::write(&path, version_1).unwrap();
+        let text = fs::read_to_string(&path)
+            .unwrap()
+            .replacen("version: 4", "version: 3", 1);
+        fs::write(&path, text).unwrap();
 
-        let loaded = save.load(&catalog).unwrap().expect("a world was saved");
-        assert_eq!(loaded.world.fields, world(&catalog).fields);
-        assert!(loaded.world.gathered.is_empty());
-        assert!(loaded.world.structures.is_empty());
+        let error = save.load(&catalog).unwrap_err();
+        assert!(matches!(error.problem, Problem::OlderValley(3)));
+        assert!(error.to_string().contains("start a new world"));
     }
 
     #[test]

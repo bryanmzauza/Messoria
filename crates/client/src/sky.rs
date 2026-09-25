@@ -23,8 +23,8 @@ use crate::{
 };
 
 /// Radius of the dome, within the camera's far plane and beyond everything
-/// else.
-const DOME_RADIUS: f32 = 600.0;
+/// else, out to the land on the horizon.
+const DOME_RADIUS: f32 = 2400.0;
 const DOME_SEGMENTS: u16 = 32;
 const DOME_RINGS: u16 = 16;
 /// How far below the horizon the dome reaches, in radians, so no gap shows
@@ -34,24 +34,25 @@ const DOME_BELOW_HORIZON: f32 = 0.35;
 /// color.
 const ZENITH_FROM: f32 = 0.7;
 
-const DISC_DISTANCE: f32 = 550.0;
-const SUN_RADIUS: f32 = 24.0;
-const MOON_RADIUS: f32 = 16.0;
+const DISC_DISTANCE: f32 = 2200.0;
+const SUN_RADIUS: f32 = 96.0;
+const MOON_RADIUS: f32 = 64.0;
 /// The sun and the moon shine brighter than white, so that they glow.
 const SUN_COLOR: Color = Color::linear_rgb(9.0, 8.0, 5.5);
 const MOON_COLOR: Color = Color::linear_rgb(1.6, 1.7, 2.0);
 
 /// Stars: how many, how far, how large, and how bright at darkest night.
 const STARS: usize = 900;
-const STAR_DISTANCE: f32 = 580.0;
-const STAR_SIZE: (f32, f32) = (0.5, 1.6);
+const STAR_DISTANCE: f32 = 2320.0;
+const STAR_SIZE: (f32, f32) = (2.0, 6.4);
 const STAR_GLOW: f32 = 3.0;
 /// Lowest a star shows, in radians above the horizon, where the haze is.
 const STAR_LOWEST: f32 = 0.12;
 
-const CLOUDS: usize = 18;
-/// Half the side of the square clouds drift across, centered on the valley.
-const CLOUD_FIELD: f32 = 220.0;
+const CLOUDS: usize = 90;
+/// Half the side of the square clouds drift across, which moves with the
+/// camera, so wherever players go there are clouds over them.
+const CLOUD_FIELD: f32 = 600.0;
 const CLOUD_HEIGHT: (f32, f32) = (75.0, 100.0);
 /// Meters per second the wind carries clouds.
 const WIND: Vec2 = Vec2::new(1.6, 0.5);
@@ -364,14 +365,19 @@ fn place_sky(
     }
 }
 
-fn drift_clouds(time: Res<Time>, mut clouds: Query<&mut Transform, With<Cloud>>) {
+fn drift_clouds(
+    time: Res<Time>,
+    camera: Single<&Transform, (With<WorldCamera>, Without<Cloud>)>,
+    mut clouds: Query<&mut Transform, With<Cloud>>,
+) {
     let drift = WIND * time.delta_secs();
+    let center = camera.translation.xz();
     for mut transform in &mut clouds {
-        let moved = transform.translation.xz() + drift;
+        let moved = transform.translation.xz() + drift - center;
         // Clouds leaving the field come back in on the other side.
         let wrapped =
             (moved + CLOUD_FIELD).rem_euclid(Vec2::splat(2.0 * CLOUD_FIELD)) - CLOUD_FIELD;
-        transform.translation.x = wrapped.x;
-        transform.translation.z = wrapped.y;
+        transform.translation.x = center.x + wrapped.x;
+        transform.translation.z = center.y + wrapped.y;
     }
 }

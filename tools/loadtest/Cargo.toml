@@ -16,6 +16,7 @@ lightyear.workspace = true
 messoria-content.workspace = true
 messoria-inventory.workspace = true
 messoria-shared.workspace = true
+messoria-worldgen.workspace = true
 rand.workspace = true
 
 [lints]

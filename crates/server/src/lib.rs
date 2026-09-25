@@ -16,11 +16,12 @@ mod feedback;
 mod fields;
 mod gathering;
 mod homes;
+mod interest;
 mod inventory;
 mod market;
 mod players;
+mod report;
 mod saving;
-mod scenery;
 mod storage;
 mod terrain;
 mod village;
@@ -31,6 +32,7 @@ use bevy::prelude::*;
 use messoria_calendar::{SleepRule, WorldTime};
 use messoria_content::Catalog;
 use messoria_save::{SaveDir, SaveError, SavedWorld};
+use messoria_shared::valley::{Landscape, Valley};
 
 pub struct ServerPlugin {
     /// Address the server listens on for clients.
@@ -116,9 +118,12 @@ struct WorldSeed(u64);
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(WorldSeed(self.world.start.seed()))
+        let seed = self.world.start.seed();
+        app.insert_resource(WorldSeed(seed))
+            .insert_resource(Valley(Landscape::new(seed)))
             .insert_resource(Beginning(self.world.start.clone()))
             .add_systems(PostStartup, forget_beginning)
+            // Players, and what they do in the world.
             .add_plugins((
                 connections::ConnectionsPlugin {
                     bind_addr: self.bind_addr,
@@ -128,17 +133,21 @@ impl Plugin for ServerPlugin {
                 inventory::InventoryPlugin,
                 fields::FieldsPlugin,
                 market::MarketPlugin,
-                village::VillagePlugin,
-                scenery::SceneryPlugin,
                 gathering::GatheringPlugin,
                 building::BuildingPlugin,
                 homes::HomesPlugin,
                 storage::StoragePlugin,
+            ))
+            // The world itself, what each player is sent of it, and keeping it.
+            .add_plugins((
                 terrain::TerrainPlugin,
+                village::VillagePlugin,
+                interest::InterestPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,
                     minute_length: self.minute_length,
                 },
+                report::ReportPlugin,
                 saving::SavingPlugin {
                     save_dir: self.world.save_dir.clone(),
                     new_world: matches!(self.world.start, WorldStart::New { .. }),

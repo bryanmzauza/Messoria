@@ -12,11 +12,13 @@ pub mod movement;
 pub mod network;
 pub mod obstacles;
 pub mod protocol;
+pub mod scenery;
 pub mod shops;
 pub mod structures;
 pub mod terrain;
 pub mod tick;
 pub mod tools;
+pub mod valley;
 pub mod village;
 
 use bevy::{prelude::*, state::app::StatesPlugin};
@@ -68,10 +70,16 @@ impl Plugin for SharedPlugin {
         app.insert_resource(content::Content(self.content.clone()));
         app.add_plugins((
             protocol::ProtocolPlugin,
+            valley::ValleyPlugin,
             terrain::TerrainPlugin,
+            scenery::SceneryPlugin,
             obstacles::ObstaclesPlugin,
             movement::MovementPlugin,
         ))
+        .configure_sets(
+            PreUpdate,
+            terrain::LoadColumns.before(scenery::ScenerySystems),
+        )
         .add_observer(read_input_for_controlled_player);
     }
 }

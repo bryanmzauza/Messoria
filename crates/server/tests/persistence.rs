@@ -25,6 +25,7 @@ use messoria_shared::{
     },
     terrain::Terrain,
 };
+use messoria_voxel::ChunkPos;
 
 #[test]
 fn a_restarted_world_resumes_exactly_where_it_stopped() {
@@ -35,7 +36,7 @@ fn a_restarted_world_resumes_exactly_where_it_stopped() {
     assert!(matches!(setup.start, WorldStart::New { .. }));
     let mut world = HostedWorld::with_world(content.clone(), setup);
 
-    play_a_morning(&mut world, &content);
+    let dug = play_a_morning(&mut world, &content);
     world.stop();
     let before = Snapshot::of(&mut world);
     drop(world);
@@ -45,12 +46,19 @@ fn a_restarted_world_resumes_exactly_where_it_stopped() {
     assert!(matches!(setup.start, WorldStart::Resume(_)));
     let mut resumed = HostedWorld::with_world(content, setup);
     assert_eq!(resumed.started_at, before.clock);
+    // The terrain loads around the character over a few updates.
+    resumed.run_until("the dug ground to load", |world| {
+        world.world().resource::<Terrain>().contains(dug)
+    });
     let after = Snapshot::of(&mut resumed);
 
-    assert_eq!(before.terrain.len(), after.terrain.len());
-    for chunk in before.terrain.positions() {
+    assert!(before.terrain.get(dug).is_some());
+    for chunk in after.terrain.positions() {
         assert!(
-            before.terrain.get(chunk) == after.terrain.get(chunk),
+            before
+                .terrain
+                .get(chunk)
+                .is_none_or(|was| after.terrain.get(chunk) == Some(was)),
             "chunk {chunk:?} differs after the restart"
         );
     }
@@ -67,8 +75,8 @@ fn a_restarted_world_resumes_exactly_where_it_stopped() {
 }
 
 /// Digs, farms and trades, leaving a mark on every part of the world a save
-/// keeps.
-fn play_a_morning(world: &mut HostedWorld, content: &Catalog) {
+/// keeps, and returns the chunk it dug.
+fn play_a_morning(world: &mut HostedWorld, content: &Catalog) -> ChunkPos {
     let (feet, _) = world.character().expect("the host has a character");
     let dig_at = ground(world, feet + Vec3::new(-3.0, 0.0, 0.0));
     let shovel = world.slot_holding(content, "shovel");
@@ -103,6 +111,7 @@ fn play_a_morning(world: &mut HostedWorld, content: &Catalog) {
         world.run(common::PAUSE_BETWEEN_USES);
     }
     assert_ne!(world.coins(), content.starting_money());
+    ChunkPos::containing((dig_at - Vec3::Y * 0.5).floor().as_ivec3())
 }
 
 /// Everything a save keeps, as the running world has it.

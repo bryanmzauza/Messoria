@@ -20,7 +20,7 @@ use messoria_shared::{
     content::Content,
     fields::{tile_at, tile_center},
     movement::EYE_HEIGHT,
-    obstacles::Obstacles,
+    obstacles::{Blocker, Obstacles},
     protocol::{
         ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerInput, Position,
         UseItem,
@@ -79,8 +79,8 @@ impl Plugin for ActionsPlugin {
 #[derive(Resource, Default)]
 pub(crate) struct Aim {
     pub ground: Option<RayHit>,
-    /// The entity standing there, and the point on it aimed at.
-    pub thing: Option<(Entity, Vec3)>,
+    /// What stands there, and the point on it aimed at.
+    pub thing: Option<(Blocker, Vec3)>,
 }
 
 /// The local player used the held item.
@@ -151,11 +151,11 @@ fn aim(
         .filter(|hit| tools::in_reach(eyes, hit.point));
     let thing = obstacles
         .raycast(origin, direction, max_distance)
-        .map(|(entity, distance)| (entity, distance, origin + direction * distance))
+        .map(|(blocker, distance)| (blocker, distance, origin + direction * distance))
         .filter(|&(_, _, point)| tools::in_reach(eyes, point));
     match thing {
-        Some((entity, distance, point)) if ground.is_none_or(|hit| distance < hit.distance) => {
-            aim.thing = Some((entity, point));
+        Some((blocker, distance, point)) if ground.is_none_or(|hit| distance < hit.distance) => {
+            aim.thing = Some((blocker, point));
         }
         _ => aim.ground = ground,
     }

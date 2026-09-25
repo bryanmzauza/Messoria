@@ -1,19 +1,19 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! terrain, inventories, fields, money, shops and player actions.
+//! the valley, inventories, fields, money, shops and player actions.
 
 use std::fmt;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, PropId, ShopId, StructureId, Tool};
+use messoria_content::{ItemId, ShopId, StructureId, Tool};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
-use messoria_voxel::{ChunkChanges, ChunkPos, Material};
+use messoria_voxel::{ChunkChanges, Material};
 use serde::{Deserialize, Serialize};
 
-use crate::energy::Energy;
+use crate::{energy::Energy, valley::PropKey};
 
 /// The peer an entity belongs to.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -128,18 +128,33 @@ pub struct Gather {
     pub target: Vec3,
 }
 
-/// Terrain streamed from the server to a client.
+/// The valley streamed from the server to a client, a column of chunks at a
+/// time, with what players gathered of the scenery on it.
 ///
-/// A single message type keeps every update on one ordered channel, so a
-/// chunk always arrives before the changes made to it afterwards.
+/// A single message type keeps every update on one ordered channel, so the
+/// seed arrives before any column, and a column before the changes made to
+/// it afterwards.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum TerrainUpdate {
-    /// A chunk came into range, encoded with `Chunk::encode`.
-    Loaded { chunk: ChunkPos, data: Vec<u8> },
+    /// The world's seed, which the client grows the valley's shape and its
+    /// scenery from.
+    World { seed: u64 },
+    /// A column of chunks came into range: each chunk encoded with
+    /// `Chunk::encode`, from the bottom up, and the props gathered on it,
+    /// with the day each was gathered.
+    Column {
+        column: IVec2,
+        chunks: Vec<Vec<u8>>,
+        gathered: Vec<(PropKey, u32)>,
+    },
     /// Voxels of a loaded chunk changed.
     Changed(ChunkChanges),
-    /// A chunk went out of range and can be forgotten.
-    Unloaded(ChunkPos),
+    /// A column went out of range and can be forgotten.
+    ColumnUnloaded(IVec2),
+    /// A prop on a loaded column was gathered on `day`.
+    Gathered { prop: PropKey, day: u32 },
+    /// A prop on a loaded column grew back.
+    Regrown(PropKey),
 }
 
 /// What a character carries.
@@ -211,19 +226,6 @@ pub enum Deal {
     Buy { item: ItemId, count: u16 },
 }
 
-/// A piece of scenery standing in the valley, such as a tree or a rock.
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct Prop {
-    pub kind: PropId,
-    /// Which of its kind's models it is drawn with.
-    pub model: u8,
-    /// The ground it stands on.
-    pub position: Vec3,
-    /// Rotation around the vertical axis, in radians.
-    pub turn: f32,
-    pub scale: f32,
-}
-
 /// Something players built, such as a cabin, a bed or a chest, standing at
 /// `position` (the middle of its ground) turned by `facing`, as a
 /// [`Heading`] is.
@@ -237,13 +239,6 @@ pub struct Structure {
 /// What a chest keeps.
 #[derive(Component, Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stored(pub Inventory);
-
-/// A prop gathered on `day`: it stands as what its kind leaves behind until
-/// it grows back, if it ever does.
-#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Gathered {
-    pub day: u32,
-}
 
 /// A client giving money to another player.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -454,8 +449,6 @@ impl Plugin for ProtocolPlugin {
         app.component::<SoldToday>().replicate();
         app.component::<MarketState>().replicate();
         app.component::<Shopfront>().replicate();
-        app.component::<Prop>().replicate();
-        app.component::<Gathered>().replicate();
         app.component::<Structure>().replicate();
         app.component::<Stored>().replicate();
         app.component::<Holding>().replicate();

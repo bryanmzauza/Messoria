@@ -5326,6 +5326,7 @@ dependencies = [
  "messoria-save",
  "messoria-shared",
  "messoria-voxel",
+ "messoria-worldgen",
  "rand 0.10.3",
 ]
 
@@ -5403,6 +5404,7 @@ dependencies = [
  "messoria-content",
  "messoria-inventory",
  "messoria-shared",
+ "messoria-worldgen",
  "rand 0.10.3",
 ]
 
@@ -5437,6 +5439,7 @@ dependencies = [
  "messoria-save",
  "messoria-shared",
  "messoria-voxel",
+ "messoria-worldgen",
  "rand 0.10.3",
 ]
 
@@ -5452,6 +5455,7 @@ dependencies = [
  "messoria-farming",
  "messoria-inventory",
  "messoria-voxel",
+ "messoria-worldgen",
  "serde",
 ]
 
@@ -5464,6 +5468,18 @@ dependencies = [
  "lz4_flex",
  "serde",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "messoria-worldgen"
+version = "0.1.0"
+dependencies = [
+ "criterion 0.8.2",
+ "glam",
+ "messoria-content",
+ "messoria-voxel",
+ "rand 0.10.3",
+ "serde",
 ]
 
 [[package]]

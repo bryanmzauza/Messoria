@@ -24,6 +24,7 @@ use messoria_shared::{
     protocol::{
         Asleep, Belongings, Field, Happened, Heading, Notice, PlayerId, Position, Stored, Structure,
     },
+    scenery::Scenery,
     structures,
     terrain::{ChunkChanged, Terrain},
     tools, village,
@@ -35,8 +36,7 @@ use crate::{
     feedback::{Show, Tell},
     inventory::ItemUseSystems,
     players::player_key,
-    scenery::Scenery,
-    terrain::{TerrainEdited, WorldBuilding, reshape},
+    terrain::{Restoring, TerrainEdited, reshape},
 };
 
 /// Height between the levels ground is levelled to, as the shovel's.
@@ -57,7 +57,7 @@ pub(crate) struct BuildingPlugin;
 impl Plugin for BuildingPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BuildUse>()
-            .add_systems(Startup, rebuild_saved.after(WorldBuilding::Restore))
+            .add_systems(Startup, rebuild_saved.after(Restoring))
             .add_systems(PreUpdate, build.after(ItemUseSystems));
     }
 }

@@ -1,24 +1,25 @@
-//! The authoritative terrain: generating it, streaming it to clients and
-//! applying players' edits.
+//! The authoritative terrain: generating it where players are, streaming it
+//! to clients and applying players' edits.
 //!
-//! The valley is generated the same way every time, so a saved world only
-//! keeps the chunks players changed and lays them over a freshly generated
-//! valley.
+//! The valley grows from the world's seed a column of chunks at a time,
+//! around each player, and is unloaded again once nobody is near. A saved
+//! world only keeps the chunks players changed, which take the place of the
+//! generated ones as their columns load.
 
-mod generation;
+mod loading;
 mod shovel;
 mod streaming;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::{ecs::message::Message, prelude::*};
 use messoria_shared::terrain::{ChunkChanged, Terrain};
-use messoria_voxel::{Brush, ChunkChanges, ChunkPos, Reshape};
+use messoria_voxel::{Brush, Chunk, ChunkChanges, ChunkPos, Reshape};
 
 use crate::{Beginning, WorldStart};
 
-use generation::editable;
-pub(crate) use generation::{farm, ground_height, half_width};
+pub(crate) use loading::LoadedColumns;
+pub(crate) use streaming::VIEW_RADIUS;
 
 pub(crate) struct TerrainPlugin;
 
@@ -27,31 +28,20 @@ impl Plugin for TerrainPlugin {
         app.add_message::<TerrainEdited>()
             .add_message::<GroundReshaped>()
             .init_resource::<EditedChunks>()
-            .configure_sets(
-                Startup,
-                (WorldBuilding::Generate, WorldBuilding::Restore).chain(),
-            )
-            .add_systems(
-                Startup,
-                (
-                    generate_valley.in_set(WorldBuilding::Generate),
-                    restore_edits.in_set(WorldBuilding::Restore),
-                ),
-            )
+            .add_systems(Startup, restore_edits.in_set(Restoring))
             .add_systems(PostUpdate, note_edited_chunks)
-            .add_plugins((shovel::ShovelPlugin, streaming::StreamingPlugin));
+            .add_plugins((
+                loading::LoadingPlugin,
+                shovel::ShovelPlugin,
+                streaming::StreamingPlugin,
+            ));
     }
 }
 
-/// Building the terrain at startup: first the valley as generated, then the
-/// changes players made to it laid over it. Whatever is placed from the seed
-/// alone, such as scenery, is placed in between, on the generated valley, so
-/// that the same seed always places it the same way.
+/// Setting up at startup what the save kept of the world: systems that
+/// build on it run after.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum WorldBuilding {
-    Generate,
-    Restore,
-}
+pub(crate) struct Restoring;
 
 /// Voxels changed by an edit, to be forwarded to clients that have the chunk.
 #[derive(Message, Clone, Debug)]
@@ -80,32 +70,38 @@ pub(crate) struct GroundReshaped(pub Brush);
 #[derive(Resource, Default)]
 pub(crate) struct EditedChunks {
     pub chunks: HashSet<ChunkPos>,
+    /// Edited chunks whose columns are not loaded, kept until they are.
+    parked: HashMap<ChunkPos, Chunk>,
     /// Whether any of them changed since the terrain was last saved.
     pub unsaved: bool,
 }
 
-fn generate_valley(mut terrain: ResMut<Terrain>) {
-    **terrain = farm();
+impl EditedChunks {
+    /// Every edited chunk as it is now: loaded in `terrain`, or parked.
+    pub(crate) fn current<'a>(
+        &'a self,
+        terrain: &'a Terrain,
+    ) -> impl Iterator<Item = (ChunkPos, &'a Chunk)> {
+        self.chunks.iter().filter_map(|&position| {
+            terrain
+                .get(position)
+                .or_else(|| self.parked.get(&position))
+                .map(|chunk| (position, chunk))
+        })
+    }
 }
 
-fn restore_edits(
-    beginning: Res<Beginning>,
-    mut terrain: ResMut<Terrain>,
-    mut edited: ResMut<EditedChunks>,
-    mut chunk_changed: MessageWriter<ChunkChanged>,
-) {
+fn restore_edits(beginning: Res<Beginning>, mut edited: ResMut<EditedChunks>) {
     if let WorldStart::Resume(saved) = &beginning.0 {
         for (position, chunk) in &saved.terrain {
-            terrain.insert(*position, chunk.clone());
             edited.chunks.insert(*position);
+            edited.parked.insert(*position, chunk.clone());
         }
+        info!(
+            "{} chunks of terrain are as players left them",
+            edited.chunks.len()
+        );
     }
-    chunk_changed.write_batch(terrain.positions().map(ChunkChanged));
-    info!(
-        "generated {} terrain chunks, {} of them as players left them",
-        terrain.len(),
-        edited.chunks.len()
-    );
 }
 
 fn note_edited_chunks(mut edits: MessageReader<TerrainEdited>, mut edited: ResMut<EditedChunks>) {

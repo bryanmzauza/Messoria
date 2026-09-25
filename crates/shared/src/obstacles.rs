@@ -2,10 +2,11 @@
 //! the walls and furniture of what players build.
 //!
 //! Round things are upright cylinders, built things upright boxes. The
-//! server and every client build the same set from the same replicated
-//! props, stalls and structures, so movement predicted by a client collides
-//! exactly as the server's does. A prop that leaves nothing standing once
-//! gathered stops being an obstacle then.
+//! server and every client build the same set, from the scenery each grows
+//! on its loaded columns and from the replicated stalls and structures, so
+//! movement predicted by a client collides exactly as the server's does. A
+//! prop that leaves nothing standing once gathered stops being an obstacle
+//! then.
 
 use std::collections::HashMap;
 
@@ -13,7 +14,8 @@ use bevy::prelude::*;
 
 use crate::{
     content::Content,
-    protocol::{Gathered, Prop, Shopfront, Structure},
+    protocol::{Shopfront, Structure},
+    valley::PropKey,
 };
 
 /// Size of the cells obstacles are indexed by, in meters.
@@ -31,14 +33,18 @@ pub(crate) struct ObstaclesPlugin;
 impl Plugin for ObstaclesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Obstacles>()
-            .add_observer(block_with_prop)
-            .add_observer(clear_prop)
-            .add_observer(clear_gathered)
-            .add_observer(block_with_regrown)
             .add_observer(block_with_stall)
             .add_observer(block_with_structure)
             .add_observer(clear_structure);
     }
+}
+
+/// What an obstacle belongs to: an entity, such as a stall or a cabin, or a
+/// prop of the scenery, which has none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Blocker {
+    Thing(Entity),
+    Prop(PropKey),
 }
 
 /// Something upright nothing walks through.
@@ -48,8 +54,8 @@ struct Obstacle {
     shape: Shape,
     bottom: f32,
     top: f32,
-    /// The entity it belongs to, so it can go when the entity does.
-    owner: Entity,
+    /// What it belongs to, so it can go when that does.
+    owner: Blocker,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -111,6 +117,8 @@ impl Obstacle {
 #[derive(Resource, Default)]
 pub struct Obstacles {
     cells: HashMap<IVec2, Vec<Obstacle>>,
+    /// The cells each owner's obstacles are in.
+    owned: HashMap<Blocker, Vec<IVec2>>,
     largest_reach: f32,
 }
 
@@ -140,21 +148,21 @@ impl Obstacles {
     }
 
     /// The first obstacle a ray from `origin` along the unit vector
-    /// `direction` meets within `max_distance`: the entity it belongs to,
-    /// and the distance to it.
+    /// `direction` meets within `max_distance`: what it belongs to, and the
+    /// distance to it.
     pub fn raycast(
         &self,
         origin: Vec3,
         direction: Vec3,
         max_distance: f32,
-    ) -> Option<(Entity, f32)> {
+    ) -> Option<(Blocker, f32)> {
         let end = origin + direction * max_distance;
         let reach = Vec2::splat(self.largest_reach);
         let (min, max) = (
             cell_of(origin.xz().min(end.xz()) - reach),
             cell_of(origin.xz().max(end.xz()) + reach),
         );
-        let mut nearest: Option<(Entity, f32)> = None;
+        let mut nearest: Option<(Blocker, f32)> = None;
         for z in min.y..=max.y {
             for x in min.x..=max.x {
                 for obstacle in self.cells.get(&IVec2::new(x, z)).into_iter().flatten() {
@@ -172,18 +180,35 @@ impl Obstacles {
         nearest
     }
 
-    fn insert(&mut self, obstacle: Obstacle) {
-        self.largest_reach = self.largest_reach.max(obstacle.reach());
-        self.cells
-            .entry(cell_of(obstacle.center))
-            .or_default()
-            .push(obstacle);
+    /// Makes the prop `key` names, standing at `position` with a footprint
+    /// of `radius`, an obstacle.
+    pub(crate) fn block_with_prop(&mut self, key: PropKey, position: Vec3, radius: f32) {
+        self.insert(Obstacle {
+            center: position.xz(),
+            shape: Shape::Cylinder { radius },
+            bottom: position.y - REACH_DOWN,
+            top: position.y + REACH_UP,
+            owner: Blocker::Prop(key),
+        });
     }
 
-    fn remove_owned_by(&mut self, owner: Entity) {
-        for obstacles in self.cells.values_mut() {
-            obstacles.retain(|obstacle| obstacle.owner != owner);
+    /// Removes every obstacle `owner` has.
+    pub(crate) fn clear(&mut self, owner: Blocker) {
+        for cell in self.owned.remove(&owner).into_iter().flatten() {
+            if let Some(obstacles) = self.cells.get_mut(&cell) {
+                obstacles.retain(|obstacle| obstacle.owner != owner);
+                if obstacles.is_empty() {
+                    self.cells.remove(&cell);
+                }
+            }
         }
+    }
+
+    fn insert(&mut self, obstacle: Obstacle) {
+        self.largest_reach = self.largest_reach.max(obstacle.reach());
+        let cell = cell_of(obstacle.center);
+        self.owned.entry(obstacle.owner).or_default().push(cell);
+        self.cells.entry(cell).or_default().push(obstacle);
     }
 }
 
@@ -262,7 +287,7 @@ impl Obstacles {
             shape: Shape::Cylinder { radius },
             bottom: 0.0,
             top: 3.0,
-            owner: Entity::PLACEHOLDER,
+            owner: Blocker::Thing(Entity::PLACEHOLDER),
         });
         obstacles
     }
@@ -270,70 +295,6 @@ impl Obstacles {
 
 fn cell_of(point: Vec2) -> IVec2 {
     (point / CELL).floor().as_ivec2()
-}
-
-fn block_with_prop(
-    trigger: On<Add, Prop>,
-    props: Query<(&Prop, Has<Gathered>)>,
-    content: Res<Content>,
-    mut obstacles: ResMut<Obstacles>,
-) {
-    if let Ok((prop, gathered)) = props.get(trigger.entity) {
-        block_with(&mut obstacles, &content, trigger.entity, prop, gathered);
-    }
-}
-
-fn clear_prop(trigger: On<Remove, Prop>, mut obstacles: ResMut<Obstacles>) {
-    obstacles.remove_owned_by(trigger.entity);
-}
-
-fn clear_gathered(
-    trigger: On<Add, Gathered>,
-    props: Query<&Prop>,
-    content: Res<Content>,
-    mut obstacles: ResMut<Obstacles>,
-) {
-    if let Ok(prop) = props.get(trigger.entity)
-        && !content.prop(prop.kind).stands_when_gathered()
-    {
-        obstacles.remove_owned_by(trigger.entity);
-    }
-}
-
-fn block_with_regrown(
-    trigger: On<Remove, Gathered>,
-    props: Query<&Prop>,
-    content: Res<Content>,
-    mut obstacles: ResMut<Obstacles>,
-) {
-    if let Ok(prop) = props.get(trigger.entity)
-        && !content.prop(prop.kind).stands_when_gathered()
-    {
-        block_with(&mut obstacles, &content, trigger.entity, prop, false);
-    }
-}
-
-/// Makes `prop` an obstacle, if it stands in the way.
-fn block_with(
-    obstacles: &mut Obstacles,
-    content: &Content,
-    owner: Entity,
-    prop: &Prop,
-    gathered: bool,
-) {
-    let definition = content.prop(prop.kind);
-    let standing = !gathered || definition.stands_when_gathered();
-    if definition.blocks && standing {
-        obstacles.insert(Obstacle {
-            center: prop.position.xz(),
-            shape: Shape::Cylinder {
-                radius: definition.radius * prop.scale,
-            },
-            bottom: prop.position.y - REACH_DOWN,
-            top: prop.position.y + REACH_UP,
-            owner,
-        });
-    }
 }
 
 fn block_with_stall(
@@ -354,7 +315,7 @@ fn block_with_stall(
             },
             bottom: stall.position.y - REACH_DOWN,
             top: stall.position.y + REACH_UP,
-            owner: trigger.entity,
+            owner: Blocker::Thing(trigger.entity),
         });
     }
 }
@@ -378,13 +339,13 @@ fn block_with_structure(
             },
             bottom: structure.position.y,
             top: structure.position.y + solid.height,
-            owner: trigger.entity,
+            owner: Blocker::Thing(trigger.entity),
         });
     }
 }
 
 fn clear_structure(trigger: On<Remove, Structure>, mut obstacles: ResMut<Obstacles>) {
-    obstacles.remove_owned_by(trigger.entity);
+    obstacles.clear(Blocker::Thing(trigger.entity));
 }
 
 #[cfg(test)]
@@ -393,6 +354,19 @@ mod tests {
 
     fn trunk_at(center: Vec2) -> Obstacles {
         Obstacles::one_trunk(center, 0.5)
+    }
+
+    fn seventh() -> Blocker {
+        Blocker::Thing(Entity::from_raw_u32(7).expect("a valid index"))
+    }
+
+    #[test]
+    fn cleared_owners_stop_blocking() {
+        let mut obstacles = trunk_at(Vec2::ZERO);
+        obstacles.clear(Blocker::Thing(Entity::PLACEHOLDER));
+        let feet = Vec3::new(0.2, 0.0, 0.0);
+        assert_eq!(obstacles.push_out(feet, 0.3, 1.8), feet);
+        assert!(obstacles.cells.is_empty() && obstacles.owned.is_empty());
     }
 
     #[test]
@@ -411,13 +385,13 @@ mod tests {
             shape: Shape::Cylinder { radius: 0.5 },
             bottom: 0.0,
             top: 3.0,
-            owner: Entity::from_raw_u32(7).expect("a valid index"),
+            owner: seventh(),
         });
         let eyes = Vec3::new(0.0, 1.6, 0.0);
         let (owner, distance) = obstacles
             .raycast(eyes, Vec3::X, 20.0)
             .expect("the ray meets a trunk");
-        assert_eq!(owner, Entity::from_raw_u32(7).expect("a valid index"));
+        assert_eq!(owner, seventh());
         assert!((distance - 4.5).abs() < 1e-4, "hit at {distance}");
 
         assert_eq!(obstacles.raycast(eyes, Vec3::NEG_X, 20.0), None, "behind");
@@ -437,7 +411,7 @@ mod tests {
             },
             bottom: 0.0,
             top: 1.0,
-            owner: Entity::from_raw_u32(9).expect("a valid index"),
+            owner: Blocker::Thing(Entity::from_raw_u32(9).expect("a valid index")),
         });
         obstacles
     }
@@ -463,7 +437,10 @@ mod tests {
         let (owner, distance) = obstacles
             .raycast(eyes, down, 5.0)
             .expect("the ray meets the box");
-        assert_eq!(owner, Entity::from_raw_u32(9).expect("a valid index"));
+        assert_eq!(
+            owner,
+            Blocker::Thing(Entity::from_raw_u32(9).expect("a valid index"))
+        );
         let hit = eyes + down * distance;
         assert!((hit.y - 1.0).abs() < 1e-3, "hit the top at {hit}");
         assert_eq!(

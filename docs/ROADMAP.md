@@ -223,15 +223,15 @@ like one world in screenshots, in every season.
 
 Goal: a world of about two kilometers that stays smooth to play in.
 
-- [ ] Terrain generated on demand, a region at a time, from the world's
+- [x] Terrain generated on demand, a region at a time, from the world's
       seed; saves keep only what players changed
-- [ ] A world of about 2 km: hills, woods, meadows, a river and roads
+- [x] A world of about 2 km: hills, woods, meadows, a river and roads
       linking the farms to the village
-- [ ] Each client receives only the chunks, props, fields and structures
+- [x] Each client receives only the chunks, props, fields and structures
       near it (interest management)
-- [ ] Scenery scattered per region; far terrain drawn simplified up to the
+- [x] Scenery scattered per region; far terrain drawn simplified up to the
       horizon
-- [ ] Travel stays pleasant: a sprint that lasts and roads you can follow
+- [x] Travel stays pleasant: a sprint that lasts and roads you can follow
 
 **Exit criterion:** eight players spread across the whole map keep 60 frames
 per second in a release build, and the server stays within its tick budget.

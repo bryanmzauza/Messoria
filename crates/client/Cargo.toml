@@ -20,6 +20,7 @@ messoria-inventory.workspace = true
 messoria-save.workspace = true
 messoria-shared.workspace = true
 messoria-voxel.workspace = true
+messoria-worldgen.workspace = true
 rand.workspace = true
 
 [lints]

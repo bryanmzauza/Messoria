@@ -1,11 +1,13 @@
 //! Connects headless bot players to a server. By default they wander; they
-//! can also reshape the terrain, or stay put and farm.
+//! can also reshape the terrain, travel the whole valley, or stay put and
+//! farm.
 //!
 //! Each bot is a complete client app running on its own thread, so the server
 //! sees exactly the traffic real players would produce.
 
 mod farm;
 mod reshape;
+mod roam;
 mod wander;
 
 use std::{net::SocketAddr, thread, time::Duration};
@@ -38,12 +40,16 @@ struct Args {
     simulate_latency: Option<u64>,
 
     /// Make bots dig and raise the terrain as they wander.
-    #[arg(long, conflicts_with = "farm")]
+    #[arg(long, conflicts_with_all = ["farm", "roam"])]
     dig: bool,
 
     /// Make bots stay put and farm a row of fields, logging each harvest.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "roam")]
     farm: bool,
+
+    /// Make bots run across the whole valley, from one far place to another.
+    #[arg(long)]
+    roam: bool,
 }
 
 fn main() -> AppExit {
@@ -59,6 +65,8 @@ fn main() -> AppExit {
 
     let behavior = if args.farm {
         Behavior::Farm
+    } else if args.roam {
+        Behavior::Roam
     } else if args.dig {
         Behavior::WanderAndDig
     } else {
@@ -111,6 +119,9 @@ fn run_bot(
                 reshape::ReshapePlugin { seed },
             ));
         }
+        Behavior::Roam => {
+            app.add_plugins(roam::RoamPlugin { seed });
+        }
         Behavior::Farm => {
             app.add_plugins(farm::FarmPlugin {
                 name: format!("bot {index}"),
@@ -133,6 +144,7 @@ fn run_bot(
 enum Behavior {
     Wander,
     WanderAndDig,
+    Roam,
     Farm,
 }
 
