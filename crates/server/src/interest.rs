@@ -6,6 +6,10 @@
 //! room as they walk, and each client joins the rooms of the columns around
 //! its character, as far as it is sent terrain. Things in no room, such as
 //! the clock and the market, reach every client.
+//!
+//! Nothing the server sends has children of its own, so replication never
+//! follows a hierarchy down: the models the host's client hangs under the
+//! things it draws, in a world hosted from the game, stay its own.
 
 use std::collections::HashMap;
 
@@ -28,6 +32,7 @@ impl Plugin for InterestPlugin {
         // Before anything is placed in them, even at startup.
         let rooms = allocate_rooms(&mut app.world_mut().resource_mut::<RoomAllocator>());
         app.insert_resource(rooms)
+            .add_observer(keep_hierarchy_local)
             .add_observer(place_field)
             .add_observer(place_structure)
             .add_observer(place_stall)
@@ -69,6 +74,16 @@ fn allocate_rooms(allocator: &mut RoomAllocator) -> ColumnRooms {
             .map(|column| (column, allocator.allocate()))
             .collect(),
     )
+}
+
+/// Stops replication from reaching the children of what the server sends.
+/// Otherwise every model the host draws would be sent to the other players,
+/// and taking one down would trip lightyear's room bookkeeping on an entity
+/// already gone.
+fn keep_hierarchy_local(trigger: On<Add, Replicate>, mut commands: Commands) {
+    commands
+        .entity(trigger.entity)
+        .insert(DisableReplicateHierarchy);
 }
 
 /// Puts `entity`, standing at `point`, in the room of its column.
