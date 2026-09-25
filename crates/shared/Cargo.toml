@@ -10,7 +10,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-bevy = { workspace = true, features = ["std", "bevy_state"] }
+bevy = { workspace = true, features = ["std", "bevy_log", "bevy_state"] }
 lightyear = { workspace = true, features = [
   "std",
   "client",
@@ -23,6 +23,13 @@ lightyear = { workspace = true, features = [
   "frame_interpolation",
   "input_native",
 ] }
+messoria-calendar.workspace = true
+messoria-content.workspace = true
+messoria-economy.workspace = true
+messoria-farming.workspace = true
+messoria-inventory.workspace = true
+messoria-voxel.workspace = true
+messoria-worldgen.workspace = true
 serde.workspace = true
 
 [lints]

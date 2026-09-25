@@ -1,0 +1,20 @@
+[package]
+name = "messoria-content"
+description = "Game content loaded from data files, validated on load."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+messoria-calendar.workspace = true
+messoria-voxel.workspace = true
+ron.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

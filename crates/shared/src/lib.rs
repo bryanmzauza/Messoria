@@ -5,15 +5,27 @@
 //! also the only crate that configures lightyear; other crates use the types it
 //! re-exports through its modules.
 
+pub mod content;
+pub mod energy;
+pub mod fields;
 pub mod movement;
 pub mod network;
+pub mod obstacles;
 pub mod protocol;
+pub mod scenery;
+pub mod shops;
+pub mod structures;
+pub mod terrain;
 pub mod tick;
+pub mod tools;
+pub mod valley;
+pub mod village;
 
 use bevy::{prelude::*, state::app::StatesPlugin};
 use lightyear::prelude::{
     client::ClientPlugins, input::native::InputMarker, server::ServerPlugins, *,
 };
+use messoria_content::Catalog;
 
 use crate::{
     network::NetworkRole,
@@ -25,6 +37,9 @@ use crate::{
 /// Add exactly one per app, before `ServerPlugin` or `ClientPlugin`.
 pub struct SharedPlugin {
     pub role: NetworkRole,
+    /// Loaded with [`content::load_content`] before the app is built, so
+    /// that invalid content stops the program before anything starts.
+    pub content: Catalog,
 }
 
 impl Plugin for SharedPlugin {
@@ -38,7 +53,13 @@ impl Plugin for SharedPlugin {
         let tick_duration = tick::tick_duration();
         match self.role {
             NetworkRole::Server => app.add_plugins(ServerPlugins { tick_duration }),
-            NetworkRole::Client => app.add_plugins(ClientPlugins { tick_duration }),
+            // Prediction only records history and rolls back to the server's
+            // state when this resource is present. Without it, a remote
+            // client's character would drift from the server's for good as
+            // soon as one input went unapplied.
+            NetworkRole::Client => app
+                .add_plugins(ClientPlugins { tick_duration })
+                .insert_resource(PredictionManager::default()),
             NetworkRole::Host => app.add_plugins((
                 ServerPlugins { tick_duration },
                 ClientPlugins { tick_duration },
@@ -46,8 +67,20 @@ impl Plugin for SharedPlugin {
         };
 
         // lightyear requires the protocol to be registered after its plugin groups.
-        app.add_plugins((protocol::ProtocolPlugin, movement::MovementPlugin))
-            .add_observer(read_input_for_controlled_player);
+        app.insert_resource(content::Content(self.content.clone()));
+        app.add_plugins((
+            protocol::ProtocolPlugin,
+            valley::ValleyPlugin,
+            terrain::TerrainPlugin,
+            scenery::SceneryPlugin,
+            obstacles::ObstaclesPlugin,
+            movement::MovementPlugin,
+        ))
+        .configure_sets(
+            PreUpdate,
+            terrain::LoadColumns.before(scenery::ScenerySystems),
+        )
+        .add_observer(read_input_for_controlled_player);
     }
 }
 

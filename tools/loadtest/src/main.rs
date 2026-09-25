@@ -1,8 +1,13 @@
-//! Connects headless bot players to a server and lets them wander.
+//! Connects headless bot players to a server. By default they wander; they
+//! can also reshape the terrain, travel the whole valley, or stay put and
+//! farm.
 //!
 //! Each bot is a complete client app running on its own thread, so the server
 //! sees exactly the traffic real players would produce.
 
+mod farm;
+mod reshape;
+mod roam;
 mod wander;
 
 use std::{net::SocketAddr, thread, time::Duration};
@@ -10,8 +15,10 @@ use std::{net::SocketAddr, thread, time::Duration};
 use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
 use clap::Parser;
 use lightyear::prelude::*;
+use messoria_content::Catalog;
 use messoria_shared::{
     SharedPlugin,
+    content::load_content,
     network::{self, NetworkRole},
     tick::tick_duration,
 };
@@ -31,17 +38,47 @@ struct Args {
     /// Delay packets from the server by this many milliseconds.
     #[arg(long, value_name = "MS")]
     simulate_latency: Option<u64>,
+
+    /// Make bots dig and raise the terrain as they wander.
+    #[arg(long, conflicts_with_all = ["farm", "roam"])]
+    dig: bool,
+
+    /// Make bots stay put and farm a row of fields, logging each harvest.
+    #[arg(long, conflicts_with = "roam")]
+    farm: bool,
+
+    /// Make bots run across the whole valley, from one far place to another.
+    #[arg(long)]
+    roam: bool,
 }
 
-fn main() {
+fn main() -> AppExit {
     let args = Args::parse();
     let simulated_latency = args.simulate_latency.map(Duration::from_millis);
+    let content = match load_content() {
+        Ok(content) => content,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return AppExit::error();
+        }
+    };
+
+    let behavior = if args.farm {
+        Behavior::Farm
+    } else if args.roam {
+        Behavior::Roam
+    } else if args.dig {
+        Behavior::WanderAndDig
+    } else {
+        Behavior::Wander
+    };
 
     let bots: Vec<_> = (0..args.bots)
         .map(|index| {
+            let content = content.clone();
             thread::Builder::new()
                 .name(format!("bot-{index}"))
-                .spawn(move || run_bot(index, args.server, simulated_latency))
+                .spawn(move || run_bot(index, args.server, simulated_latency, behavior, content))
                 .expect("spawn bot thread")
         })
         .collect();
@@ -51,23 +88,46 @@ fn main() {
             std::panic::resume_unwind(panic);
         }
     }
+    AppExit::Success
 }
 
-fn run_bot(index: u16, server_addr: SocketAddr, simulated_latency: Option<Duration>) -> AppExit {
+fn run_bot(
+    index: u16,
+    server_addr: SocketAddr,
+    simulated_latency: Option<Duration>,
+    behavior: Behavior,
+    content: Catalog,
+) -> AppExit {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(tick_duration())));
     // The log subscriber is process-wide, so only one bot installs it.
     if index == 0 {
         app.add_plugins(LogPlugin::default());
     }
-    app.add_plugins((
-        SharedPlugin {
-            role: NetworkRole::Client,
-        },
-        wander::WanderPlugin {
-            seed: u64::from(index),
-        },
-    ));
+    app.add_plugins(SharedPlugin {
+        role: NetworkRole::Client,
+        content,
+    });
+    let seed = u64::from(index);
+    match behavior {
+        Behavior::Wander => {
+            app.add_plugins(wander::WanderPlugin { seed });
+        }
+        Behavior::WanderAndDig => {
+            app.add_plugins((
+                wander::WanderPlugin { seed },
+                reshape::ReshapePlugin { seed },
+            ));
+        }
+        Behavior::Roam => {
+            app.add_plugins(roam::RoamPlugin { seed });
+        }
+        Behavior::Farm => {
+            app.add_plugins(farm::FarmPlugin {
+                name: format!("bot {index}"),
+            });
+        }
+    }
 
     let client_id = rand::random();
     let connection = network::remote_client(server_addr, client_id, simulated_latency)
@@ -78,6 +138,14 @@ fn run_bot(index: u16, server_addr: SocketAddr, simulated_latency: Option<Durati
     });
 
     app.run()
+}
+
+#[derive(Clone, Copy)]
+enum Behavior {
+    Wander,
+    WanderAndDig,
+    Roam,
+    Farm,
 }
 
 fn parse_server_addr(input: &str) -> Result<SocketAddr, String> {

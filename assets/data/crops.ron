@@ -1,0 +1,103 @@
+// Every crop that can be planted.
+//
+// A crop grows from its `seeds` item and yields `harvest` of its `produce`
+// item. It grows only in its `seasons` and withers outside them. `stages`
+// lists how many watered days each growth stage takes, so a crop planted and
+// watered every day ripens as many days later as its stages add up to. Crops
+// with `regrows_after` keep producing, ripening again that many watered days
+// after each harvest. `color` is the ripe produce's color, in sRGB.
+// `models` draw the plant, from just planted to ripe, one more than it has
+// stages; produce is drawn on the ripe plant in its color unless the ripe
+// model shows it (`produce_shown`).
+(
+    crops: [
+        (
+            id: "turnip",
+            name: "Turnip",
+            seeds: "turnip_seeds",
+            produce: "turnip",
+            seasons: [Spring],
+            stages: [1, 1, 2],
+            color: (0.93, 0.82, 0.9),
+            models: [
+                "crops/sprout.glb",
+                "crops/turnip_1.glb",
+                "crops/turnip_2.glb",
+                "crops/turnip_3.glb",
+            ],
+            produce_shown: true,
+        ),
+        (
+            id: "potato",
+            name: "Potato",
+            seeds: "potato_seeds",
+            produce: "potato",
+            seasons: [Spring],
+            stages: [2, 2, 2],
+            harvest: 2,
+            color: (0.72, 0.56, 0.36),
+            models: [
+                "crops/sprout.glb",
+                "crops/potato_1.glb",
+                "crops/potato_2.glb",
+                "crops/potato_3.glb",
+            ],
+            produce_shown: true,
+        ),
+        (
+            id: "strawberry",
+            name: "Strawberry",
+            seeds: "strawberry_seeds",
+            produce: "strawberry",
+            seasons: [Spring],
+            stages: [2, 2, 2, 2],
+            regrows_after: 3,
+            harvest: 2,
+            color: (0.9, 0.15, 0.2),
+            models: [
+                "crops/sprout.glb",
+                "crops/strawberry_1.glb",
+                "crops/strawberry_1.glb",
+                "crops/strawberry_2.glb",
+                "crops/strawberry_3.glb",
+            ],
+            produce_shown: true,
+        ),
+        (
+            id: "tomato",
+            name: "Tomato",
+            seeds: "tomato_seeds",
+            produce: "tomato",
+            seasons: [Summer],
+            stages: [2, 2, 3, 3],
+            regrows_after: 4,
+            harvest: 2,
+            color: (0.92, 0.25, 0.15),
+            models: [
+                "crops/sprout.glb",
+                "crops/tomato_1.glb",
+                "crops/tomato_1.glb",
+                "crops/tomato_2.glb",
+                "crops/tomato_3.glb",
+            ],
+            produce_shown: true,
+        ),
+        (
+            id: "wheat",
+            name: "Wheat",
+            seeds: "wheat_seeds",
+            produce: "wheat",
+            seasons: [Summer, Autumn],
+            stages: [2, 3, 3],
+            harvest: 3,
+            color: (0.9, 0.78, 0.4),
+            models: [
+                "crops/sprout.glb",
+                "crops/wheat_1.glb",
+                "crops/wheat_2.glb",
+                "crops/wheat_3.glb",
+            ],
+            produce_shown: true,
+        ),
+    ],
+)

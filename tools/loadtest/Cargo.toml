@@ -13,7 +13,10 @@ publish.workspace = true
 bevy = { workspace = true, features = ["std", "bevy_log"] }
 clap.workspace = true
 lightyear.workspace = true
+messoria-content.workspace = true
+messoria-inventory.workspace = true
 messoria-shared.workspace = true
+messoria-worldgen.workspace = true
 rand.workspace = true
 
 [lints]

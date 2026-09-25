@@ -9,9 +9,22 @@ Written in Rust with [Bevy](https://bevyengine.org).
 
 ## Status
 
-Early development. Players can share a world over the network, host it from
-the game or run a dedicated server, and walk around together. Terrain is next.
-See the [roadmap](docs/ROADMAP.md) for what is done and what comes next.
+Early development. Players share a valley two kilometers across, with
+farmland around a village, roads, a river, woods, hills and mountains all
+grown from the world's seed, over the network, hosted from the game or on a
+dedicated server. They reshape its smooth voxel
+terrain with a shovel, farm crops through the seasons, sell their harvests at
+the village grocer, whose prices respond to what everyone sells, and live
+through days and nights that end when they go to sleep, under a sky that
+turns with the hours and a valley that turns with the seasons. They gather
+wood and stone, build cabins, and see each other as blocky, hand-painted
+characters, each dressed their own way, with their tools in hand, around a
+village square with shops and shopkeepers.
+The valley is lit, its ground painted and everything in it drawn in one
+style of our own, out to the horizon. Worlds are saved and resume where they
+stopped. Farm lots, a larger village with villagers to befriend and looks of
+your own are next, then music and a playtest. See the
+[roadmap](docs/ROADMAP.md) for what is done and what comes next.
 
 ## Building
 
@@ -43,10 +56,26 @@ Arguments go after `--`:
 
 ```sh
 cargo client -- --host                       # open your world to others (UDP port 5717)
+cargo client -- --world saves/farm           # play the world saved in another folder
 cargo client -- --connect 192.168.0.10       # join a hosted world or a dedicated server
 cargo server -- --port 5717                  # dedicated server
+cargo server -- --sleep-percent 50           # share of players that must sleep to end the day
+cargo server -- --world saves/community      # folder the world is saved in
+cargo server -- --start-time 21:00           # start a new world's clock at a given time
+cargo server -- --minute-length 20           # make days pass quickly, for testing
 cargo bots -- --server 127.0.0.1 --bots 4    # add simulated players
+cargo bots -- --bots 2 --farm                # bots that farm and log their harvests
+cargo bots -- --bots 8 --roam                # bots that run all over the valley
 ```
+
+Worlds are saved in `saves/`: the game's own world in `saves/local`, a
+dedicated server's in `saves/world`. They are saved every few minutes, at
+dawn and on exit, and resume where they stopped. Worlds saved before the
+valley grew to its present size cannot be resumed; start a new one. A
+dedicated server logs every minute how long its updates take against the
+length of a tick. The game keeps who you are in
+`saves/profile.ron`, so servers recognize you when you come back, and your
+options in `saves/settings.ron`.
 
 The host must allow the port through their firewall, and players outside the
 local network need it forwarded on the router until access codes arrive (see
@@ -54,15 +83,51 @@ the roadmap). `--simulate-latency <ms>` on `--connect` and on the bots delays
 packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
-`Space` to jump, `F5` to switch between first and third person, `Esc` to
-release the mouse.
+`Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
+held item, left and right mouse buttons to use it, `F` to harvest a ripe crop,
+pick berries, open a chest, go to bed (from 18:00) or get up, or at a stall
+open its shop, `E` to open the backpack (click a stack to pick it up and a
+slot to put it down, and give money to other players beside it), `F5` to cycle
+between first person, third person from behind and from the front, `Esc` for
+the game menu (options, and saving and quitting). What the crosshair is on is
+named under it, and the game says why when an action does nothing.
+
+Every newcomer is given a cabin deed: used on open ground, aimed where the
+door should be, it builds their cabin, with a bed and a chest inside. The
+carpenter sells more chests. Players sleep in beds, and whoever is still
+up at 02:00 collapses and wakes up at home.
+The shovel digs and raises ground; the hoe tills a field, seeds are planted in
+it and the watering can waters it; food is eaten. The axe fells trees for
+wood, leaving stumps that grow back in a week, and the pickaxe breaks rocks
+for stone. The village lies straight ahead of where players arrive: at its
+stalls on the square, the grocer buys crops and sells seeds from 09:00 to
+17:00, and the carpenter buys wood and stone and sells tools from 08:00 to
+18:00, both closed on Sundays.
+
+Game content lives in `assets/data/`: items in
+[`items.ron`](assets/data/items.ron), crops in
+[`crops.ron`](assets/data/crops.ron), shops and market prices in
+[`shops.ron`](assets/data/shops.ron), trees, rocks, ground cover and what
+gathering them gives in [`scenery.ron`](assets/data/scenery.ron), what
+players build in [`structures.ron`](assets/data/structures.ron), how the
+village is laid out in [`village.ron`](assets/data/village.ron), how
+characters are built and dressed in
+[`characters.ron`](assets/data/characters.ron), from the skins in
+[`assets/skins/`](assets/skins),
+and the colors foliage and the ground take, season by season, and how
+foliage sways in the wind, in [`palette.ron`](assets/data/palette.ron). The
+game refuses to start, naming the problem, if a data file is invalid. Models
+are block models painted in pixel art for the game; sounds come from CC0
+packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
 
 ## Repository layout
 
 ```
-crates/   libraries: shared networking and simulation, server, client
+crates/   libraries: domain rules (calendar, content, economy, farming, inventory, save, voxel),
+          shared networking and simulation, server, client
 bins/     executables: game client and dedicated server
 tools/    development tools: load-testing bots
+assets/   game content, models and sounds
 docs/     design document, architecture notes, decision records
 ```
 

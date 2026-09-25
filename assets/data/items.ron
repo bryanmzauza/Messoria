@@ -1,0 +1,68 @@
+// Every item in the game, and what new players start with.
+//
+// `id` is how other data files and saves refer to an item. Optional fields:
+// `stack` (most items per inventory slot, 1 if omitted), `shelf_life` (days
+// until a perishable item spoils), `spoils_into` (what it then becomes),
+// `color` (what it is marked with on screen, for items no crop or ground
+// colors) and `model` (what it is drawn with in the hand and in its icon;
+// items without one are drawn as a lump of their color).
+(
+    items: [
+        (id: "shovel", name: "Shovel", kind: Tool(Shovel), model: "items/shovel.glb"),
+        (id: "hoe", name: "Hoe", kind: Tool(Hoe), model: "items/hoe.glb"),
+        (id: "watering_can", name: "Watering can", kind: Tool(WateringCan), model: "items/watering_can.glb"),
+        (id: "axe", name: "Axe", kind: Tool(Axe), model: "items/axe.glb"),
+        (id: "pickaxe", name: "Pickaxe", kind: Tool(Pickaxe), model: "items/pickaxe.glb"),
+
+        // Digging yields the item listing the dug material; raising the
+        // ground uses soil.
+        (id: "soil", name: "Soil", kind: Terrain(materials: [Grass, Soil]), stack: 99, model: "items/soil.glb"),
+        (id: "stone", name: "Stone", kind: Terrain(materials: [Stone]), stack: 99, model: "items/stone.glb"),
+        (id: "sand", name: "Sand", kind: Terrain(materials: [Sand]), stack: 99, model: "items/sand.glb"),
+
+        // What each seed grows into is set in crops.ron.
+        (id: "turnip_seeds", name: "Turnip seeds", kind: Seed, stack: 99, model: "items/seed_bag.glb"),
+        (id: "potato_seeds", name: "Potato seeds", kind: Seed, stack: 99, model: "items/seed_bag.glb"),
+        (id: "strawberry_seeds", name: "Strawberry seeds", kind: Seed, stack: 99, model: "items/seed_bag.glb"),
+        (id: "tomato_seeds", name: "Tomato seeds", kind: Seed, stack: 99, model: "items/seed_bag.glb"),
+        (id: "wheat_seeds", name: "Wheat seeds", kind: Seed, stack: 99, model: "items/seed_bag.glb"),
+
+        (id: "turnip", name: "Turnip", kind: Food(energy: 12), stack: 99, shelf_life: 6, spoils_into: "compost", model: "items/turnip.glb"),
+        (id: "potato", name: "Potato", kind: Food(energy: 15), stack: 99, shelf_life: 10, spoils_into: "compost", model: "items/potato.glb"),
+        (id: "strawberry", name: "Strawberry", kind: Food(energy: 6), stack: 99, shelf_life: 3, spoils_into: "compost", model: "items/strawberry.glb"),
+        (id: "tomato", name: "Tomato", kind: Food(energy: 8), stack: 99, shelf_life: 5, spoils_into: "compost", model: "items/tomato.glb"),
+        (id: "wheat", name: "Wheat", kind: Goods, stack: 99, model: "items/wheat.glb"),
+
+        // Placed to build a structure; structures.ron says which.
+        (id: "cabin_deed", name: "Cabin deed", kind: Structure, color: (0.85, 0.75, 0.55), model: "items/deed.glb"),
+        (id: "chest", name: "Chest", kind: Structure, stack: 10, color: (0.7, 0.45, 0.25), model: "home/chest.glb"),
+
+        // Gathered from the scenery; scenery.ron says what gives what.
+        (id: "wood", name: "Wood", kind: Goods, stack: 99, color: (0.6, 0.42, 0.25), model: "items/wood.glb"),
+
+        (
+            id: "wild_berries",
+            name: "Wild berries",
+            kind: Food(energy: 8),
+            stack: 30,
+            shelf_life: 3,
+            spoils_into: "compost",
+            model: "items/berries.glb",
+        ),
+        // Spoiled food; spread on tilled soil, it improves harvests.
+        (id: "compost", name: "Compost", kind: Fertilizer, stack: 99, model: "items/compost.glb"),
+    ],
+
+    starting_inventory: [
+        ("shovel", 1),
+        ("hoe", 1),
+        ("watering_can", 1),
+        ("axe", 1),
+        ("pickaxe", 1),
+        ("turnip_seeds", 15),
+        ("potato_seeds", 10),
+        ("strawberry_seeds", 5),
+        ("wild_berries", 10),
+    ],
+    starting_money: 200,
+)

@@ -41,12 +41,13 @@ dedicated server with 150 ms of simulated latency.
 
 Goal: a smooth, deformable farm that every player sees identically.
 
-- [ ] `messoria-voxel`: chunk storage (32³), materials, coordinate types, edits
-- [ ] Surface Nets meshing with material blending, covered by tests and benchmarks
-- [ ] Server-side terrain generation for the fixed farm area
-- [ ] Chunk streaming by player proximity; voxel deltas after the initial snapshot
-- [ ] Character collision against terrain on server and client alike
-- [ ] Shovel: dig and raise terrain; highlight of the targeted voxel
+- [x] `messoria-voxel`: chunk storage (32³), materials, coordinate types, edits
+- [x] Surface Nets meshing with material blending, covered by tests and benchmarks
+- [x] Server-side terrain generation for the fixed farm area
+- [x] Chunk streaming by player proximity; voxel deltas after the initial snapshot
+- [x] Character collision against terrain on server and client alike
+- [x] Shovel: dig and raise terrain; highlight of the targeted spot
+- [x] End-to-end test: a client digs and its terrain ends identical to the server's
 
 **Exit criterion:** two players reshape the same hill and see identical results;
 remeshing a chunk stays under one frame budget.
@@ -55,11 +56,12 @@ remeshing a chunk stays under one frame budget.
 
 Goal: the world keeps a calendar and the day has a rhythm.
 
-- [ ] World clock: 20-minute days, 365-day year, four seasons
-- [ ] Day/night lighting driven by the clock
-- [ ] Sleep rules per mode: solo, hosted (everyone asleep), dedicated (configurable percentage)
-- [ ] Passing out at 2 AM with a penalty
-- [ ] Energy: spent by actions, restored by sleep
+- [x] World clock: 20-minute days, 365-day year, four seasons (`messoria-calendar`)
+- [x] Day/night lighting driven by the clock
+- [x] Sleep rules per mode: solo, hosted (everyone asleep), dedicated (configurable percentage)
+- [x] Passing out at 2 AM with a penalty
+- [x] Energy: spent by actions, restored by sleep
+- [x] HUD: date, time, energy and sleep status
 
 **Exit criterion:** a day advances correctly under each sleep rule, verified by tests.
 
@@ -67,10 +69,12 @@ Goal: the world keeps a calendar and the day has a rhythm.
 
 Goal: items exist, can be carried and go bad.
 
-- [ ] `messoria-content`: item, crop and shop definitions in RON, validated on load
-- [ ] Inventory with hotbar and backpack, server-authoritative
-- [ ] Shelf life for perishables; spoiled items turn into compost
-- [ ] Tools as inventory items bound to actions
+- [x] `messoria-content`: item definitions in RON, validated on load (crop and shop
+  definitions arrive with the systems that use them, in M5 and M6)
+- [x] `messoria-inventory`: hotbar and backpack, server-authoritative
+- [x] Shelf life for perishables; spoiled items turn into compost
+- [x] Tools and food as inventory items bound to actions
+- [x] Digging yields the dug material; raising the ground uses soil
 
 **Exit criterion:** an invalid content file fails at startup with a precise error;
 inventory rules are covered by unit tests.
@@ -79,11 +83,12 @@ inventory rules are covered by unit tests.
 
 Goal: the core farming loop works end to end.
 
-- [ ] Hoe tills terrain surface into farmland
-- [ ] Five crops defined in data
-- [ ] Watering can and rain
-- [ ] Batched growth resolved at day rollover
-- [ ] Harvest with quality tiers; crops die out of season
+- [x] Hoe tills terrain surface into farmland
+- [x] Crop definitions in `messoria-content`; five crops defined in data
+- [x] Watering can and rain (daily weather from the world seed)
+- [x] Batched growth resolved at day rollover (`messoria-farming`)
+- [x] Harvest with quality tiers, improved by fertilizer; crops die out of season
+- [x] Test playing a hosted world through a crop's growth; farming bots for live sessions
 
 **Exit criterion:** a crop planted on day 1 is harvested on the day its data file
 predicts, in a simulated run and in a live session.
@@ -92,12 +97,14 @@ predicts, in a simulated run and in a live session.
 
 Goal: produce turns into money, and money reacts to supply.
 
-- [ ] `messoria-economy`: seasonal base price, saturation and daily recovery, daily purchase limits
-- [ ] Individual wallets and transfers between players
-- [ ] One village shop with opening hours: buys crops, sells seeds
-- [ ] Protected village area
+- [x] Shop definitions in `messoria-content`
+- [x] `messoria-economy`: seasonal base price, saturation and daily recovery, daily purchase limits
+- [x] Individual wallets and transfers between players
+- [x] One village shop with opening hours and a closed day: buys crops, sells seeds
+- [x] Protected village area
 
-**Open:** is the daily limit per player or shared across the shop?
+**Decided:** the daily limit is per player; saturation is shared by the whole
+server ([ADR 0006](adr/0006-shared-market-priced-on-both-sides.md)).
 
 **Exit criterion:** price curves under simulated load match the design in tests.
 
@@ -105,49 +112,227 @@ Goal: produce turns into money, and money reacts to supply.
 
 Goal: nothing is lost when the server restarts.
 
-- [ ] Versioned save format: terrain deltas, entities, economy, one file per player
-- [ ] Periodic autosave and save on shutdown
-- [ ] Load path with migration hooks for future format versions
+- [x] Versioned save format: terrain deltas, entities, economy, one file per player
+- [x] Periodic autosave and save on shutdown
+- [x] Load path with migration hooks for future format versions
+- [x] Players recognized when they return, through a local profile
 
 **Exit criterion:** stop and restart the server mid-day and resume without any difference.
 
-## M8 — Open to friends
+## M8 — The valley comes alive
 
-Goal: inviting a friend takes under a minute and needs no router setup.
+Goal: the valley looks like a cozy place worth farming in.
 
-- [ ] Rendezvous service issuing short access codes
-- [ ] Connect tokens issued by the rendezvous service, retiring self-issued tokens and the public key
-- [ ] UDP hole punching between host and guest
-- [ ] Relay fallback through the rendezvous host
-- [ ] "Open to friends" flow in the client
+- [x] Art from CC0 packs (Kenney), credited in `assets/CREDITS.md` and
+      recolored through a shared palette so every model matches the terrain
+- [x] Scenery defined in data: trees, bushes, rocks, logs and stumps scattered
+      across the valley from the world's seed, in groves and clearings
+- [x] Ground cover: grass tufts, flowers and mushrooms on grassy ground
+- [x] Seasons: trees and ground change color through the year; snow in winter
+- [x] Stylized sky: gradient dome, sun and moon, drifting clouds, soft shadows
 
-**Exit criterion:** two machines behind separate home routers connect by code.
+**Exit criterion:** the valley at dawn, noon, dusk and night in each season
+looks coherent in screenshots, and a release build keeps 60 frames per second
+with all scenery in view.
 
-## M9 — Scale
+## M9 — Feel
 
-Goal: a dedicated server holds 50 players comfortably.
+Goal: every action answers the player.
 
-- [ ] Extend `tools/loadtest` so bots farm and trade, not only walk
-- [ ] Interest management for entities and chunks
-- [ ] Server tick profiling and budgets
-- [ ] Low-frequency simulation for areas far from players
+- [x] Sprinting, and collision with scenery and buildings
+- [x] Sounds for footsteps, tools, harvests and trades
+- [x] Particles: soil when digging, water when watering, leaves when
+      harvesting
+- [x] On-screen notices for refused actions ("not enough energy", "the shop
+      is closed")
+- [x] What the crosshair is on: crop, days to ripen, whether it needs water
+- [x] A backpack window with the hotbar, stacks carried on the cursor and
+      descriptions on hover
+- [x] A game menu on Escape, with options for volume, mouse sensitivity and
+      field of view, kept between sessions
 
-**Exit criterion:** 50 bots for 30 minutes with the tick budget met at the 99th percentile.
+**Exit criterion:** a new player can find out why an action did nothing
+without reading the code.
 
-## M10 — MVP playtest
+## M10 — Gathering
+
+Goal: the valley gives more than what is planted.
+
+- [x] Axe and pickaxe; trees give wood, rocks give stone
+- [x] Berry bushes to pick, regrowing every few days
+- [x] Gathered scenery is kept in the save; trees grow back from stumps
+- [x] A carpenter who buys wood and stone
+
+**Exit criterion:** a player can earn a day's money from gathering alone,
+and a restarted server keeps every cleared tree and rock.
+
+## M11 — Home and storage
+
+Goal: players have a place of their own.
+
+- [x] A house for each player, with a bed; sleeping happens in bed
+- [x] Chests that keep items, saved with the world
+
+**Exit criterion:** a player can store their harvest overnight and find it
+after a server restart.
+
+## M12 — Characters and village
+
+Goal: the people and the village look the part.
+
+- [x] Animated low-poly characters: idle, walking, running, using tools,
+      with the held tool in hand
+- [x] Village buildings around the square; the grocer in a proper shop
+- [x] Crop models for every growth stage
+- [x] Item icons in the hotbar, backpack and shop
+
+**Exit criterion:** the village square and a player at work look finished in
+screenshots.
+
+## M13 — Light and ground
+
+Goal: the valley is lit and its ground painted like a finished game.
+
+- [x] High dynamic range rendering with filmic tonemapping, bloom, and color
+      grading that follows the time of day and the weather
+- [x] Ambient occlusion, temporal anti-aliasing and soft shadows
+- [x] Sunbeams and haze through the air at dawn and dusk
+- [x] Terrain smoothly lit and painted with pixel-art textures per ground
+      material, tinted by the season; tilled fields painted to match
+- [x] A sky with a glowing sun and moon, and stars at night
+- [x] Graphics quality setting in the options, for weaker machines
+
+**Exit criterion:** screenshots at dawn, noon, dusk and night, in every
+season, look lit and textured like a finished game.
+
+## M14 — Our own art
+
+Goal: everything in the valley is drawn in one style, made for the game.
+
+- [x] Block models with pixel-art textures, in the style of the characters,
+      for trees, rocks, bushes, logs and ground cover, swaying in the wind
+- [x] Village buildings, stalls, fountain, lanterns, benches, cart and banners
+- [x] The cabin, its furniture and chests
+- [x] Crops at every growth stage, tools and items
+- [x] No model from an outside pack left in the game
+
+**Exit criterion:** the village square, a farm at work and the woods look
+like one world in screenshots, in every season.
+
+## M15 — A larger valley
+
+Goal: a world of about two kilometers that stays smooth to play in.
+
+- [x] Terrain generated on demand, a region at a time, from the world's
+      seed; saves keep only what players changed
+- [x] A world of about 2 km: hills, woods, meadows, a river and roads
+      linking the farms to the village
+- [x] Each client receives only the chunks, props, fields and structures
+      near it (interest management)
+- [x] Scenery scattered per region; far terrain drawn simplified up to the
+      horizon
+- [x] Travel stays pleasant: a sprint that lasts and roads you can follow
+
+**Exit criterion:** eight players spread across the whole map keep 60 frames
+per second in a release build, and the server stays within its tick budget.
+
+## M16 — Farm lots
+
+Goal: every player farms on land of their own.
+
+- [ ] The land around the village laid out in fenced 64 m lots, from data,
+      each with a gate on a road
+- [ ] A notice board in the village to pick a free lot: the first one is
+      free, more can be bought
+- [ ] Only a lot's owner and the players they invite till, dig, plant,
+      harvest, build and open chests there; anyone may walk through
+- [ ] Outside the lots, anyone may gather, but not till, plant or build
+- [ ] The cabin is built on the player's own lot; lots and invitations are
+      kept in the save
+
+**Exit criterion:** two players on neighboring lots cannot change each
+other's land unless invited, and ownership survives a restart.
+
+## M17 — The village grows
+
+Goal: a village worth walking through.
+
+- [ ] A larger village: streets, houses for the villagers, gardens, a well
+      and the notice board
+- [ ] New buildings: a tavern, a tailor, a barber and a blacksmith
+- [ ] Interiors for the shops and the tavern, walked into through their doors
+- [ ] The grocer and the carpenter move into proper shops, or keep their
+      stalls on a market street
+
+**Exit criterion:** the village looks lived-in in screenshots, day and night,
+in every season, and every door that opens leads somewhere furnished.
+
+## M18 — Villagers
+
+Goal: the village has people with lives of their own.
+
+- [ ] Eight to ten named villagers, defined in data: look, home, work and a
+      daily schedule by hour, weekday, season and weather
+- [ ] Villagers simulated on the server, walking the village's paths, and
+      seen by everyone moving and animated like players
+- [ ] Shopkeepers keep their shop's hours from behind the counter; others
+      sit on benches, chat in pairs, tend gardens, eat at the tavern and go
+      home at night
+- [ ] Villagers far from every player are simulated at a lower rate
+
+**Exit criterion:** following one villager through a whole day matches their
+schedule, and all of them keep to it with players anywhere on the map.
+
+## M19 — Talking and friendship
+
+Goal: getting to know the villagers is part of the game.
+
+- [ ] Talking to a villager with the interact key opens a dialogue with
+      their lines, chosen by friendship, season, weather and time of day
+- [ ] Gifts: each villager loves, likes and dislikes some items, and reacts
+      with an expression
+- [ ] Friendship per player, raised by a daily talk and by gifts, shown in a
+      list of villagers and kept in the save
+- [ ] Friendship opens small things: warmer lines, a discount, a recipe or
+      seeds as a gift
+
+**Exit criterion:** two players befriend the same villager at different
+rates, and each sees their own friendship after a restart.
+
+## M20 — A look of your own
+
+Goal: every player looks like who they want to be.
+
+- [ ] A character creator on first arrival: body and skin tone, eyes,
+      hairstyle, hair color and a first outfit
+- [ ] The look is saved with the player and seen by everyone; it no longer
+      comes from the player's id
+- [ ] More hairstyles and outfits, painted in the characters' style, and hats
+- [ ] Clothes are items sold by the tailor and worn from a wardrobe in the
+      cabin
+- [ ] The barber changes a player's hairstyle and hair color for a fee
+
+**Exit criterion:** two new players make looks of their own, change clothes
+and hair in the village, and are seen that way by each other after a
+restart.
+
+## M21 — MVP playtest
 
 Goal: the slice feels like a game.
 
-- [ ] Art pass with CC0 packs; crop stage meshes generated in code
 - [ ] Seasonal music and ambient audio
-- [ ] HUD: hotbar, clock, wallet, energy
 - [ ] Playtest: a group plays a full in-game week
-
-**Open:** fantasy sub-theme; farm plot count, size and sharing.
 
 **Exit criterion:** the MVP success criteria in the design document are met.
 
 ## After the MVP
 
-Loans, combat and mines, procedural forest, villager schedules and friendship,
-crafting and buildings, fishing, animals, festivals.
+- **Open to friends:** a rendezvous service issuing short access codes and
+  connect tokens, UDP hole punching, relay fallback, and an "Open to friends"
+  flow in the client. Two machines behind separate home routers connect by
+  code.
+- **Scale:** bots that farm and trade, tick profiling and budgets, and
+  low-frequency simulation far from players, until 50 bots run for 30
+  minutes within the tick budget.
+- Loans, combat and mines, procedural forest, friendship events, crafting
+  and buildings, fishing, animals, festivals.

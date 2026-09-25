@@ -1,0 +1,26 @@
+[package]
+name = "messoria-save"
+description = "Versioned save files for worlds and players."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+messoria-calendar.workspace = true
+messoria-content.workspace = true
+messoria-economy.workspace = true
+messoria-farming.workspace = true
+messoria-inventory.workspace = true
+messoria-voxel.workspace = true
+rand.workspace = true
+ron.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

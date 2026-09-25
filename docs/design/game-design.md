@@ -20,7 +20,7 @@
 
 **Platform:** PC (Windows and Linux first; macOS later).
 
-**Setting:** fantasy village. **[OPEN]** sub-theme (cozy medieval fantasy? elven? light steampunk?).
+**Setting:** a cozy medieval fantasy village: timber and stone, thatched roofs, warm colors.
 
 ---
 
@@ -38,26 +38,29 @@
 
 ### 3.1 Terrain
 - Stored as a **voxel grid** with a material per cell (soil, grass, stone, sand, ore…).
-- Rendered with **Surface Nets** (or Marching Cubes) → organic hills and caves, no cubes.
+- Rendered with **Surface Nets** → organic hills, no cubes, smoothly lit and painted in pixel art.
 - Split into **chunks** (e.g. 32³) loaded based on player proximity.
 
 ### 3.2 Areas
 | Area | Generation | Deformable? | Purpose |
 |---|---|---|---|
 | Village | **Fixed** (hand-made) | No (protected) | Villagers, shops, events |
-| Farms | **Fixed** | Yes | Planting, building, terraforming |
+| Farms | **Lots** (fixed layout) | Yes, by the owner and invited players | Planting, building, terraforming |
 | Forest | **Procedural** (world seed) | Partially | Gathering, wood, foraging |
 | Mines | **Procedural** (floors) | Yes | Mining, ores, hazards |
 
-- With individual money and 50+ players, each player (or group) needs **their own land**: the farm region is divided into **plots** that players claim or buy. **[OPEN]** number and size of plots, and whether friends can share a plot.
+- The world is about **2 km** across, with the village in the middle of fenced **64 m lots** linked by roads, and hills, woods, meadows and a river between them.
+- With individual money and 50+ players, each player (or group) needs **their own land**: a player picks their first lot for free at the village notice board and can buy more. Only the owner and the players they invite work a lot; anyone may walk through.
+- Outside the lots, anyone may gather wood, stone and berries, but nobody tills, plants or builds.
 
 ---
 
 ## 4. Time and seasons
 
-- **1 in-game day = 20 real minutes.**
+- **1 in-game day = 20 real minutes:** a day runs from 06:00 to 02:00, one game minute per real second.
 - **365-day year**, split into 4 seasons (91/91/91/92 days).
 - A full year ≈ **122 real hours**, so the game is long-form; crop cycles must be proportional (several harvests per season, perennials, trees that take seasons to bear fruit).
+- Weeks have seven days, and each season is thirteen weeks (winter has one extra day).
 - Day/night cycle with dynamic lighting; shops have opening hours and closed days.
 - Weather: sun, rain (waters crops), storms, snow in winter.
 
@@ -65,7 +68,8 @@
 Waiting for everyone to sleep does not work with 50 players:
 - **Solo:** sleeping skips to morning.
 - **Small server (hosted in-game):** the day advances when **all** players sleep (Stardew style).
-- **Dedicated server:** time runs continuously; sleeping skips the night if **X% of online players** are asleep (configurable, as in Minecraft). Anyone still awake at 2 AM passes out with a light penalty.
+- **Dedicated server:** time runs continuously; sleeping skips the night if **X% of online players** are asleep (configurable, 50% by default, as in Minecraft).
+- Players may go to sleep from 18:00. Anyone still awake at 2 AM passes out and the day ends for everyone; passing out restores only half the energy that sleeping would.
 
 ---
 
@@ -73,20 +77,24 @@ Waiting for everyone to sleep does not work with 50 players:
 
 ### 5.1 Farming
 - Hoe tills the soil → seed → water daily → grows through stages → harvest.
-- Each crop is defined in a data file (RON): season, days per stage, whether it regrows, produce shelf life, base price per season.
-- Harvest quality (normal / silver / gold) is influenced by fertilizer.
+- Fields are one-meter squares on a grid. Only grass or soil on gentle slopes can be tilled; digging or raising the ground under a field destroys it.
+- Each crop is defined in a data file (RON): seasons, days per stage, whether it regrows, how much it yields. Growth counts watered days only, resolved each night.
+- Harvest quality (normal / silver / gold) is influenced by fertilizer: compost, which is what spoiled food becomes. Fertilizer feeds one harvest.
 - Crops out of season die when the season changes.
+- Rain waters every field for the day.
 
 ### 5.2 Tools
 Hoe, watering can, axe, pickaxe, shovel (terraforming), scythe, basic weapon. Upgrade tiers (copper → iron → gold) increase area and efficiency.
 
 ### 5.3 Inventory and spoilage
-- Hotbar + expandable backpack, chests for storage.
-- **Perishable items expire:** each item has a shelf life in in-game days; spoiled items become trash or compost.
+- Hotbar (10 slots) + expandable backpack (20 slots to start), chests for storage. The held hotbar item decides what the mouse buttons do.
+- **Perishable items expire:** each item has a shelf life in in-game days; spoiled items become trash or compost. Stacking perishables averages their freshness by count.
+- Digging with the shovel yields the dug material (soil, stone, sand); raising the ground uses soil.
+- The shovel moves the ground in a small circle down or up to the next level; levels are half a meter apart and shared by the whole world, so neighboring digs join into flat ground and digging along a slope cuts terraces.
 - Preservation: **[OPEN]** fridge/cellar, and processing (jam, pickles, wine) to extend shelf life and add value.
 
 ### 5.4 Energy
-Actions consume energy; food restores it; sleep refills it.
+Actions consume energy; food restores it; sleep refills it. A character has 100 energy; each shovel use costs 2, and tools cannot be used without enough energy left.
 
 ### 5.5 Mining and combat
 - Mines with procedural floors, ores by depth, stairs/elevator every N floors.
@@ -97,17 +105,18 @@ Actions consume energy; food restores it; sleep refills it.
 - Larger buildings (barn, coop, house) placed on the player's plot.
 
 ### 5.7 Villagers and relationships
-- Villagers follow daily schedules (by hour and season).
-- Friendship through conversation and gifts; events unlock at friendship levels.
-- Friendship is **per player**.
+- Eight to ten named villagers, each with a home, a job and a daily schedule by hour, weekday, season and weather: shopkeepers keep their hours, others sit on benches, chat, tend gardens, eat at the tavern and go home at night.
+- Friendship through a daily talk and gifts; each villager loves, likes and dislikes some items. Lines change with friendship, season, weather and time of day.
+- Friendship is **per player**. Events unlocked at friendship levels come after the MVP.
 
 ### 5.8 Economy
-**Selling happens only at shops** — there is no shipping bin. Players carry produce to the merchant and are paid immediately. Each shop buys specific categories (grocer: crops; blacksmith: ores; carpenter: wood). Shops keep opening hours.
+**Selling happens only at shops** — there is no shipping bin. Players carry produce to the merchant and are paid immediately. Each shop buys specific categories (grocer: crops; blacksmith: ores; carpenter: wood). Shops keep opening hours and closed days. The first shop is the village grocer: it buys crops and sells the seeds in season.
 
 **Dynamic price per item (per server):**
-- **Seasonal base price** — the same item is worth more outside the season in which it is abundant.
-- **Supply and demand** — every sale raises the item's "saturation" and lowers its price; saturation recovers gradually each day.
-- **Daily limit per shop** — each shop buys at most N units of an item per day (**[OPEN]** per player or shared across the shop).
+- **Seasonal base price** — the same item is worth more outside the season in which it is abundant: produce sells at a markup outside the seasons its crop grows in.
+- **Supply and demand** — every sale raises the item's "saturation" and lowers its price; the price halves once a set number of units has piled up, and saturation recovers gradually each night.
+- **Quality** — silver and gold harvests sell for more.
+- **Daily limit per player** — each shop buys at most N units of an item from each player per day, so nobody can use up a shop for everyone else. Saturation stays shared by the whole server.
 - Because the economy is **shared by the whole server**, 50 players planting the same crop drive the price down for everyone → encourages diversification and specialization.
 
 **Individual money:**
@@ -115,7 +124,12 @@ Actions consume energy; food restores it; sleep refills it.
 - Players can **transfer** and **lend** money to each other.
 - **Loans** are tracked by the system: amount, due date, optional interest agreed by both parties. **[OPEN]** what happens on default (reputation mark only? automatic collection from the wallet?).
 
-### 5.9 Future (post-MVP)
+### 5.9 Appearance
+- A character creator on first arrival: body and skin tone, eyes, hairstyle, hair color and a first outfit.
+- Clothes are items sold by the tailor and worn from a wardrobe at home; the barber changes hairstyle and hair color for a fee.
+- The look is saved with the player and everyone sees it.
+
+### 5.10 Future (post-MVP)
 Fishing, animals, cooking/processing, seasonal festivals, marriage, collections, direct player-to-player trading.
 
 ---
@@ -161,9 +175,9 @@ A player hosting from home is usually behind NAT, so friends cannot connect dire
 
 ## 7. Art and audio direction
 
-- Stylized low-poly fantasy, warm colors, soft shadows, distance fog.
-- Base assets: CC0 packs (Kenney, Quaternius), plus fantasy packs for the village and characters.
-- Crop growth stages generated in code.
+- Stylized fantasy built from blocks and painted in pixel art, warm colors, soft shadows, distance fog.
+- Every model is made for the game in one style: characters, scenery, the village, crops and items.
+- Foliage turns with the seasons and sways in the wind.
 - Calm music per season.
 
 ---
@@ -190,7 +204,6 @@ Principles:
 ## 10. MVP scope (vertical slice)
 
 - [ ] Headless server + client connecting by IP
-- [ ] "Open to friends" with access code (rendezvous + relay)
 - [ ] Smooth voxel farm terrain, deformable with the shovel
 - [ ] Movement, first/third-person camera, players see each other
 - [ ] Day cycle and sleep rules
@@ -199,9 +212,18 @@ Principles:
 - [ ] 1 village shop: buys crops (dynamic price + daily limit) and sells seeds
 - [ ] Individual wallet and transfers between players
 - [ ] Server-side save/load
+- [ ] A living valley: scenery, ground cover, seasons and a stylized sky
+- [ ] Responsive actions: sounds, particles, notices, collision
+- [ ] Gathering wood, stone and berries
+- [ ] A house with a bed, and chests
+- [ ] Animated characters and a village around the square
+- [ ] A world of about 2 km with fenced farm lots, one free per player
+- [ ] A larger village with shops and a tavern to walk into
+- [ ] Villagers with daily schedules, talk and gifts, and friendship per player
+- [ ] Character creation, clothes from the tailor and haircuts at the barber
 - [ ] Load test with bots
 
-**Success criteria:** 2–8 friends play one in-game week together through an access code and want to keep going; the dedicated server handles 50 bots without degrading.
+**Success criteria:** 2–8 friends play one in-game week together and want to keep going. Access codes and 50-player servers follow the MVP.
 
 The milestone breakdown lives in [ROADMAP.md](../ROADMAP.md).
 
@@ -215,12 +237,13 @@ Combat and mines, fishing, animals, loans (right after the MVP), festivals, marr
 
 ## 12. Open decisions
 
-1. Fantasy sub-theme
-2. Farm plots: number, size, sharing
-3. Sales limit per player or shared across the shop
-4. Loan defaults
-5. Item preservation (fridge, processing)
+1. Loan defaults
+2. Item preservation (fridge, processing)
 
 ### Resolved
+- **Fantasy sub-theme:** cozy medieval.
+- **Farm plots:** fenced 64 m lots, one free per player, more bought, shared by invitation.
+- **Order of work:** opening worlds by access code and scaling to 50 players come after the MVP; gameplay and art come first.
+- **Sales limit:** per player; the market's saturation is shared by the whole server.
 - **Combat in the MVP:** no; it ships right after, together with the mines.
 - **Networking library:** lightyear ([ADR 0002](../adr/0002-networking-lightyear.md)).

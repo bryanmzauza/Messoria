@@ -1,0 +1,190 @@
+// What grows and lies around the valley.
+//
+// `props` are objects standing in the world: the server scatters them from
+// the world's seed. Each kind is scattered over a grid of `spacing`-meter
+// cells, with one prop in a `density` share of the cells where it grows.
+// `clustering` gathers them into groves with clearings between. A prop grows
+// on the listed ground, no steeper than `max_slope` (rise over run), and
+// nobody can dig, raise or till the ground within its `radius`, which
+// characters cannot walk into unless it sets `blocks: false`; the radius is
+// in meters at a scale of 1 and grows with the prop. Models are relative to
+// the models folder; each prop uses one of its models, drawn at a scale
+// between the two given.
+//
+// A prop players can `gather` gives the items it `yields`, by hand (with the
+// interact key) or after `strikes` uses of the `tool` it names. What
+// `remains` is nothing, which frees the ground, `Itself` (without its
+// `fruit`, drawn in that color while it can be picked) or another `model`,
+// such as a stump, drawn at `scale` times the prop's. Props that leave
+// something standing may grow back after `regrows_after` days.
+//
+// `cover` is the small plants on grassy ground, which only clients draw.
+(
+    props: [
+        (
+            id: "oak",
+            name: "Oak",
+            models: ["nature/oak_a.glb", "nature/oak_b.glb"],
+            scale: (0.9, 1.15),
+            radius: 0.4,
+            spacing: 11.0,
+            density: 0.35,
+            clustering: 0.8,
+            max_slope: 0.6,
+            grows_on: [Grass],
+            gather: (
+                tool: Axe,
+                strikes: 5,
+                yields: [("wood", 5)],
+                remains: Model(model: "nature/stump_a.glb", scale: 1.0),
+                regrows_after: 7,
+            ),
+        ),
+        (
+            id: "leafy_tree",
+            name: "Tree",
+            models: ["nature/tree_round.glb", "nature/birch.glb"],
+            scale: (0.9, 1.15),
+            radius: 0.35,
+            spacing: 12.0,
+            density: 0.3,
+            clustering: 0.7,
+            max_slope: 0.7,
+            grows_on: [Grass],
+            gather: (
+                tool: Axe,
+                strikes: 4,
+                yields: [("wood", 4)],
+                remains: Model(model: "nature/stump_a.glb", scale: 0.85),
+                regrows_after: 7,
+            ),
+        ),
+        (
+            id: "pine",
+            name: "Pine",
+            models: [
+                "nature/pine_tall_a.glb",
+                "nature/pine_tall_b.glb",
+                "nature/pine_round_a.glb",
+                "nature/pine_round_b.glb",
+            ],
+            scale: (0.9, 1.25),
+            radius: 0.3,
+            spacing: 7.0,
+            density: 0.45,
+            clustering: 0.9,
+            max_slope: 1.2,
+            grows_on: [Grass, Stone],
+            gather: (
+                tool: Axe,
+                strikes: 3,
+                yields: [("wood", 3)],
+                remains: Model(model: "nature/stump_b.glb", scale: 0.75),
+                regrows_after: 6,
+            ),
+        ),
+        (
+            id: "bush",
+            name: "Bush",
+            models: ["nature/bush_a.glb", "nature/bush_b.glb", "nature/bush_c.glb"],
+            scale: (0.8, 1.2),
+            radius: 0.45,
+            spacing: 6.0,
+            density: 0.25,
+            clustering: 0.6,
+            max_slope: 0.8,
+            grows_on: [Grass],
+            blocks: false,
+        ),
+        (
+            id: "berry_bush",
+            name: "Berry bush",
+            models: ["nature/berry_bush.glb"],
+            scale: (0.9, 1.1),
+            radius: 0.6,
+            spacing: 16.0,
+            density: 0.3,
+            clustering: 0.5,
+            max_slope: 0.6,
+            grows_on: [Grass],
+            gather: (
+                yields: [("wild_berries", 3)],
+                remains: Itself,
+                regrows_after: 3,
+                fruit: (0.72, 0.1, 0.24),
+            ),
+        ),
+        (
+            id: "boulder",
+            name: "Boulder",
+            models: ["nature/boulder_a.glb", "nature/boulder_b.glb", "nature/boulder_c.glb"],
+            scale: (0.8, 1.2),
+            radius: 0.75,
+            spacing: 18.0,
+            density: 0.25,
+            clustering: 0.3,
+            max_slope: 1.5,
+            grows_on: [Grass, Stone],
+            gather: (tool: Pickaxe, strikes: 6, yields: [("stone", 8)]),
+        ),
+        (
+            id: "standing_stone",
+            name: "Stone",
+            models: ["nature/stone_tall.glb", "nature/stone_block.glb"],
+            scale: (0.8, 1.1),
+            radius: 0.5,
+            spacing: 22.0,
+            density: 0.15,
+            clustering: 0.2,
+            max_slope: 2.0,
+            grows_on: [Grass, Stone],
+            gather: (tool: Pickaxe, strikes: 4, yields: [("stone", 5)]),
+        ),
+        (
+            id: "log",
+            name: "Fallen log",
+            models: ["nature/log_a.glb", "nature/log_b.glb"],
+            scale: (0.9, 1.1),
+            radius: 0.55,
+            spacing: 30.0,
+            density: 0.2,
+            clustering: 0.5,
+            max_slope: 0.4,
+            grows_on: [Grass],
+            gather: (tool: Axe, strikes: 2, yields: [("wood", 3)]),
+        ),
+        (
+            id: "stump",
+            name: "Stump",
+            models: ["nature/stump_a.glb", "nature/stump_b.glb"],
+            scale: (0.9, 1.2),
+            radius: 0.35,
+            spacing: 25.0,
+            density: 0.2,
+            clustering: 0.6,
+            max_slope: 0.6,
+            grows_on: [Grass],
+            gather: (tool: Axe, strikes: 2, yields: [("wood", 1)]),
+        ),
+    ],
+
+    cover: [
+        (
+            models: ["nature/grass_a.glb", "nature/grass_b.glb", "nature/grass_c.glb"],
+            per_square_meter: 0.3,
+            scale: (0.8, 1.3),
+        ),
+        (
+            models: ["nature/flower_red.glb", "nature/flower_yellow.glb", "nature/flower_purple.glb"],
+            per_square_meter: 0.04,
+            scale: (0.8, 1.2),
+            seasons: [Spring, Summer],
+        ),
+        (
+            models: ["nature/mushroom_red.glb", "nature/mushroom_tan.glb"],
+            per_square_meter: 0.01,
+            scale: (0.8, 1.3),
+            seasons: [Autumn],
+        ),
+    ],
+)

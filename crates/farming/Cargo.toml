@@ -1,0 +1,18 @@
+[package]
+name = "messoria-farming"
+description = "How crops grow, wither and yield."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+messoria-calendar.workspace = true
+messoria-content.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true
