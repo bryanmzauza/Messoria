@@ -60,8 +60,12 @@ must_use_candidate = "allow"
 [profile.dev]
 opt-level = 1
 
+# Dependencies are built fast and without debug info: nobody steps through
+# Bevy's internals, and their debug info is most of what a debug build
+# weighs on disk, especially as Windows PDBs.
 [profile.dev.package."*"]
 opt-level = 3
+debug = false
 
 # Meshing and collision queries are hot loops; keep them fast in debug builds.
 [profile.dev.package.messoria-voxel]
