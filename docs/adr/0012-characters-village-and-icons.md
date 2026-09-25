@@ -1,6 +1,7 @@
 # 0012 — Figures of boxes posed in code, a village from data, icons rendered by the client
 
-**Status:** accepted
+**Status:** accepted. Where crop, stall and item models come from is
+superseded by [ADR 0014](0014-block-models-painted-for-the-game.md).
 
 ## Context
 

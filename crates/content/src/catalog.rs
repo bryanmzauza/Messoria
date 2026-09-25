@@ -498,6 +498,7 @@ mod tests {
             "leaves": (0.2, 0.5, 0.2),
         },
         seasons: {Autumn: {"leaves": (0.8, 0.4, 0.1)}},
+        sway: {"leaves": 0.05},
     )"#;
 
     fn catalog(
@@ -593,6 +594,8 @@ mod tests {
             [0.8, 0.4, 0.1]
         ));
         assert_eq!(palette.color("bark", Season::Spring), None);
+        assert_eq!(palette.sway("leaves"), Some(0.05));
+        assert_eq!(palette.sway("bark"), None);
         assert!(near(
             Some(palette.ground(Material::Soil, Season::Winter)),
             [0.4, 0.3, 0.2]
@@ -653,6 +656,10 @@ mod tests {
             (
                 PALETTE.replace("{\"leaves\": (0.8", "{\"leafs\": (0.8"),
                 "Autumn changes color `leafs`, which the palette does not define",
+            ),
+            (
+                PALETTE.replace("{\"leaves\": 0.05}", "{\"leaves\": 1.5}"),
+                "material `leaves` sways by less than 0 or more than 1 meter",
             ),
         ];
         for (source, expected) in cases {

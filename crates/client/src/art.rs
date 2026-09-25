@@ -1,24 +1,30 @@
-//! Models loaded from glTF files, drawn in the palette's colors for the
-//! season.
+//! Models loaded from glTF files, tinted by the palette for the season and
+//! swaying in the wind.
 //!
-//! Every mesh whose material has a name in the palette is drawn with one
-//! material shared by everything of that name, instead of the one its file
-//! came with. When the season turns, those shared materials change color and
-//! everything drawn with them follows, from leaves to grass.
+//! Every mesh whose material has a name the palette colors is drawn with its
+//! texture tinted by that color, and every one whose name the palette sways
+//! is drawn with the wind's material; both are shared by all meshes of that
+//! name that came with the same material. Foliage is painted in grays, so the palette gives it its
+//! color: when the season turns, the tints change and everything follows,
+//! from leaves to grass.
 
 use std::collections::HashMap;
 
 use bevy::{
     camera::visibility::RenderLayers,
+    ecs::system::{EntityCommands, SystemParam},
     gltf::{Gltf, GltfAssetLabel, GltfMaterialName},
     prelude::*,
     world_serialization::{WorldAsset, WorldAssetRoot},
 };
 use messoria_calendar::{Season, WorldTime};
-use messoria_content::{CropDef, ItemId, ItemKind, Palette, Rgb};
+use messoria_content::{CropDef, ItemId, ItemKind, Rgb};
 use messoria_shared::content::Content;
 
-use crate::clock::LocalClock;
+use crate::{
+    clock::LocalClock,
+    wind::{Sway, SwayMaterial},
+};
 
 /// Folder of the models, inside the assets folder.
 const MODELS_FOLDER: &str = "models";
@@ -28,7 +34,7 @@ pub(crate) struct ArtPlugin;
 impl Plugin for ArtPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DrawnSeason>()
-            .init_resource::<PaletteMaterials>()
+            .init_resource::<PaletteLooks>()
             .init_resource::<Models>()
             .add_systems(Startup, load_models)
             .add_systems(PreUpdate, (follow_season, use_palette_materials))
@@ -88,32 +94,80 @@ impl Models {
     }
 }
 
-/// The materials drawn in palette colors, one for each name used so far.
+/// The materials meshes are drawn with in place of their own, by material
+/// name and the material they came with.
 #[derive(Resource, Default)]
-pub(crate) struct PaletteMaterials(HashMap<String, Handle<StandardMaterial>>);
+pub(crate) struct PaletteLooks {
+    tinted: HashMap<(String, AssetId<StandardMaterial>), Handle<StandardMaterial>>,
+    swaying: HashMap<(String, AssetId<StandardMaterial>), Handle<SwayMaterial>>,
+}
 
-impl PaletteMaterials {
-    /// The shared material for `name`, created on first use, or `None` if
-    /// the palette has no color for it.
-    pub(crate) fn get(
-        &mut self,
-        name: &str,
-        palette: &Palette,
-        season: Season,
-        materials: &mut Assets<StandardMaterial>,
-    ) -> Option<Handle<StandardMaterial>> {
-        if let Some(material) = self.0.get(name) {
-            return Some(material.clone());
+/// A mesh's material in place of its own.
+pub(crate) enum Drawn {
+    Tinted(Handle<StandardMaterial>),
+    Swaying(Handle<SwayMaterial>),
+}
+
+impl Drawn {
+    /// Draws `entity`'s mesh with this material instead of its own.
+    pub(crate) fn put_on(self, entity: &mut EntityCommands) {
+        match self {
+            Self::Tinted(material) => {
+                entity.insert(MeshMaterial3d(material));
+            }
+            Self::Swaying(material) => {
+                entity
+                    .remove::<MeshMaterial3d<StandardMaterial>>()
+                    .insert(MeshMaterial3d(material));
+            }
         }
-        let color = palette.color(name, season)?;
-        let material = materials.add(StandardMaterial {
-            base_color: srgb(color),
-            perceptual_roughness: 0.9,
-            metallic: 0.0,
-            ..default()
-        });
-        self.0.insert(name.to_owned(), material.clone());
-        Some(material)
+    }
+}
+
+/// Dresses meshes in the palette's looks for the season.
+#[derive(SystemParam)]
+pub(crate) struct Palettes<'w> {
+    content: Res<'w, Content>,
+    season: Res<'w, DrawnSeason>,
+    looks: ResMut<'w, PaletteLooks>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+    swaying: ResMut<'w, Assets<SwayMaterial>>,
+}
+
+impl Palettes<'_> {
+    /// The material a mesh with material `name`, which came with `source`,
+    /// is drawn with, or `None` when the palette neither colors nor sways
+    /// that name, and its own will do.
+    pub(crate) fn dress(&mut self, name: &str, source: &Handle<StandardMaterial>) -> Option<Drawn> {
+        let palette = self.content.palette();
+        let color = palette.color(name, self.season.0);
+        let strength = palette.sway(name);
+        if color.is_none() && strength.is_none() {
+            return None;
+        }
+        let key = (name.to_owned(), source.id());
+        if let Some(material) = self.looks.swaying.get(&key) {
+            return Some(Drawn::Swaying(material.clone()));
+        }
+        if let Some(material) = self.looks.tinted.get(&key) {
+            return Some(Drawn::Tinted(material.clone()));
+        }
+        let mut base = self.materials.get(source).cloned().unwrap_or_default();
+        if let Some(color) = color {
+            base.base_color = srgb(color);
+        }
+        if let Some(strength) = strength {
+            let material = self.swaying.add(SwayMaterial {
+                base,
+                extension: Sway::new(strength),
+            });
+            self.looks.swaying.insert(key, material.clone());
+            Some(Drawn::Swaying(material))
+        } else {
+            let material = self.materials.add(base);
+            self.looks.tinted.insert(key, material.clone());
+            Some(Drawn::Tinted(material))
+        }
     }
 }
 
@@ -181,30 +235,29 @@ fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResM
 /// Swaps the material each newly spawned model mesh came with for the
 /// palette's.
 fn use_palette_materials(
-    mut meshes: Query<
-        (&GltfMaterialName, &mut MeshMaterial3d<StandardMaterial>),
+    meshes: Query<
+        (Entity, &GltfMaterialName, &MeshMaterial3d<StandardMaterial>),
         Added<GltfMaterialName>,
     >,
-    content: Res<Content>,
-    season: Res<DrawnSeason>,
-    mut shared: ResMut<PaletteMaterials>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut palettes: Palettes,
+    mut commands: Commands,
 ) {
-    for (name, mut material) in &mut meshes {
-        if let Some(palette) = shared.get(name, content.palette(), season.0, &mut materials) {
-            material.0 = palette;
+    for (entity, name, material) in &meshes {
+        if let Some(drawn) = palettes.dress(name, &material.0) {
+            drawn.put_on(&mut commands.entity(entity));
         }
     }
 }
 
-/// Follows the world's season, recoloring the palette's materials when it
+/// Follows the world's season, retinting the palette's materials when it
 /// turns.
 fn follow_season(
     clock: Res<LocalClock>,
     content: Res<Content>,
     mut season: ResMut<DrawnSeason>,
-    shared: Res<PaletteMaterials>,
+    looks: Res<PaletteLooks>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut swaying: ResMut<Assets<SwayMaterial>>,
 ) {
     let Some(now) = clock.time().map(WorldTime::season) else {
         return;
@@ -213,12 +266,19 @@ fn follow_season(
         return;
     }
     season.0 = now;
-    for (name, handle) in &shared.0 {
-        if let (Some(color), Some(mut material)) = (
-            content.palette().color(name, now),
-            materials.get_mut(handle),
-        ) {
+    let palette = content.palette();
+    for ((name, _), handle) in &looks.tinted {
+        if let (Some(color), Some(mut material)) =
+            (palette.color(name, now), materials.get_mut(handle))
+        {
             material.base_color = srgb(color);
+        }
+    }
+    for ((name, _), handle) in &looks.swaying {
+        if let (Some(color), Some(mut material)) =
+            (palette.color(name, now), swaying.get_mut(handle))
+        {
+            material.base.base_color = srgb(color);
         }
     }
 }

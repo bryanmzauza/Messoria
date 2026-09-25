@@ -5,8 +5,8 @@
 //! from the chunk's position, so it is the same every time without crossing
 //! the network. It grows only on flat grass that nothing stands on, so it
 //! goes where the ground is dug, tilled or paved. A chunk's plants are merged
-//! into one mesh per palette material, so thousands of them cost a handful
-//! of draw calls.
+//! into one mesh per material, so thousands of them cost a handful of draw
+//! calls; each vertex keeps its height over its plant's base, for the wind.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -15,7 +15,7 @@ use std::{
 
 use bevy::{
     asset::RenderAssetUsages,
-    gltf::{Gltf, GltfMesh, GltfNode},
+    gltf::{Gltf, GltfMaterial, GltfMesh, GltfNode},
     light::NotShadowCaster,
     mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
     prelude::*,
@@ -31,7 +31,7 @@ use messoria_voxel::{CHUNK_SIZE, ChunkPos, Material};
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::{
-    art::{DrawnSeason, Models, PaletteMaterials},
+    art::{DrawnSeason, Models, Palettes},
     camera::WorldCamera,
 };
 
@@ -74,8 +74,11 @@ struct ModelParts(HashMap<String, Vec<Part>>);
 
 /// The triangles of one material in a model, in the model's own space.
 struct Part {
-    material: String,
+    /// The material's name, and the material the model came with.
+    name: String,
+    material: Handle<StandardMaterial>,
     positions: Vec<Vec3>,
+    uvs: Vec<[f32; 2]>,
     indices: Vec<u32>,
 }
 
@@ -83,6 +86,7 @@ struct Part {
 fn take_model_parts(
     content: Res<Content>,
     models: Res<Models>,
+    assets: Res<AssetServer>,
     files: Res<Assets<Gltf>>,
     nodes: Res<Assets<GltfNode>>,
     gltf_meshes: Res<Assets<GltfMesh>>,
@@ -96,7 +100,7 @@ fn take_model_parts(
         let Some(file) = models.file(path).and_then(|file| files.get(file)) else {
             continue;
         };
-        if let Some(model) = model_parts(file, &nodes, &gltf_meshes, &meshes) {
+        if let Some(model) = model_parts(file, &assets, &nodes, &gltf_meshes, &meshes) {
             parts.0.insert(path.clone(), model);
         }
     }
@@ -106,6 +110,7 @@ fn take_model_parts(
 /// while any of it is still loading.
 fn model_parts(
     file: &Gltf,
+    assets: &AssetServer,
     nodes: &Assets<GltfNode>,
     gltf_meshes: &Assets<GltfMesh>,
     meshes: &Assets<Mesh>,
@@ -137,11 +142,10 @@ fn model_parts(
             continue;
         };
         for primitive in &gltf_meshes.get(mesh)?.primitives {
-            let Some(material) = primitive
-                .material
-                .as_ref()
-                .and_then(|material| material_names.get(&material.id()))
-            else {
+            let Some((material, name)) = primitive.material.as_ref().and_then(|material| {
+                let name = material_names.get(&material.id())?;
+                Some((standard_material(assets, material)?, name))
+            }) else {
                 continue;
             };
             let mesh = meshes.get(&primitive.mesh)?;
@@ -157,12 +161,18 @@ fn model_parts(
                     .collect(),
                 None => (0..u32::try_from(positions.len()).unwrap_or(u32::MAX)).collect(),
             };
+            let uvs = match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
+                Some(VertexAttributeValues::Float32x2(uvs)) => uvs.clone(),
+                _ => vec![[0.0; 2]; positions.len()],
+            };
             parts.push(Part {
-                material: material.clone(),
+                name: name.clone(),
+                material,
                 positions: positions
                     .iter()
                     .map(|&position| placement.transform_point3(Vec3::from(position)))
                     .collect(),
+                uvs,
                 indices,
             });
         }
@@ -210,8 +220,7 @@ fn grow_cover(
     fields: Query<&Field>,
     props: Query<&Prop>,
     mut cover: ResMut<Cover>,
-    mut shared: ResMut<PaletteMaterials>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut palettes: Palettes,
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
 ) {
@@ -282,28 +291,41 @@ fn grow_cover(
 
         let entities = plant_chunk(&content, &terrain, season.0, &parts, chunk, clear)
             .into_iter()
-            .filter_map(|(name, builder)| {
-                let material = shared.get(name, content.palette(), season.0, &mut materials)?;
-                Some(
-                    commands
-                        .spawn((
-                            Name::new(format!("Cover {} {name}", chunk.0)),
-                            Mesh3d(meshes.add(builder.build())),
-                            MeshMaterial3d(material),
-                            Transform::from_translation(origin),
-                            // Too small for their shadows to be worth drawing.
-                            NotShadowCaster,
-                        ))
-                        .id(),
-                )
+            .map(|((name, material), builder)| {
+                let mut entity = commands.spawn((
+                    Name::new(format!("Cover {} {name}", chunk.0)),
+                    Mesh3d(meshes.add(builder.build())),
+                    MeshMaterial3d(material.clone()),
+                    Transform::from_translation(origin),
+                    // Too small for their shadows to be worth drawing.
+                    NotShadowCaster,
+                ));
+                if let Some(drawn) = palettes.dress(name, material) {
+                    drawn.put_on(&mut entity);
+                }
+                entity.id()
             })
             .collect();
         cover.grown.insert(chunk, entities);
     }
 }
 
+/// The name and the source material a chunk's merged plants share.
+type MergedBy<'a> = (&'a str, &'a Handle<StandardMaterial>);
+
+/// The standard material the glTF loader made of `material`, which it labels
+/// after the glTF one.
+fn standard_material(
+    assets: &AssetServer,
+    material: &Handle<GltfMaterial>,
+) -> Option<Handle<StandardMaterial>> {
+    let path = material.path()?;
+    let label = format!("{}/std", path.label()?);
+    assets.get_handle(path.clone().with_label(label))
+}
+
 /// Scatters every kind of cover showing in `season` over `chunk`, where
-/// `clear` allows, merged by palette material in the chunk's own space.
+/// `clear` allows, merged by material in the chunk's own space.
 fn plant_chunk<'a>(
     content: &'a Content,
     terrain: &Terrain,
@@ -311,9 +333,9 @@ fn plant_chunk<'a>(
     parts: &'a ModelParts,
     chunk: ChunkPos,
     clear: impl Fn(Vec3) -> bool,
-) -> HashMap<&'a str, MeshBuilder> {
+) -> HashMap<MergedBy<'a>, MeshBuilder> {
     let origin = chunk.origin().as_vec3();
-    let mut merged: HashMap<&str, MeshBuilder> = HashMap::new();
+    let mut merged: HashMap<MergedBy<'a>, MeshBuilder> = HashMap::new();
     for (index, plants) in content.cover().iter().enumerate() {
         if !plants.shows_in(season) {
             continue;
@@ -345,9 +367,9 @@ fn plant_chunk<'a>(
             );
             for part in &parts.0[model] {
                 merged
-                    .entry(part.material.as_str())
+                    .entry((part.name.as_str(), &part.material))
                     .or_default()
-                    .add(part, placement);
+                    .add(part, placement, scale);
             }
         }
     }
@@ -382,21 +404,31 @@ fn chunk_seed(chunk: ChunkPos, kind: usize) -> u64 {
     .wrapping_add(kind as u64)
 }
 
-/// Triangles of many plants gathered into one mesh.
+/// Triangles of many plants gathered into one mesh. Each vertex's second
+/// texture coordinate holds its height over its plant's base, which the wind
+/// needs once plants no longer have a space of their own.
 #[derive(Default)]
 struct MeshBuilder {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
+    uvs: Vec<[f32; 2]>,
+    heights: Vec<[f32; 2]>,
     indices: Vec<u32>,
 }
 
 impl MeshBuilder {
-    fn add(&mut self, part: &Part, placement: Mat4) {
+    fn add(&mut self, part: &Part, placement: Mat4, scale: f32) {
         let first = u32::try_from(self.positions.len()).unwrap_or(u32::MAX);
         self.positions.extend(
             part.positions
                 .iter()
                 .map(|&position| placement.transform_point3(position).to_array()),
+        );
+        self.uvs.extend_from_slice(&part.uvs);
+        self.heights.extend(
+            part.positions
+                .iter()
+                .map(|position| [position.y * scale, 0.0]),
         );
         // Lit like the ground under them, so thin blades never turn dark
         // when the light is behind them.
@@ -413,6 +445,8 @@ impl MeshBuilder {
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.positions)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, self.heights)
         .with_inserted_indices(Indices::U32(self.indices))
     }
 }

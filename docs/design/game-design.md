@@ -168,9 +168,9 @@ A player hosting from home is usually behind NAT, so friends cannot connect dire
 
 ## 7. Art and audio direction
 
-- Stylized low-poly fantasy, warm colors, soft shadows, distance fog.
-- Base assets: CC0 packs (Kenney, Quaternius), plus fantasy packs for the village and characters.
-- Crop growth stages generated in code.
+- Stylized fantasy built from blocks and painted in pixel art, warm colors, soft shadows, distance fog.
+- Every model is made for the game in one style: characters, scenery, the village, crops and items.
+- Foliage turns with the seasons and sways in the wind.
 - Calm music per season.
 
 ---

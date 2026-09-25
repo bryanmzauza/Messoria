@@ -1,5 +1,5 @@
 //! The sky: a dome shaded from the horizon to the zenith, the sun or the
-//! moon glowing on it, stars at night, and low-poly clouds drifting over the
+//! moon glowing on it, stars at night, and clouds of blocks drifting over the
 //! valley.
 //!
 //! The dome and the discs follow the camera, so they always look infinitely
@@ -246,13 +246,14 @@ fn spawn_stars(
     ));
 }
 
-/// Clouds are clusters of flattened low-poly blobs.
+/// Clouds are clusters of flat blocks, built like everything else in the
+/// valley.
 fn spawn_clouds(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
-    let blob = meshes.add(Sphere::new(1.0).mesh().ico(1).expect("a small subdivision"));
+    let block = meshes.add(Cuboid::from_length(2.0));
     // Unlit, and tinted by the sky instead: lit from below, they would be
     // gray and heavy even at noon.
     let look = materials.add(sky_material(CLOUD_COLOR));
@@ -281,9 +282,9 @@ fn spawn_clouds(
                         rng.random_range(-0.1..0.3),
                         rng.random_range(-0.7..0.7),
                     ) * size;
-                    let scale = Vec3::new(1.0, 0.45, 0.8) * size * rng.random_range(0.55..0.9);
+                    let scale = Vec3::new(1.0, 0.3, 0.8) * size * rng.random_range(0.55..0.9);
                     cloud.spawn((
-                        Mesh3d(blob.clone()),
+                        Mesh3d(block.clone()),
                         MeshMaterial3d(look.clone()),
                         Transform::from_translation(offset).with_scale(scale),
                         NotShadowCaster,

@@ -209,12 +209,12 @@ season, look lit and textured like a finished game.
 
 Goal: everything in the valley is drawn in one style, made for the game.
 
-- [ ] Block models with pixel-art textures, in the style of the characters,
+- [x] Block models with pixel-art textures, in the style of the characters,
       for trees, rocks, bushes, logs and ground cover, swaying in the wind
-- [ ] Village buildings, stalls, fountain, lanterns, benches, cart and banners
-- [ ] The cabin, its furniture and chests
-- [ ] Crops at every growth stage, tools and items
-- [ ] No model from an outside pack left in the game
+- [x] Village buildings, stalls, fountain, lanterns, benches, cart and banners
+- [x] The cabin, its furniture and chests
+- [x] Crops at every growth stage, tools and items
+- [x] No model from an outside pack left in the game
 
 **Exit criterion:** the village square, a farm at work and the woods look
 like one world in screenshots, in every season.

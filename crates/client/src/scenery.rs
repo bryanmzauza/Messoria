@@ -16,12 +16,12 @@ use messoria_shared::{
 
 use crate::art::{Models, srgb};
 
-/// Fruit drawn on a prop, as spheres over a dome around its middle, in the
-/// model's own units (before the prop's scale).
+/// Fruit drawn on a prop, as small blocks over a dome around its middle, in
+/// meters before the prop's scale: they stand just proud of a bush's leaves.
 const FRUIT_COUNT: u32 = 14;
-const FRUIT_RADIUS: f32 = 0.014;
-const FRUIT_DOME: Vec3 = Vec3::new(0.13, 0.12, 0.13);
-const FRUIT_DOME_CENTER: f32 = 0.05;
+const FRUIT_SIZE: f32 = 0.08;
+const FRUIT_DOME: Vec3 = Vec3::new(0.62, 0.68, 0.62);
+const FRUIT_DOME_CENTER: f32 = 0.3;
 
 pub(crate) struct SceneryPlugin;
 
@@ -46,7 +46,7 @@ struct FruitMesh(Handle<Mesh>);
 struct FruitMaterials(HashMap<PropId, Handle<StandardMaterial>>);
 
 fn make_fruit_mesh(mut meshes: ResMut<Assets<Mesh>>, mut commands: Commands) {
-    commands.insert_resource(FruitMesh(meshes.add(Sphere::new(FRUIT_RADIUS))));
+    commands.insert_resource(FruitMesh(meshes.add(Cuboid::from_length(FRUIT_SIZE))));
 }
 
 /// Draws props that arrived, were gathered or grew back since the last

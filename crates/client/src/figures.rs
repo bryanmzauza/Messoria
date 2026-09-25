@@ -191,9 +191,10 @@ pub(crate) fn spawn_figure(
 /// The joint a held item hangs from.
 pub(crate) const HAND: Part = Part::RightForearm;
 
-/// A held item's model, hidden until it is fitted to the hand: its longest
-/// side made `size` meters long, and the point `anchor` of the way up it put
-/// in the hand at `grip`.
+/// A held item's model, hidden until it is fitted to the hand: shrunk, if
+/// its longest side is over `size` meters, to that size, and the point
+/// `anchor` of the way up it put in the hand at `grip`. Models are made at
+/// life size, so most are held as they are.
 #[derive(Component)]
 pub(crate) struct Fitting {
     size: f32,
@@ -269,7 +270,7 @@ fn fit_held_items(
         if !extent.is_finite() || extent.max_element() <= 0.0 {
             continue;
         }
-        let scale = fit.size / extent.max_element();
+        let scale = (fit.size / extent.max_element()).min(1.0);
         let middle = (low + high) / 2.0;
         let anchor = Vec3::new(middle.x, low.y + extent.y * fit.anchor, middle.z);
         *transform =

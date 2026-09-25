@@ -1,10 +1,11 @@
-//! The palette: the colors everything is drawn in, by material name.
+//! The palette: the colors foliage and the ground are tinted, by material
+//! name, and how far foliage sways in the wind.
 //!
-//! Models from different art packs name their materials, such as
-//! `leafsGreen` or `woodBark`, and the palette gives each name one color, so
-//! that all of them look like parts of one world. The terrain's ground
-//! materials are colored the same way. Seasons override some colors for part
-//! of the year: leaves turn in autumn and grass is under snow in winter.
+//! Models name their materials, such as `leaves` or `grass`, and the palette
+//! gives a name one color, which tints the texture of every material of that
+//! name. The terrain's ground materials are colored the same way. Seasons
+//! override some colors for part of the year: leaves turn in autumn and grass
+//! is under snow in winter.
 
 use std::collections::HashMap;
 
@@ -21,6 +22,7 @@ pub type Rgb = [f32; 3];
 pub struct Palette {
     colors: HashMap<String, Rgb>,
     seasons: HashMap<Season, HashMap<String, Rgb>>,
+    sway: HashMap<String, f32>,
 }
 
 impl Palette {
@@ -31,6 +33,12 @@ impl Palette {
             .and_then(|overrides| overrides.get(name))
             .or_else(|| self.colors.get(name))
             .copied()
+    }
+
+    /// How far the tops of plants drawn with material `name` sway in the
+    /// wind, in meters, if they do.
+    pub fn sway(&self, name: &str) -> Option<f32> {
+        self.sway.get(name).copied()
     }
 
     /// The color of terrain made of `material` in `season`.
@@ -62,6 +70,8 @@ pub(crate) struct PaletteFile {
     colors: HashMap<String, (f32, f32, f32)>,
     #[serde(default)]
     seasons: HashMap<Season, HashMap<String, (f32, f32, f32)>>,
+    #[serde(default)]
+    sway: HashMap<String, f32>,
 }
 
 /// A color as written in a data file, if every channel is between 0 and 1.
@@ -103,6 +113,17 @@ impl PaletteFile {
             }
             seasons.insert(season, resolved);
         }
-        Ok(Palette { colors, seasons })
+        if let Some((name, _)) = self
+            .sway
+            .iter()
+            .find(|(_, strength)| !(0.0..=1.0).contains(*strength))
+        {
+            return Err(Problem::InvalidSway(name.clone()));
+        }
+        Ok(Palette {
+            colors,
+            seasons,
+            sway: self.sway,
+        })
     }
 }

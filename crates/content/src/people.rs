@@ -118,7 +118,7 @@ impl Cube {
 }
 
 /// Where a held item sits in the right hand, from the forearm's joint, and
-/// how large it is drawn there.
+/// how large it may be drawn there.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Grip {
@@ -127,8 +127,8 @@ pub struct Grip {
     /// How tools are turned in the hand, around x, y and z, in degrees, in
     /// that order; anything else is held upright.
     pub turn: (f32, f32, f32),
-    /// The longest side of a held tool, and of anything else held, in
-    /// meters: models come in every size, and are fitted to these.
+    /// The longest side a held tool, and anything else held, may have, in
+    /// meters: larger models are shrunk to it.
     pub tool_size: f32,
     pub item_size: f32,
 }

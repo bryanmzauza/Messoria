@@ -40,6 +40,7 @@ mod ui;
 mod viewmodel;
 mod wallet;
 mod weather;
+mod wind;
 
 use std::path::PathBuf;
 
@@ -76,6 +77,7 @@ impl Plugin for ClientPlugin {
         // How it looks and sounds.
         .add_plugins((
             art::ArtPlugin,
+            wind::WindPlugin,
             scenery::SceneryPlugin,
             structures::StructuresPlugin,
             cover::CoverPlugin,

@@ -86,6 +86,8 @@ pub enum Problem {
     MissingModel(String),
     #[error("skin `{0}` is not in the skins folder")]
     MissingSkin(String),
+    #[error("material `{0}` sways by less than 0 or more than 1 meter")]
+    InvalidSway(String),
     #[error("color `{0}` has a channel outside 0 to 1")]
     InvalidColor(String),
     #[error("the palette has no color for `{0}`")]

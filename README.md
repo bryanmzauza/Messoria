@@ -106,10 +106,11 @@ village is laid out in [`village.ron`](assets/data/village.ron), how
 characters are built and dressed in
 [`characters.ron`](assets/data/characters.ron), from the skins in
 [`assets/skins/`](assets/skins),
-and the colors of everything, season by season, in
-[`palette.ron`](assets/data/palette.ron). The game refuses to
-start, naming the problem, if a data file is invalid. Models come from CC0 art
-and sound packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
+and the colors foliage and the ground take, season by season, and how
+foliage sways in the wind, in [`palette.ron`](assets/data/palette.ron). The
+game refuses to start, naming the problem, if a data file is invalid. Models
+are block models painted in pixel art for the game; sounds come from CC0
+packs, credited in [`assets/CREDITS.md`](assets/CREDITS.md).
 
 ## Repository layout
 

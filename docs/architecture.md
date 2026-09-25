@@ -214,18 +214,24 @@ See [ADR 0013](adr/0013-picture-and-painted-ground.md).
 
 ## Scenery and art
 
-See [ADR 0008](adr/0008-scenery-and-art.md).
+See [ADR 0008](adr/0008-scenery-and-art.md) and
+[ADR 0014](adr/0014-block-models-painted-for-the-game.md).
 
 - The server scatters props from the world's seed at startup, over the
   valley as generated and before saved terrain is laid over it, and
   replicates each as a `Prop` entity (kind, model, position, turn, scale). Its
   `Scenery` resource keeps their footprints, where the shovel and the hoe
   cannot work, and finds the prop a player works on.
-- Clients draw props from their glTF models, and grow ground cover for the
-  chunks near the camera, merged into one mesh per palette material.
-- Every mesh whose material name is in the palette is drawn with a shared
-  material for that name. The client follows the world's season (`DrawnSeason`)
-  and recolors those materials, and remeshes the terrain, when it turns.
+- Models are block models with an embedded pixel-art atlas, made in meters.
+  Clients draw props from them, and grow ground cover for the chunks near the
+  camera, merged into one mesh per material, each vertex keeping its height
+  over its plant.
+- `art` dresses every mesh whose material name is in the palette: its
+  texture tinted by the palette's color, and, for names the palette sways,
+  drawn with `wind`'s material, whose vertex shaders push foliage along the
+  wind in every pass. Dressed materials are shared by name and source
+  material. The client follows the world's season (`DrawnSeason`) and
+  retints them, and remeshes the terrain, when it turns.
 
 ## Gathering
 

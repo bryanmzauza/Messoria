@@ -30,7 +30,7 @@
             closes: "17:00",
             closed_on: [Sunday],
             daily_limit: 60,
-            stall: "town/stall-red.glb",
+            stall: "village/stall_red.glb",
             keeper: (
                 body: "body-brown.png",
                 outfit: "outfit-grocer.png",
@@ -60,7 +60,7 @@
             closes: "18:00",
             closed_on: [Sunday],
             daily_limit: 60,
-            stall: "town/stall-green.glb",
+            stall: "village/stall_green.glb",
             keeper: (
                 body: "body-light.png",
                 outfit: "outfit-carpenter.png",

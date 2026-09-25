@@ -20,10 +20,10 @@
 // and hair over both, painted in grays and tinted with a hair color (sRGB).
 // Every player is dressed from the `wardrobe`, one of each, picked from who
 // they are so they look the same on every screen. What a character holds sits
-// in the right hand, placed by `grip` from the elbow, its model fitted so
-// that its longest side is `tool_size` meters for tools and `item_size` for
-// anything else. Tools are turned by `turn` (degrees around x, y and z);
-// anything else is held upright.
+// in the right hand, placed by `grip` from the elbow, at its model's size
+// unless its longest side is over `tool_size` meters for tools or
+// `item_size` for anything else, when it is shrunk to that. Tools are turned
+// by `turn` (degrees around x, y and z); anything else is held upright.
 (
     pixel: 0.0567,
     texels: 2,

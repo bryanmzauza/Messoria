@@ -30,8 +30,8 @@ const SOIL_DEPTH: f32 = 0.2;
 const TILLED: &str = "textures/tilled.png";
 const DRY_SOIL: Color = Color::WHITE;
 const WET_SOIL: Color = Color::srgb(0.55, 0.48, 0.45);
-/// Scale the plant models are drawn at.
-const PLANT_SCALE: f32 = 1.4;
+/// Plants are drawn a little larger than life, so that rows read from afar.
+const PLANT_SCALE: f32 = 1.3;
 /// How much a plant turns each day it grows, so rows do not look stamped.
 const PLANT_TURN: f32 = 2.4;
 /// Where produce hangs on a ripe plant that does not show it, and its size.
@@ -40,7 +40,7 @@ const PRODUCE_SPOTS: [Vec3; 3] = [
     Vec3::new(-0.1, 0.42, -0.06),
     Vec3::new(0.02, 0.24, -0.13),
 ];
-const PRODUCE_SIZE: f32 = 0.11;
+const PRODUCE_SIZE: f32 = 0.09;
 
 pub(crate) struct FieldsPlugin;
 
@@ -109,7 +109,7 @@ fn load_field_art(
         soil: meshes.add(Cuboid::new(SOIL_SIZE, SOIL_DEPTH, SOIL_SIZE)),
         dry_soil: materials.add(soil(DRY_SOIL)),
         wet_soil: materials.add(soil(WET_SOIL)),
-        produce: meshes.add(Sphere::new(0.5)),
+        produce: meshes.add(Cuboid::from_length(1.0)),
         produce_materials,
     });
 }

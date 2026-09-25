@@ -38,15 +38,11 @@ use crate::{
 /// Units bought at once with the second buy button.
 const BULK_PURCHASE: u16 = 10;
 
-/// Scale the stall models are drawn at.
-const STALL_SCALE: f32 = 2.6;
-/// Where wares lie on a counter: across it, clear of the post holding the
-/// awning up in the middle, its height, and toward the customers; and how
-/// large they are drawn.
-const WARE_SPOTS: [f32; 3] = [-0.85, -0.4, 0.75];
+/// Where wares lie on a counter: spread across it, its height, and toward
+/// the customers.
+const WARE_SPOTS: [f32; 3] = [-0.8, 0.0, 0.8];
 const COUNTER_HEIGHT: f32 = 0.95;
 const COUNTER_FRONT: f32 = -0.45;
-const WARE_SCALE: f32 = 1.6;
 /// Size of the item icons in the listing.
 const ROW_ICON_SIZE: f32 = 28.0;
 /// Where the keeper stands: to one side of the middle post, behind the counter.
@@ -113,14 +109,10 @@ fn build_stall(
         ))
         .with_children(|parts| {
             if let Some(scene) = models.scene(&shop.stall) {
-                parts.spawn((scene, Transform::from_scale(Vec3::splat(STALL_SCALE))));
+                parts.spawn(scene);
             }
             for (ware, x) in wares.into_iter().zip(WARE_SPOTS) {
-                parts.spawn((
-                    ware,
-                    Transform::from_xyz(x, COUNTER_HEIGHT, COUNTER_FRONT)
-                        .with_scale(Vec3::splat(WARE_SCALE)),
-                ));
+                parts.spawn((ware, Transform::from_xyz(x, COUNTER_HEIGHT, COUNTER_FRONT)));
             }
         });
     let keeper = commands
