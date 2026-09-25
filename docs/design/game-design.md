@@ -38,18 +38,20 @@
 
 ### 3.1 Terrain
 - Stored as a **voxel grid** with a material per cell (soil, grass, stone, sand, ore…).
-- Rendered with **Surface Nets** → organic hills, no cubes. Flat-shaded low-poly facets.
+- Rendered with **Surface Nets** → organic hills, no cubes, smoothly lit and painted in pixel art.
 - Split into **chunks** (e.g. 32³) loaded based on player proximity.
 
 ### 3.2 Areas
 | Area | Generation | Deformable? | Purpose |
 |---|---|---|---|
 | Village | **Fixed** (hand-made) | No (protected) | Villagers, shops, events |
-| Farms | **Fixed** | Yes | Planting, building, terraforming |
+| Farms | **Lots** (fixed layout) | Yes, by the owner and invited players | Planting, building, terraforming |
 | Forest | **Procedural** (world seed) | Partially | Gathering, wood, foraging |
 | Mines | **Procedural** (floors) | Yes | Mining, ores, hazards |
 
-- With individual money and 50+ players, each player (or group) needs **their own land**: the farm region is divided into **plots** that players claim or buy. **[OPEN]** number and size of plots, and whether friends can share a plot.
+- The world is about **2 km** across, with the village in the middle of fenced **64 m lots** linked by roads, and hills, woods, meadows and a river between them.
+- With individual money and 50+ players, each player (or group) needs **their own land**: a player picks their first lot for free at the village notice board and can buy more. Only the owner and the players they invite work a lot; anyone may walk through.
+- Outside the lots, anyone may gather wood, stone and berries, but nobody tills, plants or builds.
 
 ---
 
@@ -103,9 +105,9 @@ Actions consume energy; food restores it; sleep refills it. A character has 100 
 - Larger buildings (barn, coop, house) placed on the player's plot.
 
 ### 5.7 Villagers and relationships
-- Villagers follow daily schedules (by hour and season).
-- Friendship through conversation and gifts; events unlock at friendship levels.
-- Friendship is **per player**.
+- Eight to ten named villagers, each with a home, a job and a daily schedule by hour, weekday, season and weather: shopkeepers keep their hours, others sit on benches, chat, tend gardens, eat at the tavern and go home at night.
+- Friendship through a daily talk and gifts; each villager loves, likes and dislikes some items. Lines change with friendship, season, weather and time of day.
+- Friendship is **per player**. Events unlocked at friendship levels come after the MVP.
 
 ### 5.8 Economy
 **Selling happens only at shops** — there is no shipping bin. Players carry produce to the merchant and are paid immediately. Each shop buys specific categories (grocer: crops; blacksmith: ores; carpenter: wood). Shops keep opening hours and closed days. The first shop is the village grocer: it buys crops and sells the seeds in season.
@@ -122,7 +124,12 @@ Actions consume energy; food restores it; sleep refills it. A character has 100 
 - Players can **transfer** and **lend** money to each other.
 - **Loans** are tracked by the system: amount, due date, optional interest agreed by both parties. **[OPEN]** what happens on default (reputation mark only? automatic collection from the wallet?).
 
-### 5.9 Future (post-MVP)
+### 5.9 Appearance
+- A character creator on first arrival: body and skin tone, eyes, hairstyle, hair color and a first outfit.
+- Clothes are items sold by the tailor and worn from a wardrobe at home; the barber changes hairstyle and hair color for a fee.
+- The look is saved with the player and everyone sees it.
+
+### 5.10 Future (post-MVP)
 Fishing, animals, cooking/processing, seasonal festivals, marriage, collections, direct player-to-player trading.
 
 ---
@@ -210,6 +217,10 @@ Principles:
 - [ ] Gathering wood, stone and berries
 - [ ] A house with a bed, and chests
 - [ ] Animated characters and a village around the square
+- [ ] A world of about 2 km with fenced farm lots, one free per player
+- [ ] A larger village with shops and a tavern to walk into
+- [ ] Villagers with daily schedules, talk and gifts, and friendship per player
+- [ ] Character creation, clothes from the tailor and haircuts at the barber
 - [ ] Load test with bots
 
 **Success criteria:** 2–8 friends play one in-game week together and want to keep going. Access codes and 50-player servers follow the MVP.
@@ -226,12 +237,12 @@ Combat and mines, fishing, animals, loans (right after the MVP), festivals, marr
 
 ## 12. Open decisions
 
-1. Farm plots: number, size, sharing
-2. Loan defaults
-3. Item preservation (fridge, processing)
+1. Loan defaults
+2. Item preservation (fridge, processing)
 
 ### Resolved
 - **Fantasy sub-theme:** cozy medieval.
+- **Farm plots:** fenced 64 m lots, one free per player, more bought, shared by invitation.
 - **Order of work:** opening worlds by access code and scaling to 50 players come after the MVP; gameplay and art come first.
 - **Sales limit:** per player; the market's saturation is shared by the whole server.
 - **Combat in the MVP:** no; it ships right after, together with the mines.

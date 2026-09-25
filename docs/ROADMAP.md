@@ -219,14 +219,109 @@ Goal: everything in the valley is drawn in one style, made for the game.
 **Exit criterion:** the village square, a farm at work and the woods look
 like one world in screenshots, in every season.
 
-## M15 — MVP playtest
+## M15 — A larger valley
+
+Goal: a world of about two kilometers that stays smooth to play in.
+
+- [ ] Terrain generated on demand, a region at a time, from the world's
+      seed; saves keep only what players changed
+- [ ] A world of about 2 km: hills, woods, meadows, a river and roads
+      linking the farms to the village
+- [ ] Each client receives only the chunks, props, fields and structures
+      near it (interest management)
+- [ ] Scenery scattered per region; far terrain drawn simplified up to the
+      horizon
+- [ ] Travel stays pleasant: a sprint that lasts and roads you can follow
+
+**Exit criterion:** eight players spread across the whole map keep 60 frames
+per second in a release build, and the server stays within its tick budget.
+
+## M16 — Farm lots
+
+Goal: every player farms on land of their own.
+
+- [ ] The land around the village laid out in fenced 64 m lots, from data,
+      each with a gate on a road
+- [ ] A notice board in the village to pick a free lot: the first one is
+      free, more can be bought
+- [ ] Only a lot's owner and the players they invite till, dig, plant,
+      harvest, build and open chests there; anyone may walk through
+- [ ] Outside the lots, anyone may gather, but not till, plant or build
+- [ ] The cabin is built on the player's own lot; lots and invitations are
+      kept in the save
+
+**Exit criterion:** two players on neighboring lots cannot change each
+other's land unless invited, and ownership survives a restart.
+
+## M17 — The village grows
+
+Goal: a village worth walking through.
+
+- [ ] A larger village: streets, houses for the villagers, gardens, a well
+      and the notice board
+- [ ] New buildings: a tavern, a tailor, a barber and a blacksmith
+- [ ] Interiors for the shops and the tavern, walked into through their doors
+- [ ] The grocer and the carpenter move into proper shops, or keep their
+      stalls on a market street
+
+**Exit criterion:** the village looks lived-in in screenshots, day and night,
+in every season, and every door that opens leads somewhere furnished.
+
+## M18 — Villagers
+
+Goal: the village has people with lives of their own.
+
+- [ ] Eight to ten named villagers, defined in data: look, home, work and a
+      daily schedule by hour, weekday, season and weather
+- [ ] Villagers simulated on the server, walking the village's paths, and
+      seen by everyone moving and animated like players
+- [ ] Shopkeepers keep their shop's hours from behind the counter; others
+      sit on benches, chat in pairs, tend gardens, eat at the tavern and go
+      home at night
+- [ ] Villagers far from every player are simulated at a lower rate
+
+**Exit criterion:** following one villager through a whole day matches their
+schedule, and all of them keep to it with players anywhere on the map.
+
+## M19 — Talking and friendship
+
+Goal: getting to know the villagers is part of the game.
+
+- [ ] Talking to a villager with the interact key opens a dialogue with
+      their lines, chosen by friendship, season, weather and time of day
+- [ ] Gifts: each villager loves, likes and dislikes some items, and reacts
+      with an expression
+- [ ] Friendship per player, raised by a daily talk and by gifts, shown in a
+      list of villagers and kept in the save
+- [ ] Friendship opens small things: warmer lines, a discount, a recipe or
+      seeds as a gift
+
+**Exit criterion:** two players befriend the same villager at different
+rates, and each sees their own friendship after a restart.
+
+## M20 — A look of your own
+
+Goal: every player looks like who they want to be.
+
+- [ ] A character creator on first arrival: body and skin tone, eyes,
+      hairstyle, hair color and a first outfit
+- [ ] The look is saved with the player and seen by everyone; it no longer
+      comes from the player's id
+- [ ] More hairstyles and outfits, painted in the characters' style, and hats
+- [ ] Clothes are items sold by the tailor and worn from a wardrobe in the
+      cabin
+- [ ] The barber changes a player's hairstyle and hair color for a fee
+
+**Exit criterion:** two new players make looks of their own, change clothes
+and hair in the village, and are seen that way by each other after a
+restart.
+
+## M21 — MVP playtest
 
 Goal: the slice feels like a game.
 
 - [ ] Seasonal music and ambient audio
 - [ ] Playtest: a group plays a full in-game week
-
-**Open:** farm plot count, size and sharing.
 
 **Exit criterion:** the MVP success criteria in the design document are met.
 
@@ -236,8 +331,8 @@ Goal: the slice feels like a game.
   connect tokens, UDP hole punching, relay fallback, and an "Open to friends"
   flow in the client. Two machines behind separate home routers connect by
   code.
-- **Scale:** bots that farm and trade, interest management for entities and
-  chunks, tick profiling and budgets, and low-frequency simulation far from
-  players, until 50 bots run for 30 minutes within the tick budget.
-- Loans, combat and mines, procedural forest, villager schedules and
-  friendship, crafting and buildings, fishing, animals, festivals.
+- **Scale:** bots that farm and trade, tick profiling and budgets, and
+  low-frequency simulation far from players, until 50 bots run for 30
+  minutes within the tick budget.
+- Loans, combat and mines, procedural forest, friendship events, crafting
+  and buildings, fishing, animals, festivals.
