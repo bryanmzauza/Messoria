@@ -102,6 +102,24 @@ See [ADR 0021](adr/0021-playing-from-the-game.md).
   players' names over their heads, and `names` the name to call a player
   by wherever players are listed.
 
+## Shipping
+
+- Release builds find `assets/` next to the executable (Bevy's asset root
+  and `content::load_content` follow the same rule), so the zip runs from
+  wherever it is unpacked. Development runs read them from the workspace
+  through `BEVY_ASSET_ROOT` in `.cargo/config.toml`.
+- The game keeps worlds, the profile, the settings and its log in the
+  player's data folder (`bins/game/src/paths.rs`): `--data-dir`, else
+  `MESSORIA_DATA_DIR` (the workspace's `saves` folder for development runs),
+  else `%APPDATA%\Messoria` or the XDG data folder. A release build of the
+  game has no console on Windows and logs to `messoria.log` there, panics
+  included; the dedicated server keeps its console.
+- The executable's icon is embedded at build time (`bins/game/build.rs`)
+  and the window's is set from `assets/textures/icon.png`.
+- `.github/workflows/release.yml` builds the game and the server for
+  Windows and Linux on a `v*` tag, packs them with the assets, the README,
+  the license, the credits and the changelog, and publishes a release.
+
 ## Networking
 
 - Transport is UDP with netcode.io authentication, configured in

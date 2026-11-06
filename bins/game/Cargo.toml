@@ -25,6 +25,11 @@ messoria-client.workspace = true
 messoria-save.workspace = true
 messoria-server.workspace = true
 messoria-shared.workspace = true
+# The same winit Bevy windows with, for the window's icon.
+winit = { version = "0.30", default-features = false }
+
+[build-dependencies]
+winresource = "0.1"
 
 [lints]
 workspace = true

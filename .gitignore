@@ -5,11 +5,6 @@
 /saves
 *.log
 
-# Local assistant configuration
-CLAUDE.md
-CLAUDE.local.md
-.claude/
-
 # Editors
 .vscode/
 .idea/

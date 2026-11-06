@@ -1,10 +1,25 @@
+// A release build shows no console on Windows; its log goes to a file.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod paths;
+
 use std::{
+    fs::{File, OpenOptions},
+    io::Write,
     net::{Ipv4Addr, SocketAddr},
-    path::{Path, PathBuf},
+    path::PathBuf,
+    sync::{Mutex, OnceLock},
     time::Duration,
 };
 
-use bevy::prelude::*;
+use bevy::{
+    asset::RenderAssetUsages,
+    ecs::system::NonSendMarker,
+    image::ImageLoaderSettings,
+    log::{BoxedFmtLayer, LogPlugin, tracing_subscriber},
+    prelude::*,
+    winit::WINIT_WINDOWS,
+};
 use clap::Parser;
 use messoria_calendar::{GAME_MINUTE, SleepRule, WorldTime};
 use messoria_client::{ClientPlugin, Session, TitlePlugin};
@@ -16,14 +31,10 @@ use messoria_shared::{
     network::{self, DEFAULT_PORT, NetworkRole},
 };
 
-/// Where worlds are saved, each in a folder of its own.
-const SAVES_FOLDER: &str = "saves";
-/// Where the local player's identity is kept, shared by every world they join.
-const PROFILE_FILE: &str = "saves/profile.ron";
-/// Where the player's settings are kept.
-const SETTINGS_FILE: &str = "saves/settings.ron";
 /// Players a world hosted from the game takes at once.
 const MAX_PLAYERS: u32 = 8;
+/// The icon on the window, within the assets.
+const ICON: &str = "textures/icon.png";
 
 /// Messoria. Without options, opens the title screen.
 #[derive(Parser, Debug)]
@@ -38,9 +49,15 @@ struct Args {
     host: bool,
 
     /// Folder the local world is saved in. The world saved there is resumed,
-    /// or a new one is created. Implied by --host, as `saves/local`.
+    /// or a new one is created. Implied by --host, as the world called
+    /// `local` in the data folder.
     #[arg(long, value_name = "FOLDER")]
     world: Option<PathBuf>,
+
+    /// Folder for worlds, the profile, the settings and the log. The
+    /// player's own data folder unless given.
+    #[arg(long, value_name = "FOLDER")]
+    data_dir: Option<PathBuf>,
 
     /// UDP port to accept other players on.
     #[arg(long, default_value_t = DEFAULT_PORT)]
@@ -68,42 +85,88 @@ struct Args {
     notice: Option<String>,
 }
 
+/// Where the log goes when there is no console to print to.
+static LOG_FILE: OnceLock<PathBuf> = OnceLock::new();
+
 fn main() -> AppExit {
     let args = Args::parse();
+    let data_dir = paths::data_dir(args.data_dir.clone());
+    if let Err(error) = std::fs::create_dir_all(&data_dir) {
+        eprintln!(
+            "error: the data folder {} cannot be made: {error}",
+            data_dir.display()
+        );
+        return AppExit::error();
+    }
+    let log_file = data_dir.join(paths::LOG_FILE);
+    if !cfg!(debug_assertions) {
+        LOG_FILE.set(log_file).ok();
+        std::panic::set_hook(Box::new(|panic| {
+            if let Some(path) = LOG_FILE.get()
+                && let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path)
+            {
+                let _ = writeln!(file, "{panic}");
+            }
+        }));
+    }
+    let profile_file = data_dir.join(paths::PROFILE_FILE);
+    let settings_file = data_dir.join(paths::SETTINGS_FILE);
+    let worlds = data_dir.join(paths::WORLDS_FOLDER);
+
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+    let mut plugins = DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             title: "Messoria".into(),
             ..default()
         }),
         ..default()
-    }));
+    });
+    if !cfg!(debug_assertions) {
+        plugins = plugins.set(LogPlugin {
+            fmt_layer: log_to_file,
+            ..default()
+        });
+    }
+    app.add_plugins(plugins)
+        .add_systems(Startup, load_icon)
+        .add_systems(Update, set_window_icon);
 
     let world = args
         .world
         .clone()
-        .or_else(|| args.host.then(|| PathBuf::from(SAVES_FOLDER).join("local")));
+        .or_else(|| args.host.then(|| worlds.join("local")));
     if args.connect.is_none() && world.is_none() {
         app.add_plugins(TitlePlugin {
-            saves: SAVES_FOLDER.into(),
-            settings_file: SETTINGS_FILE.into(),
+            saves: worlds,
+            settings_file,
             notice: args.notice,
         });
         return app.run();
     }
+    if let Err(exit) = add_the_game(&mut app, &args, world, profile_file, settings_file) {
+        return exit;
+    }
+    app.run()
+}
 
+/// Adds the world played, joined or hosted, and the client for it.
+fn add_the_game(
+    app: &mut App,
+    args: &Args,
+    world: Option<PathBuf>,
+    profile_file: PathBuf,
+    settings_file: PathBuf,
+) -> Result<(), AppExit> {
     let content = match load_content() {
         Ok(content) => content,
-        Err(error) => {
-            eprintln!("error: {error}");
-            return AppExit::error();
-        }
+        Err(error) => return Err(fail(&format!("the content cannot be loaded: {error}"))),
     };
-    let profile = match Profile::load_or_create(Path::new(PROFILE_FILE)) {
+    let profile = match Profile::load_or_create(&profile_file) {
         Ok(profile) => profile,
         Err(error) => {
-            eprintln!("error: the player profile cannot be loaded: {error}");
-            return AppExit::error();
+            return Err(fail(&format!(
+                "the player profile cannot be loaded: {error}"
+            )));
         }
     };
 
@@ -119,9 +182,9 @@ fn main() -> AppExit {
                     player_id: profile.player_id,
                     simulated_latency: args.simulate_latency.map(Duration::from_millis),
                 },
-                settings_file: SETTINGS_FILE.into(),
+                settings_file,
                 profile,
-                profile_file: Some(PROFILE_FILE.into()),
+                profile_file: Some(profile_file),
                 from_title: args.from_title,
             },
         ));
@@ -134,8 +197,7 @@ fn main() -> AppExit {
         ) {
             Ok(world) => world,
             Err(error) => {
-                eprintln!("error: the saved world cannot be loaded: {error}");
-                return AppExit::error();
+                return Err(fail(&format!("the saved world cannot be loaded: {error}")));
             }
         };
         // A world played from the title screen listens for guests from the
@@ -163,15 +225,82 @@ fn main() -> AppExit {
             },
             ClientPlugin {
                 session: Session::Host,
-                settings_file: SETTINGS_FILE.into(),
+                settings_file,
                 profile,
-                profile_file: Some(PROFILE_FILE.into()),
+                profile_file: Some(profile_file),
                 from_title: args.from_title,
             },
         ));
     }
+    Ok(())
+}
 
-    app.run()
+/// Reports why the game cannot start, on the console or in the log, and
+/// ends with an error.
+fn fail(reason: &str) -> AppExit {
+    eprintln!("error: {reason}");
+    if let Some(path) = LOG_FILE.get()
+        && let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path)
+    {
+        let _ = writeln!(file, "error: {reason}");
+    }
+    AppExit::error()
+}
+
+/// The log layer of a release build: the log file in the data folder,
+/// started afresh each run.
+fn log_to_file(_: &mut App) -> Option<BoxedFmtLayer> {
+    let path = LOG_FILE.get()?;
+    let file = File::create(path).ok()?;
+    Some(Box::new(
+        tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            .with_writer(Mutex::new(file)),
+    ))
+}
+
+/// The icon, kept in memory so the window can be given it once loaded.
+#[derive(Resource)]
+struct Icon(Handle<Image>);
+
+fn load_icon(assets: Res<AssetServer>, mut commands: Commands) {
+    let icon = assets
+        .load_builder()
+        .with_settings(|settings: &mut ImageLoaderSettings| {
+            settings.asset_usage = RenderAssetUsages::MAIN_WORLD;
+        })
+        .load(ICON);
+    commands.insert_resource(Icon(icon));
+}
+
+/// Runs on the main thread, where the windows live.
+fn set_window_icon(
+    icon: Res<Icon>,
+    images: Res<Assets<Image>>,
+    _main_thread: NonSendMarker,
+    mut done: Local<bool>,
+) {
+    if *done {
+        return;
+    }
+    let Some(image) = images.get(&icon.0) else {
+        return;
+    };
+    let Some(data) = image.data.as_ref() else {
+        return;
+    };
+    let size = image.size();
+    let Ok(icon) = winit::window::Icon::from_rgba(data.clone(), size.x, size.y) else {
+        *done = true;
+        return;
+    };
+    // The window may not exist yet in the first frames.
+    *done = WINIT_WINDOWS.with_borrow(|windows| {
+        for window in windows.windows.values() {
+            window.set_window_icon(Some(icon.clone()));
+        }
+        !windows.windows.is_empty()
+    });
 }
 
 fn parse_server_addr(input: &str) -> Result<SocketAddr, String> {

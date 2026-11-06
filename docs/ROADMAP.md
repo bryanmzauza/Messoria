@@ -375,20 +375,20 @@ than rebuilding the server and client at runtime
 
 Goal: anyone downloads a zip, unpacks it and plays.
 
-- [ ] Release builds find `assets/` next to the executable, and keep
+- [x] Release builds find `assets/` next to the executable, and keep
       worlds, the profile and the settings in the user's data folder
       (`%APPDATA%\Messoria` on Windows, the XDG data folder on Linux), with
       `--world` and `--data-dir` for anywhere else
-- [ ] An icon on the window and the Windows executable, no console behind
+- [x] An icon on the window and the Windows executable, no console behind
       the game on Windows (its log goes to a file in the data folder); the
       dedicated server keeps its console
-- [ ] A release workflow on tags `v*`: Windows and Linux x64 zips with the
+- [x] A release workflow on tags `v*`: Windows and Linux x64 zips with the
       game, the server, the assets, the README, the license, the credits and
       the changelog, with checksums and a GitHub release from the changelog
-- [ ] Version 0.1.0, a changelog, a README for players first (download and
+- [x] Version 0.1.0, a changelog, a README for players first (download and
       play, hosting for friends step by step, a dedicated server, the
       controls) and builders after, with honest hardware requirements
-- [ ] A last sweep of the public repository
+- [x] A last sweep of the public repository
 
 **Exit criterion:** the release zip, unpacked in an empty folder on another
 machine, plays alone, hosts for a friend and runs a dedicated server.
