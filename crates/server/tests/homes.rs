@@ -154,10 +154,11 @@ fn nothing_is_built_where_something_stands() {
     world.use_item(chest, square);
     assert_eq!(world.heard().notices.last(), Some(&Notice::ProtectedGround));
 
-    let arrival = ground(&mut world, Vec3::ZERO);
-    world.teleport(arrival);
+    // The road south of the village is on no lot.
+    let road = ground(&mut world, Vec3::new(0.0, 0.0, 60.0));
+    world.teleport(road);
     let deed = world.slot_holding(&content, "cabin_deed");
-    let ahead = ground(&mut world, arrival + Vec3::new(0.0, 0.0, -3.5));
+    let ahead = ground(&mut world, road + Vec3::new(0.0, 0.0, -3.5));
     world.use_item(deed, ahead);
     assert_eq!(world.heard().notices.last(), Some(&Notice::HomeOnYourLot));
 

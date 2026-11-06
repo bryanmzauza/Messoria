@@ -342,6 +342,9 @@ See [ADR 0009](adr/0009-action-feedback-and-collision.md).
   a ray cast against the same obstacles.
 - The game menu, its options and the backpack window are client panels
   (`OpenPanel`), one at a time. Options are kept in `saves/settings.ron`.
+- Seen from behind or ahead, the camera (`camera`) is pulled in to stay
+  this side of any obstacle or ground between it and the character's head,
+  so rooms are seen from within.
 
 ## Characters and icons
 
@@ -381,13 +384,19 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
 
 - The village is a fixed area of the valley (`messoria_shared::village`),
-  generated level and paved. Its ground cannot be dug, raised or tilled.
-- `village.ron` places each shop's stall and the village's buildings around
-  the square, and says what a farm lot costs and how the lots are fenced. At startup the server spawns a replicated `Shopfront` for each
-  stall and a `Structure` marked `Landmark` for each building; landmarks are
-  rebuilt from the data every time, so saves leave them out. A client trades by sending `Trade` while its character
-  stands at the stall; the server checks the stall, the shop's hours and the
-  trade rules.
+  generated level, its square and streets paved (`messoria_worldgen::paved`).
+  Its ground cannot be dug, raised or tilled. See
+  [ADR 0017](adr/0017-a-village-to-walk-into.md).
+- `village.ron` places each shop's stall and the village's buildings: the
+  grocer's and the carpenter's stalls on the square, the tavern and the
+  other shops around it with their counters inside, the houses along the
+  lanes, and says what a farm lot costs and how the lots are fenced. At
+  startup the server spawns a replicated `Shopfront` for each stall and a
+  `Structure` marked `Landmark` for each building; landmarks are rebuilt
+  from the data every time, so saves leave them out. A client trades by
+  sending `Trade` while its character stands at the stall, on the square or
+  indoors; the server checks the stall, the shop's hours and the trade
+  rules.
 - Characters carry `Money` and `SoldToday` (their sales against the shops'
   daily limits). One `MarketState` entity holds the server-wide saturation.
   At dawn the market recovers and everyone's daily sales start over.

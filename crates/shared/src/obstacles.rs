@@ -521,6 +521,29 @@ mod tests {
     }
 
     #[test]
+    fn rays_from_inside_a_room_meet_its_turned_walls() {
+        // A wall 9 m long and 0.26 m thick, turned a quarter so it runs
+        // along z at x = 13.13, 5.3 m tall from the ground at 10.
+        let mut obstacles = Obstacles::default();
+        obstacles.insert(Obstacle {
+            center: Vec2::new(13.13, -39.0),
+            shape: Shape::Box {
+                half_size: Vec2::new(4.5, 0.13),
+                turn: std::f32::consts::FRAC_PI_2,
+            },
+            bottom: 10.0,
+            top: 15.3,
+            owner: seventh(),
+        });
+        let eyes = Vec3::new(14.5, 11.6, -39.0);
+        let (_, distance) = obstacles
+            .raycast(eyes, Vec3::NEG_X, 4.5)
+            .expect("the ray meets the wall");
+        assert!((distance - 1.24).abs() < 0.02, "hit at {distance}");
+        assert_eq!(obstacles.raycast(eyes, Vec3::X, 4.5), None, "away from it");
+    }
+
+    #[test]
     fn bodies_clear_of_obstacles_stay_put() {
         let obstacles = trunk_at(Vec2::new(10.0, 10.0));
         let beside = Vec3::new(11.0, 0.0, 10.0);

@@ -2,7 +2,9 @@
 //! its eyes, from behind or from the front.
 //!
 //! Clicking the window captures the cursor for mouse look; Escape releases it.
-//! F5 cycles through the perspectives. The camera is also where the player hears from.
+//! F5 cycles through the perspectives. Seen from outside, the camera stays
+//! this side of walls and ground between it and the character, so a room
+//! is seen from within. The camera is also where the player hears from.
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -15,7 +17,9 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use lightyear::prelude::input::native::InputMarker;
-use messoria_shared::{movement::EYE_HEIGHT, protocol::PlayerInput};
+use messoria_shared::{
+    movement::EYE_HEIGHT, obstacles::Obstacles, protocol::PlayerInput, terrain::Terrain,
+};
 
 use crate::{avatars::AvatarSystems, panels::OpenPanel, settings::Preferences};
 
@@ -34,6 +38,13 @@ const EAR_GAP: f32 = 0.3;
 const MAX_PITCH: f32 = FRAC_PI_2 - 0.01;
 /// Distance from the character's head to the camera in third person.
 const THIRD_PERSON_DISTANCE: f32 = 4.5;
+/// How far the camera stays off a wall or the ground it would otherwise
+/// go through, and how near the head it may come.
+const WALL_CLEARANCE: f32 = 0.3;
+const NEAREST: f32 = 0.6;
+/// Nearer than this, the character would fill the view, so it is hidden as
+/// in first person.
+const TOO_NEAR_TO_SHOW: f32 = 1.6;
 const PERSPECTIVE_TOGGLE: KeyCode = KeyCode::F5;
 
 pub(crate) struct CameraPlugin;
@@ -51,6 +62,7 @@ impl Plugin for CameraPlugin {
             .add_systems(
                 PostUpdate,
                 (follow_player, show_own_avatar)
+                    .chain()
                     .in_set(CameraPlacement)
                     .after(AvatarSystems)
                     .before(TransformSystems::Propagate),
@@ -81,6 +93,9 @@ pub(crate) struct View {
     pub perspective: Perspective,
     /// Whether the cursor is captured, meaning mouse and keyboard drive the character.
     pub captured: bool,
+    /// How far behind or ahead of the head the camera is, in third person,
+    /// once walls and ground have pushed it in.
+    pub distance: f32,
 }
 
 /// Where the view is from: the character's eyes, or behind or ahead of the
@@ -179,7 +194,9 @@ fn toggle_perspective(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {
 }
 
 fn follow_player(
-    view: Res<View>,
+    mut view: ResMut<View>,
+    obstacles: Res<Obstacles>,
+    terrain: Res<Terrain>,
     player: Query<&Transform, (With<InputMarker<PlayerInput>>, Without<WorldCamera>)>,
     mut camera: Single<&mut Transform, With<WorldCamera>>,
 ) {
@@ -188,29 +205,60 @@ fn follow_player(
     };
     let eye = player.translation + Vec3::Y * EYE_HEIGHT;
     let rotation = view.rotation();
-    let (facing, place) = match view.perspective {
-        Perspective::FirstPerson => (rotation, eye),
-        Perspective::Behind => (rotation, eye + rotation * Vec3::Z * THIRD_PERSON_DISTANCE),
+    let (facing, back) = match view.perspective {
+        Perspective::FirstPerson => (rotation, None),
+        Perspective::Behind => (rotation, Some(rotation * Vec3::Z)),
         Perspective::Front => {
             // Turned around, ahead of the character and looking back at it;
             // the mouse still turns the character.
             let facing = Quat::from_euler(EulerRot::YXZ, view.yaw + PI, -view.pitch, 0.0);
-            (facing, eye + facing * Vec3::Z * THIRD_PERSON_DISTANCE)
+            (facing, Some(facing * Vec3::Z))
         }
     };
     camera.rotation = facing;
-    camera.translation = place;
+    camera.translation = match back {
+        None => {
+            view.distance = 0.0;
+            eye
+        }
+        Some(direction) => {
+            view.distance = reach(&obstacles, &terrain, eye, direction);
+            eye + direction * view.distance
+        }
+    };
 }
 
-/// Hides the local character's body in first person, where it would block the view.
+/// How far from the eyes along `direction` the camera can be without going
+/// through a wall or the ground.
+fn reach(obstacles: &Obstacles, terrain: &Terrain, eye: Vec3, direction: Vec3) -> f32 {
+    let wall = obstacles
+        .raycast(eye, direction, THIRD_PERSON_DISTANCE)
+        .map(|(_, distance)| distance);
+    let ground = terrain
+        .raycast(eye, direction, THIRD_PERSON_DISTANCE)
+        .map(|hit| hit.distance);
+    let nearest = [wall, ground]
+        .into_iter()
+        .flatten()
+        .fold(f32::INFINITY, f32::min);
+    (nearest - WALL_CLEARANCE).clamp(NEAREST, THIRD_PERSON_DISTANCE)
+}
+
+/// Hides the local character's body in first person, where it would block
+/// the view, and when the camera is pushed up against it.
 fn show_own_avatar(
     view: Res<View>,
     mut player: Query<&mut Visibility, With<InputMarker<PlayerInput>>>,
 ) {
     if let Ok(mut visibility) = player.single_mut() {
-        visibility.set_if_neq(match view.perspective {
-            Perspective::FirstPerson => Visibility::Hidden,
-            Perspective::Behind | Perspective::Front => Visibility::Inherited,
+        let shown = match view.perspective {
+            Perspective::FirstPerson => false,
+            Perspective::Behind | Perspective::Front => view.distance >= TOO_NEAR_TO_SHOW,
+        };
+        visibility.set_if_neq(if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
         });
     }
 }

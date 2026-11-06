@@ -1,10 +1,14 @@
-// The village square: where each shop trades and what stands around it,
-// and what the village asks for a farm lot.
+// The village: its square, where the grocer and the carpenter trade from
+// their stalls; the tavern and the shops around it, walked into through
+// their doors; the villagers' houses along the lanes; and what the village
+// asks for a farm lot.
 //
 // Places are in meters from the middle of the square, with -z away from where
 // players arrive, and turns are in degrees. A stall's turn is the way its
 // counter faces; a structure's is how far it is turned from facing -z, so
-// 180 faces the square from its far side. Every shop has one stall.
+// 180 faces the square from its far side. Every shop has one stall; the
+// counters of the shops with interiors stand inside them, where their
+// models leave room.
 //
 // Every player's first farm lot is free; each one after costs `lots.price`
 // coins, paid at the notice board. The lots are fenced with sections of
@@ -15,22 +19,61 @@
     stalls: [
         (id: "grocer", at: (5.5, -4.6), turn: 180),
         (id: "carpenter", at: (-5.5, -4.6), turn: 180),
+        (id: "tavern", at: (18.7, -9.0), turn: 90),
+        (id: "tailor", at: (-16.9, -9.0), turn: 270),
+        (id: "barber", at: (16.3, 5.7), turn: 90),
+        (id: "blacksmith", at: (-17.1, 6.1), turn: 270),
     ],
     structures: [
+        // The square.
         (id: "fountain", at: (0.0, 0.5)),
-        (id: "grocery", at: (5.5, -9.8), turn: 180),
-        (id: "workshop", at: (-5.5, -9.8), turn: 180),
-        (id: "cottage", at: (11.5, 6.5), turn: 90),
-        (id: "cottage", at: (-11.5, 6.5), turn: 270),
-        (id: "cart", at: (-10.2, -5.5), turn: 20),
         (id: "notice_board", at: (3.6, 7.6), turn: 180),
+        (id: "well", at: (-4.5, 6.5)),
         (id: "bench", at: (0.0, 4.9), turn: 90),
         (id: "bench", at: (0.0, -3.9), turn: 90),
+        (id: "cart", at: (-10.2, -5.5), turn: 20),
+        // The shops, facing the square from its four corners.
+        (id: "grocery", at: (5.5, -9.8), turn: 180),
+        (id: "workshop", at: (-5.5, -9.8), turn: 180),
+        (id: "tavern", at: (16.5, -9.0), turn: 90),
+        (id: "tailor", at: (-15.5, -9.0), turn: 270),
+        (id: "barber", at: (15.0, 7.0), turn: 90),
+        (id: "blacksmith", at: (-15.5, 7.5), turn: 270),
+        // The villagers' houses along the lanes, and their gardens.
+        (id: "house_plaster", at: (-26.0, -30.2), turn: 180),
+        (id: "house_planks", at: (-16.0, -30.2), turn: 180),
+        (id: "house_stone", at: (16.0, -30.2), turn: 180),
+        (id: "house_plaster", at: (26.0, -30.2), turn: 180),
+        (id: "house_stone", at: (-27.0, -17.8), turn: 0),
+        (id: "house_planks", at: (27.0, -17.8), turn: 0),
+        (id: "house_planks", at: (-24.0, 28.2), turn: 0),
+        (id: "house_stone", at: (24.0, 28.2), turn: 0),
+        (id: "house_plaster", at: (-27.0, 15.8), turn: 180),
+        (id: "house_stone", at: (27.0, 15.8), turn: 180),
+        (id: "garden_bed", at: (-21.0, -31.0)),
+        (id: "garden_bed", at: (21.0, -31.0)),
+        (id: "garden_bed", at: (-18.0, 27.5)),
+        (id: "garden_bed", at: (18.0, 27.5)),
+        (id: "garden_bed", at: (-33.0, -17.8)),
+        (id: "garden_bed", at: (33.0, -17.8)),
+        // Lanterns along the square and the streets.
         (id: "lantern", at: (4.2, 4.6)),
         (id: "lantern", at: (-4.2, 4.6)),
         (id: "lantern", at: (2.4, -4.4)),
         (id: "lantern", at: (-2.4, -4.4)),
         (id: "lantern", at: (8.4, 5.6)),
         (id: "lantern", at: (-8.4, 5.6)),
+        (id: "lantern", at: (-3.0, -21.0)),
+        (id: "lantern", at: (3.0, -21.0)),
+        (id: "lantern", at: (-3.0, 19.0)),
+        (id: "lantern", at: (3.0, 19.0)),
+        (id: "lantern", at: (-21.0, -21.0)),
+        (id: "lantern", at: (21.0, -21.0)),
+        (id: "lantern", at: (-21.0, 19.0)),
+        (id: "lantern", at: (21.0, 19.0)),
+        (id: "lantern", at: (-3.0, 36.0)),
+        (id: "lantern", at: (3.0, -38.0)),
+        (id: "lantern", at: (-12.0, 3.0)),
+        (id: "lantern", at: (12.0, -3.0)),
     ],
 )

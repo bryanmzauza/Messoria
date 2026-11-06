@@ -43,10 +43,11 @@ const HEADWAY: f32 = 1.0;
 /// to walk before turning in at a gate.
 const AT_BOARD: Vec3 = Vec3::new(0.0, 0.0, -1.3);
 const ROAD_MIDDLE: f32 = 3.5;
-/// The way from the notice board out of the village square onto each road,
-/// from the middle of the square: around the board, then skirting the
-/// fountain, the benches, the lanterns and the buildings as village.ron
-/// lays them out. North, east, south and west, in the lots' order.
+/// The way from the notice board out of the village onto each road, from
+/// the middle of the square: around the board, then along the streets,
+/// skirting the fountain, the well, the benches, the lanterns and the
+/// buildings as village.ron lays them out. North, east, south and west, in
+/// the lots' order.
 const SQUARE_EXITS: [&[Vec2]; 4] = [
     &[
         Vec2::new(5.6, 8.9),
@@ -54,23 +55,24 @@ const SQUARE_EXITS: [&[Vec2]; 4] = [
         Vec2::new(3.5, -4.0),
         Vec2::new(1.0, -6.5),
         Vec2::new(0.0, -18.0),
+        Vec2::new(0.0, -46.0),
     ],
     &[
         Vec2::new(5.6, 8.9),
-        Vec2::new(5.6, 6.0),
-        Vec2::new(4.0, 4.5),
+        Vec2::new(8.0, 3.0),
         Vec2::new(12.0, 0.5),
-        Vec2::new(18.0, 0.0),
+        Vec2::new(20.0, 0.0),
+        Vec2::new(46.0, 0.0),
     ],
-    &[Vec2::new(5.6, 8.9), Vec2::new(0.0, 18.0)],
+    &[Vec2::new(0.0, 12.0), Vec2::new(0.0, 46.0)],
     &[
         Vec2::new(5.6, 8.9),
-        Vec2::new(5.6, 6.0),
-        Vec2::new(3.5, -4.0),
-        Vec2::new(0.0, -6.3),
-        Vec2::new(-4.0, -4.5),
-        Vec2::new(-12.0, 0.5),
-        Vec2::new(-18.0, 0.0),
+        Vec2::new(2.0, 10.0),
+        Vec2::new(-2.0, 10.0),
+        Vec2::new(-6.5, 9.0),
+        Vec2::new(-6.5, 2.5),
+        Vec2::new(-10.0, 0.5),
+        Vec2::new(-46.0, 0.0),
     ],
 ];
 

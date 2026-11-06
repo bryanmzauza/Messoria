@@ -18,8 +18,8 @@ mod scatter;
 
 pub use crate::{
     landscape::{
-        BOTTOM, COLUMNS, HALF_WIDTH, LAYERS, Landscape, TOP, VILLAGE_CENTER, VILLAGE_RADIUS,
-        column_of, editable, in_world,
+        BOTTOM, COLUMNS, HALF_WIDTH, LANE_REACH, LANES, LAYERS, Landscape, STREET_HALF_WIDTH, TOP,
+        VILLAGE_CENTER, VILLAGE_RADIUS, column_of, editable, in_world, paved,
     },
     lots::{
         FENCE_SECTION, FenceRun, GATE_WIDTH, LOT_COUNT, LOT_SIZE, Lot, LotId, fence_distance,

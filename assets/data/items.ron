@@ -49,6 +49,10 @@
             spoils_into: "compost",
             model: "items/berries.glb",
         ),
+        // Cooked at the tavern.
+        (id: "bread", name: "Bread", kind: Food(energy: 20), stack: 20, shelf_life: 4, spoils_into: "compost", model: "items/bread.glb"),
+        (id: "stew", name: "Stew", kind: Food(energy: 40), stack: 10, shelf_life: 2, spoils_into: "compost", model: "items/stew.glb"),
+
         // Spoiled food; spread on tilled soil, it improves harvests.
         (id: "compost", name: "Compost", kind: Fertilizer, stack: 99, model: "items/compost.glb"),
     ],

@@ -91,7 +91,8 @@ fn the_ground_is_worked_only_on_a_lot_of_ones_own() {
         world.slot_holding(&content, "shovel"),
     );
 
-    // Where players arrive is on no lot.
+    // The road south of the village is on no lot.
+    world.teleport_to(Vec2::new(0.0, 60.0));
     let target = world.ground_ahead();
     world.use_item(hoe, target);
     assert_eq!(world.heard().notices.last(), Some(&Notice::OnlyOnYourLot));
