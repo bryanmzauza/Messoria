@@ -54,11 +54,44 @@ impl Plugin for HorizonPlugin {
     }
 }
 
-/// The tiles drawn, and those that no longer match what is drawn in full.
+/// Every tile worked out, with what draws it unless all of it is drawn in
+/// full, and the tiles that no longer match what is drawn in full.
 #[derive(Resource, Default)]
 struct Horizon {
-    tiles: HashMap<IVec2, Entity>,
+    tiles: HashMap<IVec2, Option<Entity>>,
     stale: HashSet<IVec2>,
+}
+
+impl Horizon {
+    /// The tiles to work out next, nearest `viewer` first: those never
+    /// worked out and those gone stale.
+    fn due(&mut self, viewer: Vec2) -> Vec<IVec2> {
+        let mut due: Vec<IVec2> = all_tiles()
+            .filter(|tile| !self.tiles.contains_key(tile) || self.stale.contains(tile))
+            .collect();
+        due.sort_unstable_by(|a, b| {
+            let distance = |tile: &IVec2| (tile.as_vec2() + 0.5).distance_squared(viewer);
+            distance(a).total_cmp(&distance(b))
+        });
+        due.truncate(TILES_PER_FRAME);
+        for tile in &due {
+            self.stale.remove(tile);
+        }
+        due
+    }
+
+    /// What draws `tile`'s coarse land, if anything does.
+    fn drawn(&self, tile: IVec2) -> Option<Entity> {
+        self.tiles.get(&tile).copied().flatten()
+    }
+
+    /// Notes that `tile` is worked out and drawn by `entity`, or by nothing
+    /// when all of it is drawn in full. A tile left without coarse land is
+    /// noted too, or it would come up again every frame, nearest of all,
+    /// ahead of the tiles still to draw.
+    fn worked_out(&mut self, tile: IVec2, entity: Option<Entity>) {
+        self.tiles.insert(tile, entity);
+    }
 }
 
 fn tile_of(column: IVec2) -> IVec2 {
@@ -97,23 +130,15 @@ fn build_tiles(
         return;
     };
     let viewer = camera.translation.xz() / TILE_METERS;
-    let horizon = &mut *horizon;
-    let mut wanted: Vec<IVec2> = all_tiles()
-        .filter(|tile| !horizon.tiles.contains_key(tile) || horizon.stale.contains(tile))
-        .collect();
-    wanted.sort_unstable_by(|a, b| {
-        let distance = |tile: &IVec2| (tile.as_vec2() + 0.5).distance_squared(viewer);
-        distance(a).total_cmp(&distance(b))
-    });
-    for tile in wanted.into_iter().take(TILES_PER_FRAME) {
-        horizon.stale.remove(&tile);
+    for tile in horizon.due(viewer) {
         let mesh = tile_mesh(&valley, tile, |column| full.contains(column));
-        match (mesh, horizon.tiles.get(&tile).copied()) {
+        let entity = match (mesh, horizon.drawn(tile)) {
             (Some(mesh), Some(entity)) => {
                 commands.entity(entity).insert(Mesh3d(meshes.add(mesh)));
+                Some(entity)
             }
-            (Some(mesh), None) => {
-                let entity = commands
+            (Some(mesh), None) => Some(
+                commands
                     .spawn((
                         Name::new(format!("Horizon {tile}")),
                         Mesh3d(meshes.add(mesh)),
@@ -122,15 +147,15 @@ fn build_tiles(
                         // Far beyond where shadows are drawn.
                         NotShadowCaster,
                     ))
-                    .id();
-                horizon.tiles.insert(tile, entity);
-            }
+                    .id(),
+            ),
             (None, Some(entity)) => {
                 commands.entity(entity).despawn();
-                horizon.tiles.remove(&tile);
+                None
             }
-            (None, None) => {}
-        }
+            (None, None) => None,
+        };
+        horizon.worked_out(tile, entity);
     }
 }
 
@@ -286,5 +311,30 @@ mod tests {
 
         let all = tile_mesh(&valley, tile, |_| true);
         assert!(all.is_none(), "a tile drawn in full has no coarse land");
+    }
+
+    #[test]
+    fn tiles_drawn_in_full_do_not_hold_back_the_land_beyond() {
+        let valley = Landscape::new(7);
+        // The columns around the viewer are drawn in full, covering the
+        // four by four tiles there: the nearest tiles have no coarse land.
+        let near = -2 * TILE_COLUMNS..2 * TILE_COLUMNS;
+        let full = |column: IVec2| near.contains(&column.x) && near.contains(&column.y);
+        let mut horizon = Horizon::default();
+        let frames = all_tiles().count().div_ceil(TILES_PER_FRAME);
+        for _ in 0..frames {
+            for tile in horizon.due(Vec2::ZERO) {
+                let mesh = tile_mesh(&valley, tile, full);
+                horizon.worked_out(tile, mesh.map(|_| Entity::PLACEHOLDER));
+            }
+        }
+        assert!(
+            horizon.due(Vec2::ZERO).is_empty(),
+            "every tile is worked out"
+        );
+        let drawn = all_tiles()
+            .filter(|&tile| horizon.drawn(tile).is_some())
+            .count();
+        assert_eq!(drawn, all_tiles().count() - 16);
     }
 }
