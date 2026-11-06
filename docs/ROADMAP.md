@@ -332,10 +332,17 @@ restart.
 
 Goal: the slice feels like a game.
 
-- [ ] Seasonal music and ambient audio
-- [ ] Playtest: a group plays a full in-game week
+- [x] Seasonal music and ambient audio
+- [x] Playtest: a group plays a full in-game week
 
 **Exit criterion:** the MVP success criteria in the design document are met.
+
+**Decided:** the music and the ambient loops are made for the game by
+scripts that synthesize them ([ADR 0022](adr/0022-music-and-ambience.md)).
+The week was played by eight bots, four farming and four roaming, and a
+game client on a dedicated server with two-minute days, stopped and resumed
+halfway: updates took about 1.4 ms of a 33 ms tick throughout, and neither
+the server nor the client grew in memory.
 
 ## M22 — Playing from the game
 

@@ -40,14 +40,16 @@ enum OptionsButton {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Setting {
     Volume,
+    Music,
     MouseSensitivity,
     FieldOfView,
     Graphics,
 }
 
 impl Setting {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 5] = [
         Self::Volume,
+        Self::Music,
         Self::MouseSensitivity,
         Self::FieldOfView,
         Self::Graphics,
@@ -56,6 +58,7 @@ impl Setting {
     fn name(self) -> &'static str {
         match self {
             Self::Volume => "Volume",
+            Self::Music => "Music",
             Self::MouseSensitivity => "Mouse sensitivity",
             Self::FieldOfView => "Field of view",
             Self::Graphics => "Graphics",
@@ -65,6 +68,7 @@ impl Setting {
     fn shown(self, settings: &Settings) -> String {
         match self {
             Self::Volume => format!("{:.0}%", settings.volume * 100.0),
+            Self::Music => format!("{:.0}%", settings.music_volume * 100.0),
             Self::MouseSensitivity => format!("{:.1}x", settings.mouse_sensitivity),
             Self::FieldOfView => format!("{:.0}", settings.field_of_view),
             Self::Graphics => match settings.graphics {
@@ -79,6 +83,7 @@ impl Setting {
     fn step(self, settings: &mut Settings, direction: i8) {
         let (value, step) = match self {
             Self::Volume => (&mut settings.volume, VOLUME_STEP),
+            Self::Music => (&mut settings.music_volume, VOLUME_STEP),
             Self::MouseSensitivity => (&mut settings.mouse_sensitivity, SENSITIVITY_STEP),
             Self::FieldOfView => (&mut settings.field_of_view, FIELD_OF_VIEW_STEP),
             Self::Graphics => {

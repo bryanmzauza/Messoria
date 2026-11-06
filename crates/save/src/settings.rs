@@ -11,9 +11,11 @@ use crate::{
 };
 
 /// Version of the format this game writes. Version 1 had no graphics
-/// quality, and version 2 nothing the title screen remembers.
-const VERSION: u32 = 3;
+/// quality, version 2 nothing the title screen remembers, and version 3
+/// no music volume; what they lack takes its default.
+const VERSION: u32 = 4;
 const WITHOUT_TITLE_MEMORY: u32 = 2;
+const WITHOUT_MUSIC_VOLUME: u32 = 3;
 
 /// Addresses the title screen keeps for joining again.
 pub const RECENT_SERVERS: usize = 5;
@@ -22,6 +24,8 @@ pub const RECENT_SERVERS: usize = 5;
 pub struct Settings {
     /// Loudness of every sound, from silent to as recorded.
     pub volume: f32,
+    /// Loudness of the music, within the volume above.
+    pub music_volume: f32,
     /// Scales how far the view turns for a given mouse movement.
     pub mouse_sensitivity: f32,
     /// Vertical field of view, in degrees.
@@ -64,6 +68,7 @@ impl Graphics {
 
 impl Settings {
     pub const VOLUME: RangeInclusive<f32> = 0.0..=1.0;
+    pub const MUSIC_VOLUME: RangeInclusive<f32> = 0.0..=1.0;
     pub const MOUSE_SENSITIVITY: RangeInclusive<f32> = 0.2..=3.0;
     pub const FIELD_OF_VIEW: RangeInclusive<f32> = 40.0..=100.0;
 
@@ -99,6 +104,7 @@ impl Settings {
         let text = to_ron(&SettingsFile {
             version: VERSION,
             volume: self.volume,
+            music_volume: self.music_volume,
             mouse_sensitivity: self.mouse_sensitivity,
             field_of_view: self.field_of_view,
             graphics: self.graphics,
@@ -128,6 +134,7 @@ impl Settings {
         };
         Self {
             volume: clamp(self.volume, Self::VOLUME),
+            music_volume: clamp(self.music_volume, Self::MUSIC_VOLUME),
             mouse_sensitivity: clamp(self.mouse_sensitivity, Self::MOUSE_SENSITIVITY),
             field_of_view: clamp(self.field_of_view, Self::FIELD_OF_VIEW),
             ..self
@@ -136,12 +143,13 @@ impl Settings {
 
     fn from_ron(text: &str) -> Result<Self, Problem> {
         let file: SettingsFile = match version_of(text)? {
-            VERSION | WITHOUT_TITLE_MEMORY => ron::from_str(text)?,
+            VERSION | WITHOUT_MUSIC_VOLUME | WITHOUT_TITLE_MEMORY => ron::from_str(text)?,
             1 => {
                 let old: SettingsFileV1 = ron::from_str(text)?;
                 SettingsFile {
                     version: VERSION,
                     volume: old.volume,
+                    music_volume: DEFAULT_MUSIC_VOLUME,
                     mouse_sensitivity: old.mouse_sensitivity,
                     field_of_view: old.field_of_view,
                     graphics: Graphics::default(),
@@ -153,6 +161,7 @@ impl Settings {
         };
         Ok(Self {
             volume: file.volume,
+            music_volume: file.music_volume,
             mouse_sensitivity: file.mouse_sensitivity,
             field_of_view: file.field_of_view,
             graphics: file.graphics,
@@ -163,10 +172,17 @@ impl Settings {
     }
 }
 
+const DEFAULT_MUSIC_VOLUME: f32 = 0.6;
+
+fn default_music_volume() -> f32 {
+    DEFAULT_MUSIC_VOLUME
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             volume: 0.8,
+            music_volume: DEFAULT_MUSIC_VOLUME,
             mouse_sensitivity: 1.0,
             field_of_view: 60.0,
             graphics: Graphics::default(),
@@ -180,6 +196,8 @@ impl Default for Settings {
 struct SettingsFile {
     version: u32,
     volume: f32,
+    #[serde(default = "default_music_volume")]
+    music_volume: f32,
     mouse_sensitivity: f32,
     field_of_view: f32,
     graphics: Graphics,
@@ -210,6 +228,7 @@ mod tests {
 
         let mut settings = Settings {
             volume: 0.3,
+            music_volume: 0.5,
             mouse_sensitivity: 1.5,
             field_of_view: 75.0,
             graphics: Graphics::Medium,
@@ -241,10 +260,10 @@ mod tests {
 
     #[test]
     fn settings_from_a_newer_game_are_refused() {
-        let text = "(version: 4, volume: 1.0, mouse_sensitivity: 1.0, field_of_view: 70.0)";
+        let text = "(version: 5, volume: 1.0, mouse_sensitivity: 1.0, field_of_view: 70.0)";
         assert!(matches!(
             Settings::from_ron(text),
-            Err(Problem::Newer { found: 4, .. })
+            Err(Problem::Newer { found: 5, .. })
         ));
     }
 
@@ -254,6 +273,15 @@ mod tests {
         let settings = Settings::from_ron(text).expect("readable");
         assert_eq!(settings.graphics, Graphics::default());
         assert!((settings.volume - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn settings_saved_before_the_music_volume_load_with_the_default() {
+        let text =
+            "(version: 3, volume: 0.5, mouse_sensitivity: 1.0, field_of_view: 70.0, graphics: Low)";
+        let settings = Settings::from_ron(text).expect("readable");
+        assert!((settings.music_volume - DEFAULT_MUSIC_VOLUME).abs() < f32::EPSILON);
+        assert_eq!(settings.graphics, Graphics::Low);
     }
 
     #[test]

@@ -373,6 +373,18 @@ See [ADR 0011](adr/0011-structures-and-homes.md).
   and hotbar.
 - The world file keeps every structure, whose home it is and what it keeps.
 
+## Music and ambience
+
+See [ADR 0022](adr/0022-music-and-ambience.md).
+
+- `music` plays the piece of the season drawn (`assets/music/`), looping,
+  crossfading to the next as the season turns, at the music volume among
+  the settings; the title screen plays spring.
+- `ambience` keeps wind, birds, crickets, rain and the river looping
+  (`assets/sounds/ambience/`), each in a plain and a muffled recording,
+  easing their volumes toward what the hour, the season, the weather,
+  the distance to the river and being indoors call for.
+
 ## Feedback and feel
 
 See [ADR 0009](adr/0009-action-feedback-and-collision.md).

@@ -6,6 +6,7 @@
 //! predicts the local player's movement through shared code.
 
 mod actions;
+mod ambience;
 mod art;
 mod avatars;
 mod barber;
@@ -31,6 +32,7 @@ mod inventory;
 mod launch;
 mod menu;
 mod mirror;
+mod music;
 mod names;
 mod nametags;
 mod noise;
@@ -93,6 +95,7 @@ impl Plugin for TitlePlugin {
                 file: self.settings_file.clone(),
             },
             options::OptionsPlugin,
+            music::MusicPlugin,
             title::TitlePlugin {
                 saves: self.saves.clone(),
                 notice: self.notice.clone(),
@@ -167,6 +170,11 @@ impl Plugin for ClientPlugin {
             options::OptionsPlugin,
             menu::MenuPlugin,
         ))
-        .add_plugins((controls::ControlsPlugin, nametags::NameTagsPlugin));
+        .add_plugins((
+            controls::ControlsPlugin,
+            nametags::NameTagsPlugin,
+            music::MusicPlugin,
+            ambience::AmbiencePlugin,
+        ));
     }
 }

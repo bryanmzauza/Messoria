@@ -9,6 +9,7 @@ Sound from other creators, where it comes from and under which license.
 | `sounds/rpg/` | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney ([kenney.nl](https://www.kenney.nl)) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 
 Each folder keeps the license file that came with its pack, and only the
-files the game uses. The models in `models/`, the character skins in `skins/`
-and the textures in `textures/` were made for Messoria and fall under the
-repository's license.
+files the game uses. The models in `models/`, the character skins in `skins/`,
+the textures in `textures/`, the music in `music/` and the ambient loops in
+`sounds/ambience/` were made for Messoria and fall under the repository's
+license.
