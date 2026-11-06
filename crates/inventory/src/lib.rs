@@ -327,6 +327,7 @@ mod tests {
                 wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.0, 0.0, 0.0)]),
             )"#,
             village: "(stalls: [], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"))",
+            villagers: "(villagers: [])",
         })
         .unwrap();
         let id = |key| catalog.id(key).unwrap();

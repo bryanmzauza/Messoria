@@ -25,7 +25,7 @@ use messoria_shared::{
     players::player_key,
     protocol::{
         ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerId, PlayerInput,
-        Position, UseItem,
+        Position, UseItem, Villager,
     },
     structures,
     terrain::Terrain,
@@ -48,6 +48,11 @@ const AIM_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
 const PROTECTED_AIM_COLOR: Color = Color::srgba(1.0, 0.3, 0.25, 0.8);
 /// Lifts aim markers off the surface so they are not hidden inside it.
 const AIM_LIFT: f32 = 0.05;
+/// How wide and tall a villager is to aim at, and how finely the aim is
+/// checked along its way.
+const VILLAGER_RADIUS: f32 = 0.45;
+const VILLAGER_HEIGHT: f32 = 1.9;
+const AIM_STEP: f32 = 0.2;
 const BUTTONS: [(MouseButton, ItemAction); 2] = [
     (MouseButton::Left, ItemAction::Primary),
     (MouseButton::Right, ItemAction::Secondary),
@@ -77,12 +82,14 @@ impl Plugin for ActionsPlugin {
 }
 
 /// What is under the crosshair within the character's reach: the ground, or
-/// something standing on it, such as a tree or a stall, whichever is nearer.
+/// something standing on it, such as a tree or a stall, or a villager,
+/// whichever is nearer.
 #[derive(Resource, Default)]
 pub(crate) struct Aim {
     pub ground: Option<RayHit>,
     /// What stands there, and the point on it aimed at.
     pub thing: Option<(Blocker, Vec3)>,
+    pub villager: Option<Entity>,
 }
 
 /// The local player used the held item.
@@ -134,6 +141,7 @@ fn aim(
     obstacles: Res<Obstacles>,
     camera: Single<&Transform, With<WorldCamera>>,
     player: Query<&Position, With<InputMarker<PlayerInput>>>,
+    villagers: Query<(Entity, &Transform), With<Villager>>,
     mut aim: ResMut<Aim>,
 ) {
     *aim = Aim::default();
@@ -155,12 +163,48 @@ fn aim(
         .raycast(origin, direction, max_distance)
         .map(|(blocker, distance)| (blocker, distance, origin + direction * distance))
         .filter(|&(_, _, point)| tools::in_reach(eyes, point));
+    let nearest_so_far = match (ground, thing) {
+        (Some(hit), Some((_, distance, _))) => hit.distance.min(distance),
+        (Some(hit), None) => hit.distance,
+        (None, Some((_, distance, _))) => distance,
+        (None, None) => max_distance,
+    };
+    if let Some(villager) = villager_hit(&villagers, origin, direction, nearest_so_far)
+        .filter(|&(_, distance)| tools::in_reach(eyes, origin + direction * distance))
+    {
+        aim.villager = Some(villager.0);
+        return;
+    }
     match thing {
         Some((blocker, distance, point)) if ground.is_none_or(|hit| distance < hit.distance) => {
             aim.thing = Some((blocker, point));
         }
         _ => aim.ground = ground,
     }
+}
+
+/// The first villager a ray from `origin` along `direction` meets within
+/// `max_distance`, and how far along.
+fn villager_hit(
+    villagers: &Query<(Entity, &Transform), With<Villager>>,
+    origin: Vec3,
+    direction: Vec3,
+    max_distance: f32,
+) -> Option<(Entity, f32)> {
+    let mut distance = 0.0;
+    while distance <= max_distance {
+        let point = origin + direction * distance;
+        for (entity, transform) in villagers {
+            let feet = transform.translation;
+            let within = point.xz().distance(feet.xz()) <= VILLAGER_RADIUS
+                && (feet.y..=feet.y + VILLAGER_HEIGHT).contains(&point.y);
+            if within {
+                return Some((entity, distance));
+            }
+        }
+        distance += AIM_STEP;
+    }
+    None
 }
 
 fn use_held_item(

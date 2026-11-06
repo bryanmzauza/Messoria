@@ -5,7 +5,8 @@
 //! carries, and what it sells. Every price and every refusal is worked out
 //! with the same trade rules the server applies, on copies of the player's
 //! state and the replicated market, so a button offers exactly what the
-//! trade will pay.
+//! trade will pay. The villager keeping the shop stands behind its counter
+//! in its hours.
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
@@ -25,13 +26,10 @@ use messoria_shared::{
 use crate::{
     actions::INTERACT_KEY,
     art::Models,
-    avatars::{Keeper, dress},
     camera::View,
     clock::LocalClock,
-    figures::FigureMeshes,
     icons::ItemIcons,
     panels::OpenPanel,
-    skins::Tailor,
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
@@ -45,9 +43,6 @@ const COUNTER_HEIGHT: f32 = 0.95;
 const COUNTER_FRONT: f32 = -0.45;
 /// Size of the item icons in the listing.
 const ROW_ICON_SIZE: f32 = 28.0;
-/// Where the keeper stands: to one side of the middle post, behind the counter.
-const KEEPER_SIDE: f32 = 0.55;
-const KEEPER_BEHIND: f32 = 0.55;
 
 pub(crate) struct ShopsPlugin;
 
@@ -75,15 +70,12 @@ struct ShopListing;
 #[derive(Component, Clone, Copy)]
 struct DealButton(Deal);
 
-/// A stall: the shop's stall model with some of its wares on the counter,
-/// and its keeper behind it. Built facing -Z, then turned the way the stall
-/// faces.
+/// A stall: the shop's stall model with some of its wares on the counter.
+/// Built facing -Z, then turned the way the stall faces.
 fn build_stall(
     trigger: On<Add, Shopfront>,
     content: Res<Content>,
     models: Res<Models>,
-    meshes: Res<FigureMeshes>,
-    mut tailor: Tailor,
     stalls: Query<&Shopfront>,
     mut commands: Commands,
 ) {
@@ -115,24 +107,6 @@ fn build_stall(
                 parts.spawn((ware, Transform::from_xyz(x, COUNTER_HEIGHT, COUNTER_FRONT)));
             }
         });
-    let keeper = commands
-        .spawn((
-            Name::new(format!("{} keeper", shop.name)),
-            Keeper {
-                stall: stall.position,
-            },
-            Transform::from_xyz(KEEPER_SIDE, 0.0, KEEPER_BEHIND),
-            ChildOf(trigger.entity),
-        ))
-        .id();
-    dress(
-        &mut commands,
-        &content,
-        &meshes,
-        &mut tailor,
-        keeper,
-        &shop.keeper,
-    );
 }
 
 fn spawn_shop_window(mut commands: Commands) {

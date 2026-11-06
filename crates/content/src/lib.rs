@@ -18,6 +18,7 @@ mod scenery;
 mod shop;
 mod structure;
 mod village;
+mod villager;
 
 pub use crate::{
     catalog::{Catalog, Sources},
@@ -29,5 +30,6 @@ pub use crate::{
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
-    village::{Lots, Stall, Village},
+    village::{Lots, Paths, Spot, SpotPose, Stall, Village},
+    villager::{Activity, Slot, VillagerDef, VillagerId},
 };

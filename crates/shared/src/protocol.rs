@@ -1,13 +1,13 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! the valley, inventories, fields, farm lots, money, shops and player
-//! actions.
+//! the valley, inventories, fields, farm lots, money, shops, villagers and
+//! player actions.
 
 use std::fmt;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, ShopId, StructureId, Tool};
+use messoria_content::{ItemId, ShopId, StructureId, Tool, VillagerId};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -288,6 +288,24 @@ pub struct Uninvite {
     pub player: String,
 }
 
+/// A villager, by their place in the content, living in the village and
+/// moved by the server along their day.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Villager(pub VillagerId);
+
+/// What a villager is doing, as everyone sees it.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Doing {
+    #[default]
+    Standing,
+    Walking,
+    Sitting,
+    /// Bent over the ground, as over a garden bed.
+    Tending,
+    /// Inside a house, out of sight.
+    Indoors,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -520,6 +538,8 @@ impl Plugin for ProtocolPlugin {
         app.component::<Stored>().replicate();
         app.component::<Holding>().replicate();
         app.component::<LotClaim>().replicate();
+        app.component::<Villager>().replicate();
+        app.component::<Doing>().replicate();
 
         app.component::<PlayerId>().replicate();
 

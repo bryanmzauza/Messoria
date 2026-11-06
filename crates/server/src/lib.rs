@@ -26,6 +26,7 @@ mod saving;
 mod storage;
 mod terrain;
 mod village;
+mod villagers;
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -144,6 +145,7 @@ impl Plugin for ServerPlugin {
             .add_plugins((
                 terrain::TerrainPlugin,
                 village::VillagePlugin,
+                villagers::VillagersPlugin,
                 interest::InterestPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,

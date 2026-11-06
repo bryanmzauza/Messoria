@@ -144,6 +144,26 @@ See [ADR 0004](adr/0004-terrain-representation.md),
   leaving out the columns drawn in full with skirts beside them. `water`
   lays the river's water along its whole course.
 
+## Villagers
+
+See [ADR 0018](adr/0018-villagers-with-days-of-their-own.md).
+
+- `villagers.ron` names the villagers, dresses them, gives each a house (a
+  labeled building in `village.ron`), the shop they keep and a day of
+  slots by time, weekday, season and weather. `village.ron` lists the spots
+  they go to, with a facing, a pose and the spots passed on the way in,
+  and the paths they walk.
+- The server's `villagers` module spawns one replicated character per
+  villager (`Villager`, position, heading, velocity, `Doing`) and, every
+  tick, picks the slot that holds, routes along the paths
+  (`villagers::paths`) and walks the villager there; while no player is
+  near the village, villagers are put where they belong once every couple
+  of seconds instead. They move through rooms like players.
+- The client dresses villagers from the content (`avatars`), seats them,
+  bends them to the ground or hides them indoors as `Doing` says, names
+  them under the crosshair (`actions`, `target`) and has the one keeping
+  a shop greet whoever trades at its stall.
+
 ## Farm lots
 
 See [ADR 0016](adr/0016-farm-lots.md).
@@ -372,8 +392,8 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 - In first person a second camera draws the player's own arm, holding the
   item, over the world on its own render layer, so it never sinks into
   walls; it sways with the steps and swings on each use.
-- Shopkeepers stand behind their stalls' counters, with some of their wares
-  on them, and greet whoever trades there.
+- Stalls carry some of their shops' wares on the counter; the villager
+  keeping the shop stands behind it in its hours.
 - Item icons are rendered by the client at startup from each item's model
   (a lump of its color if it has none; seeds with what they grow into),
   each by its own camera into an image, far below the valley on a render

@@ -17,6 +17,7 @@ use crate::{
     shop::{MarketRules, ShopDef, ShopId, Shops, ShopsFile},
     structure::{StructureDef, StructureId, Structures, StructuresFile},
     village::{Village, VillageFile},
+    villager::{VillagerDef, VillagerId, Villagers, VillagersFile},
 };
 
 /// Files within the data folder.
@@ -28,6 +29,7 @@ const PALETTE_FILE: &str = "palette.ron";
 const STRUCTURES_FILE: &str = "structures.ron";
 const CHARACTERS_FILE: &str = "characters.ron";
 const VILLAGE_FILE: &str = "village.ron";
+const VILLAGERS_FILE: &str = "villagers.ron";
 /// Folder of the models, next to the data folder.
 const MODELS_FOLDER: &str = "models";
 const SKINS_FOLDER: &str = "skins";
@@ -43,6 +45,7 @@ pub struct Sources<'a> {
     pub structures: &'a str,
     pub characters: &'a str,
     pub village: &'a str,
+    pub villagers: &'a str,
 }
 
 /// All loaded content, with every cross-reference checked.
@@ -70,6 +73,8 @@ pub struct Catalog {
     structures_by_item: HashMap<ItemId, StructureId>,
     characters: Characters,
     village: Village,
+    villagers: Vec<VillagerDef>,
+    villager_keys: HashMap<String, VillagerId>,
 }
 
 impl Catalog {
@@ -92,6 +97,7 @@ impl Catalog {
         let (scenery, palette) = (read(SCENERY_FILE)?, read(PALETTE_FILE)?);
         let structures = read(STRUCTURES_FILE)?;
         let (characters, village) = (read(CHARACTERS_FILE)?, read(VILLAGE_FILE)?);
+        let villagers = read(VILLAGERS_FILE)?;
         let sources = Sources {
             items: &items,
             crops: &crops,
@@ -101,6 +107,7 @@ impl Catalog {
             structures: &structures,
             characters: &characters,
             village: &village,
+            villagers: &villagers,
         };
         let catalog = Self::build(sources, data_dir)?;
 
@@ -135,16 +142,16 @@ impl Catalog {
         }
 
         let skins = data_dir.parent().unwrap_or(data_dir).join(SKINS_FOLDER);
-        let keeper_skins = catalog
-            .shops
+        let villager_skins = catalog
+            .villagers
             .iter()
-            .flat_map(|shop| shop.keeper.layers())
-            .map(|skin| (skin, SHOPS_FILE));
+            .flat_map(|villager| villager.look.layers())
+            .map(|skin| (skin, VILLAGERS_FILE));
         let used = catalog
             .characters
             .skins_used()
             .map(|skin| (skin.as_str(), CHARACTERS_FILE))
-            .chain(keeper_skins);
+            .chain(villager_skins);
         for (skin, file) in used {
             if !skins.join(skin).is_file() {
                 return Err(ContentError {
@@ -198,6 +205,9 @@ impl Catalog {
         let village = parse::<VillageFile>(sources.village)
             .and_then(|file| file.resolve(&shops.by_key, &structures.by_key))
             .map_err(in_file(VILLAGE_FILE))?;
+        let villagers: Villagers = parse::<VillagersFile>(sources.villagers)
+            .and_then(|file| file.resolve(&shops.by_key, &village))
+            .map_err(in_file(VILLAGERS_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();
         for crop in &crops.definitions {
@@ -231,6 +241,8 @@ impl Catalog {
             structures_by_item: structures.by_item,
             characters,
             village,
+            villagers: villagers.definitions,
+            villager_keys: villagers.by_key,
         })
     }
 
@@ -384,6 +396,26 @@ impl Catalog {
         &self.village
     }
 
+    /// The definition of `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` did not come from this catalog.
+    pub fn villager(&self, id: VillagerId) -> &VillagerDef {
+        &self.villagers[usize::from(id.0)]
+    }
+
+    pub fn villagers(&self) -> impl Iterator<Item = (VillagerId, &VillagerDef)> {
+        self.villagers
+            .iter()
+            .zip((0..=u16::MAX).map(VillagerId))
+            .map(|(villager, id)| (id, villager))
+    }
+
+    pub fn villager_id(&self, key: &str) -> Option<VillagerId> {
+        self.villager_keys.get(key).copied()
+    }
+
     /// The plants covering grassy ground.
     pub fn cover(&self) -> &[CoverDef] {
         &self.cover
@@ -475,7 +507,6 @@ mod tests {
                 buys: [("turnip", 30), ("berries", 8)],
                 sells: [(item: "turnip_seeds", price: 10, seasons: [Spring]), (item: "compost", price: 5)],
                 stall: "town/stall.glb",
-                keeper: (body: "b.png", outfit: "o.png", hair: "h.png", hair_color: (0.2, 0.1, 0.1)),
             ),
         ],
     )"#;
@@ -519,6 +550,7 @@ mod tests {
             structures: "(structures: [])",
             characters: CHARACTERS,
             village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"))",
+            villagers: "(villagers: [])",
         })
     }
 
@@ -742,7 +774,7 @@ mod tests {
     fn inconsistent_shops_are_rejected() {
         let cases = [
             (
-                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\", keeper: (body: \"b.png\", outfit: \"o.png\", hair: \"h.png\", hair_color: (0.0, 0.0, 0.0))),"),
+                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\"),"),
                 "shop `grocer` is defined more than once",
             ),
             (

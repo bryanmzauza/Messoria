@@ -1,6 +1,6 @@
-//! What the crosshair is on, named under it: a crop and how it is doing, a
-//! field, a stall, something built, a fence, a piece of scenery and how to
-//! gather it, or whose farm lot the ground belongs to.
+//! What the crosshair is on, named under it: a villager, a crop and how it
+//! is doing, a field, a stall, something built, a fence, a piece of scenery
+//! and how to gather it, or whose farm lot the ground belongs to.
 
 use bevy::prelude::*;
 use lightyear::prelude::input::native::InputMarker;
@@ -13,7 +13,9 @@ use messoria_shared::{
     lots::{self, Claims, GATE_WIDTH},
     obstacles::Blocker,
     players::{player_key, player_name},
-    protocol::{Crop, Fertilized, Field, PlayerId, PlayerInput, Shopfront, Structure, Watered},
+    protocol::{
+        Crop, Fertilized, Field, PlayerId, PlayerInput, Shopfront, Structure, Villager, Watered,
+    },
     scenery::Scenery,
     valley::PropKey,
 };
@@ -101,52 +103,59 @@ fn describe_target(
     structures: Query<&Structure>,
     claims: Claims,
     player: Query<&PlayerId, With<InputMarker<PlayerInput>>>,
+    villagers: Query<&Villager>,
     mut name: Single<&mut Text, (With<TargetName>, Without<TargetDetail>)>,
     mut detail: Single<&mut Text, With<TargetDetail>>,
 ) {
     let today = clock.time().map(WorldTime::day);
-    let described = if let Some((Blocker::Prop(key), _)) = aim.thing {
-        Some(describe_prop(&content, key, scenery.gathered(key), today))
-    } else if let Some((Blocker::Fences(_), point)) = aim.thing {
-        Some(Description {
-            name: if lots::gate_distance(point.xz()) < GATE_WIDTH {
-                "Gate".to_owned()
-            } else {
-                "Fence".to_owned()
-            },
-            detail: String::new(),
-        })
-    } else if let Some((Blocker::Thing(thing), _)) = aim.thing {
-        if let Ok(stall) = stalls.get(thing) {
+    let described =
+        if let Some(villager) = aim.villager.and_then(|entity| villagers.get(entity).ok()) {
             Some(Description {
-                name: format!("{}'s stall", content.shop(stall.shop).name),
-                detail: format!("Stand close and press {INTERACT_KEY_NAME} to trade"),
+                name: content.villager(villager.0).name.clone(),
+                detail: String::new(),
             })
-        } else {
-            structures
-                .get(thing)
-                .ok()
-                .map(|structure| describe_structure(&content, structure))
-        }
-    } else if let Some(hit) = aim.ground {
-        let tile = tile_at(hit.point);
-        fields
-            .iter()
-            .find(|(field, ..)| field.tile == tile)
-            .map(|(_, crop, watered, fertilized)| {
-                describe_field(&content, clock.time(), crop, watered, fertilized)
+        } else if let Some((Blocker::Prop(key), _)) = aim.thing {
+            Some(describe_prop(&content, key, scenery.gathered(key), today))
+        } else if let Some((Blocker::Fences(_), point)) = aim.thing {
+            Some(Description {
+                name: if lots::gate_distance(point.xz()) < GATE_WIDTH {
+                    "Gate".to_owned()
+                } else {
+                    "Fence".to_owned()
+                },
+                detail: String::new(),
             })
-            .or_else(|| {
-                let key = player
-                    .single()
+        } else if let Some((Blocker::Thing(thing), _)) = aim.thing {
+            if let Ok(stall) = stalls.get(thing) {
+                Some(Description {
+                    name: format!("{}'s stall", content.shop(stall.shop).name),
+                    detail: format!("Stand close and press {INTERACT_KEY_NAME} to trade"),
+                })
+            } else {
+                structures
+                    .get(thing)
                     .ok()
-                    .and_then(|player| player_key(player.0))?;
-                describe_lot(&claims, &key, hit.point.xz())
-            })
-    } else {
-        None
-    }
-    .unwrap_or_default();
+                    .map(|structure| describe_structure(&content, structure))
+            }
+        } else if let Some(hit) = aim.ground {
+            let tile = tile_at(hit.point);
+            fields
+                .iter()
+                .find(|(field, ..)| field.tile == tile)
+                .map(|(_, crop, watered, fertilized)| {
+                    describe_field(&content, clock.time(), crop, watered, fertilized)
+                })
+                .or_else(|| {
+                    let key = player
+                        .single()
+                        .ok()
+                        .and_then(|player| player_key(player.0))?;
+                    describe_lot(&claims, &key, hit.point.xz())
+                })
+        } else {
+            None
+        }
+        .unwrap_or_default();
 
     if name.0 != described.name {
         name.0 = described.name;

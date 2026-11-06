@@ -14,7 +14,7 @@ use bevy::{
 use messoria_calendar::Season;
 use messoria_content::Tool;
 use messoria_shared::{
-    protocol::{Happened, PlayerId},
+    protocol::{Happened, PlayerId, Villager},
     terrain::Terrain,
     village,
 };
@@ -271,7 +271,10 @@ fn sound_footsteps(
     sounds: Res<Sounds>,
     terrain: Res<Terrain>,
     season: Res<DrawnSeason>,
-    mut characters: Query<(Entity, &Transform, Option<&mut Stride>), With<PlayerId>>,
+    mut characters: Query<
+        (Entity, &Transform, Option<&mut Stride>),
+        Or<(With<PlayerId>, With<Villager>)>,
+    >,
     mut commands: Commands,
 ) {
     for (character, transform, stride) in &mut characters {

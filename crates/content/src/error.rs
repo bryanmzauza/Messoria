@@ -40,6 +40,10 @@ pub enum Problem {
     InvalidCharacters(String),
     #[error("the village is invalid: {0}")]
     InvalidVillage(String),
+    #[error("villager `{0}` is defined more than once")]
+    DuplicateVillager(String),
+    #[error("villager `{villager}` is invalid: {reason}")]
+    InvalidVillager { villager: String, reason: String },
     #[error("no item is dug from {0:?}")]
     UndiggableMaterial(Material),
     #[error("{material:?} is dug as both `{first}` and `{second}`")]

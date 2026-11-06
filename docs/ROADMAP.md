@@ -257,12 +257,16 @@ other's land unless invited, and ownership survives a restart.
 
 Goal: a village worth walking through.
 
-- [ ] A larger village: streets, houses for the villagers, gardens, a well
+- [x] A larger village: streets, houses for the villagers, gardens, a well
       and the notice board
-- [ ] New buildings: a tavern, a tailor, a barber and a blacksmith
-- [ ] Interiors for the shops and the tavern, walked into through their doors
-- [ ] The grocer and the carpenter move into proper shops, or keep their
+- [x] New buildings: a tavern, a tailor, a barber and a blacksmith
+- [x] Interiors for the shops and the tavern, walked into through their doors
+- [x] The grocer and the carpenter move into proper shops, or keep their
       stalls on a market street
+
+**Decided:** the grocer and the carpenter keep their stalls on the square,
+an open-air market; the tavern and the new shops are walked into
+([ADR 0017](adr/0017-a-village-to-walk-into.md)).
 
 **Exit criterion:** the village looks lived-in in screenshots, day and night,
 in every season, and every door that opens leads somewhere furnished.
@@ -271,14 +275,14 @@ in every season, and every door that opens leads somewhere furnished.
 
 Goal: the village has people with lives of their own.
 
-- [ ] Eight to ten named villagers, defined in data: look, home, work and a
+- [x] Eight to ten named villagers, defined in data: look, home, work and a
       daily schedule by hour, weekday, season and weather
-- [ ] Villagers simulated on the server, walking the village's paths, and
+- [x] Villagers simulated on the server, walking the village's paths, and
       seen by everyone moving and animated like players
-- [ ] Shopkeepers keep their shop's hours from behind the counter; others
+- [x] Shopkeepers keep their shop's hours from behind the counter; others
       sit on benches, chat in pairs, tend gardens, eat at the tavern and go
       home at night
-- [ ] Villagers far from every player are simulated at a lower rate
+- [x] Villagers far from every player are simulated at a lower rate
 
 **Exit criterion:** following one villager through a whole day matches their
 schedule, and all of them keep to it with players anywhere on the map.

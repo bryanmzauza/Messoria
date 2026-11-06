@@ -44,6 +44,9 @@ pub struct StructureDef {
     pub lamps: Vec<(f32, f32, f32)>,
     /// Structures built along with it, such as the furniture of a cabin.
     pub contains: Vec<Placement>,
+    /// Where its front door is, on its ground in its frame, for whoever
+    /// lives or works in it.
+    pub door: Option<(f32, f32)>,
 }
 
 /// What players do with a structure.
@@ -128,6 +131,8 @@ struct StructureEntry {
     lamps: Vec<(f32, f32, f32)>,
     #[serde(default)]
     contains: Vec<PlacementEntry>,
+    #[serde(default)]
+    door: Option<(f32, f32)>,
 }
 
 #[derive(Deserialize)]
@@ -259,6 +264,7 @@ impl StructureEntry {
             solids: self.solids,
             lamps: self.lamps,
             contains,
+            door: self.door,
         })
     }
 }
