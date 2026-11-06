@@ -18,7 +18,7 @@ use bevy::{
 };
 use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_calendar::WorldTime;
-use messoria_content::{ItemId, ItemKind, Quality, Tool};
+use messoria_content::{ItemId, ItemKind, Quality, Tool, Wear};
 use messoria_inventory::{HOTBAR_SLOTS, SLOTS, Stack};
 use messoria_shared::{
     content::Content,
@@ -463,6 +463,9 @@ fn choose_held_slot(
     panel: Res<OpenPanel>,
     mut held: ResMut<HeldSlot>,
 ) {
+    if panel.takes_typing() {
+        return;
+    }
     if let Some(slot) = HOTBAR_KEYS.iter().position(|&key| keys.just_pressed(key)) {
         held.0 = slot;
     }
@@ -494,8 +497,10 @@ fn toggle_windows(
 ) {
     if keys.just_pressed(TOGGLE_KEY) {
         match *panel {
-            OpenPanel::Backpack | OpenPanel::Chest(_) => *panel = OpenPanel::None,
-            OpenPanel::Menu | OpenPanel::Options => {}
+            OpenPanel::Backpack | OpenPanel::Chest(_) | OpenPanel::Wardrobe(_) => {
+                *panel = OpenPanel::None;
+            }
+            OpenPanel::Menu | OpenPanel::Options | OpenPanel::Creator => {}
             OpenPanel::None
             | OpenPanel::Shop(_)
             | OpenPanel::Board(_)
@@ -870,6 +875,12 @@ fn describe(content: &Content, stack: &Stack, today: Option<u32>) -> String {
         ItemKind::Food { energy } => format!("Eat to restore {energy} energy."),
         ItemKind::Terrain { .. } => "Raise the ground with it, using the shovel.".to_owned(),
         ItemKind::Goods => "Sell it in the village.".to_owned(),
+        ItemKind::Garment {
+            wear: Wear::Outfit, ..
+        } => "Clothes to change into at the wardrobe in your cabin.".to_owned(),
+        ItemKind::Garment {
+            wear: Wear::Hat, ..
+        } => "A hat to put on at the wardrobe in your cabin.".to_owned(),
         ItemKind::Structure => match content.structure_built_from(stack.item) {
             Some(built) => format!(
                 "Builds a {} on open ground, its front where you aim.",

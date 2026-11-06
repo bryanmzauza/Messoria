@@ -174,6 +174,7 @@ fn describe_structure(content: &Content, structure: &Structure) -> Description {
             Purpose::Bed => format!("Press {INTERACT_KEY_NAME} to sleep, from 18:00"),
             Purpose::Storage => format!("Press {INTERACT_KEY_NAME} to open"),
             Purpose::NoticeBoard => format!("Press {INTERACT_KEY_NAME} to pick a farm lot"),
+            Purpose::Wardrobe => format!("Press {INTERACT_KEY_NAME} to change clothes"),
             Purpose::None => String::new(),
         },
     }

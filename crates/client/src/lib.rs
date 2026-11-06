@@ -8,11 +8,13 @@
 mod actions;
 mod art;
 mod avatars;
+mod barber;
 mod board;
 mod camera;
 mod clock;
 mod connection;
 mod cover;
+mod creator;
 mod environment;
 mod feedback;
 mod fences;
@@ -26,6 +28,7 @@ mod icons;
 mod input;
 mod inventory;
 mod menu;
+mod mirror;
 mod noise;
 mod panels;
 mod particles;
@@ -43,6 +46,7 @@ mod terrain;
 mod ui;
 mod viewmodel;
 mod wallet;
+mod wardrobe;
 mod water;
 mod weather;
 mod wind;
@@ -50,6 +54,7 @@ mod wind;
 use std::path::PathBuf;
 
 use bevy::prelude::*;
+use messoria_save::Profile;
 
 pub use crate::connection::Session;
 
@@ -57,6 +62,9 @@ pub struct ClientPlugin {
     pub session: Session,
     /// Where the player's settings are kept.
     pub settings_file: PathBuf,
+    /// Who the player is, and where that is kept, if anywhere.
+    pub profile: Profile,
+    pub profile_file: Option<PathBuf>,
 }
 
 impl Plugin for ClientPlugin {
@@ -96,6 +104,7 @@ impl Plugin for ClientPlugin {
             figures::FiguresPlugin,
             skins::SkinsPlugin,
             icons::IconsPlugin,
+            mirror::MirrorPlugin,
             viewmodel::ViewmodelPlugin,
         ))
         // What is on screen over it.
@@ -108,6 +117,12 @@ impl Plugin for ClientPlugin {
             shops::ShopsPlugin,
             board::BoardPlugin,
             talk::TalkPlugin,
+            wardrobe::WardrobePlugin,
+            barber::BarberPlugin,
+            creator::CreatorPlugin {
+                profile: self.profile.clone(),
+                file: self.profile_file.clone(),
+            },
             wallet::WalletPlugin,
             settings::SettingsPlugin {
                 file: self.settings_file.clone(),

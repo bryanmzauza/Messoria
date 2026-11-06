@@ -145,13 +145,18 @@ impl Catalog {
         let villager_skins = catalog
             .villagers
             .iter()
-            .flat_map(|villager| villager.look.layers())
+            .flat_map(|villager| villager.look.skins())
             .map(|skin| (skin, VILLAGERS_FILE));
+        let garment_skins = catalog.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Garment { skin, .. } => Some((skin.as_str(), ITEMS_FILE)),
+            _ => None,
+        });
         let used = catalog
             .characters
             .skins_used()
             .map(|skin| (skin.as_str(), CHARACTERS_FILE))
-            .chain(villager_skins);
+            .chain(villager_skins)
+            .chain(garment_skins);
         for (skin, file) in used {
             if !skins.join(skin).is_file() {
                 return Err(ContentError {
@@ -261,6 +266,13 @@ impl Catalog {
     }
 
     /// Every item, with its id.
+    /// The garment that paints `skin`, if any item does.
+    pub fn garment_with(&self, skin: &str) -> Option<ItemId> {
+        self.items()
+            .find(|(_, item)| matches!(&item.kind, ItemKind::Garment { skin: own, .. } if own == skin))
+            .map(|(id, _)| id)
+    }
+
     pub fn items(&self) -> impl Iterator<Item = (ItemId, &ItemDef)> {
         (0..=u16::MAX).map(ItemId).zip(&self.items)
     }
@@ -549,7 +561,7 @@ mod tests {
             palette,
             structures: "(structures: [])",
             characters: CHARACTERS,
-            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"))",
+            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"), haircut: (price: 60, shop: \"grocer\"))",
             villagers: "(villagers: [])",
         })
     }
@@ -570,7 +582,7 @@ mod tests {
         ),
         expressions: (blink: (0, 0), smile: (0, 0), surprise: (0, 0), effort: (0, 0)),
         grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
-        wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
+        wardrobe: (bodies: ["b.png"], eyes: "e.png", eye_colors: [(0.3, 0.2, 0.1)], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
     )"#;
 
     fn valid() -> Catalog {

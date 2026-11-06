@@ -311,14 +311,18 @@ rates, and each sees their own friendship after a restart.
 
 Goal: every player looks like who they want to be.
 
-- [ ] A character creator on first arrival: body and skin tone, eyes,
+- [x] A character creator on first arrival: body and skin tone, eyes,
       hairstyle, hair color and a first outfit
-- [ ] The look is saved with the player and seen by everyone; it no longer
+- [x] The look is saved with the player and seen by everyone; it no longer
       comes from the player's id
-- [ ] More hairstyles and outfits, painted in the characters' style, and hats
-- [ ] Clothes are items sold by the tailor and worn from a wardrobe in the
+- [x] More hairstyles and outfits, painted in the characters' style, and hats
+- [x] Clothes are items sold by the tailor and worn from a wardrobe in the
       cabin
-- [ ] The barber changes a player's hairstyle and hair color for a fee
+- [x] The barber changes a player's hairstyle and hair color for a fee
+
+**Decided:** the look and the name live in the player's file on the
+server and seed the profile for other worlds; clothes are items changed
+into at home ([ADR 0020](adr/0020-a-look-of-ones-own.md)).
 
 **Exit criterion:** two new players make looks of their own, change clothes
 and hair in the village, and are seen that way by each other after a

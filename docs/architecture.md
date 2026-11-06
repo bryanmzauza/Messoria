@@ -381,13 +381,23 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 
 - Every character is a figure of boxes (`figures`), built from the limbs in
   `characters.ron` and painted from a skin. `skins` lays each look's layers
-  (a body, an outfit, hair tinted with a hair color) into one image once they
-  load, and figures dressed alike share its material. Players are dressed
-  from the wardrobe by their id (`Characters::look_for`), so everyone sees
-  the same look for the same player; shopkeepers' looks are in `shops.ron`.
-  Faces blink, strain at hard work, smile at a trade or a meal, start when
-  falling and close in sleep, by swapping the head's front for another
-  painted expression.
+  (a body, eyes and hair tinted with their colors, an outfit, a hat) into
+  one image once they load, and figures dressed alike share its material.
+  Players are dressed as their replicated `Appearance` says, villagers as
+  `villagers.ron` says. Faces blink, strain at hard work, smile at a trade
+  or a meal, start when falling and close in sleep, by swapping the head's
+  front for another painted expression.
+- A look is the player's own (see
+  [ADR 0020](adr/0020-a-look-of-ones-own.md)): the server's `appearance`
+  module asks a newcomer to introduce themselves (`Newcomer`, `Introduce`:
+  a name and a look the wardrobe offers), keeps both on the character
+  (`Appearance`, `PlayerName`) and in the player's file, changes clothes
+  at a wardrobe (`ChangeClothes`: garments are items, what comes off goes
+  back into the backpack) and restyles hair at the barber's for the
+  village's price (`Restyle`). The client's `creator` opens the character
+  creator or answers from the profile, `wardrobe` and `barber` are the
+  windows, and `mirror` draws the look being made into an image they
+  show.
 - `avatars` poses figures every frame rather than playing recorded clips:
   legs and arms swing with the distance walked, knees and elbows bending,
   figures lean into a run, tuck their legs in a jump, crouch on landing,

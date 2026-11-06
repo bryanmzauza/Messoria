@@ -6,7 +6,7 @@
 //! with the same trade rules the server applies, on copies of the player's
 //! state and the replicated market, so a button offers exactly what the
 //! trade will pay. The villager keeping the shop stands behind its counter
-//! in its hours.
+//! in its hours. At the barber's, the window offers hair instead of wares.
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
@@ -20,8 +20,8 @@ use messoria_shared::{
     content::Content,
     friendship::{discount, keeper_of},
     protocol::{
-        ActionChannel, Belongings, Deal, MarketState, Money, PlayerInput, Position, Shopfront,
-        SoldToday, Trade,
+        ActionChannel, Appearance, Belongings, Deal, MarketState, Money, PlayerInput, Position,
+        Shopfront, SoldToday, Trade,
     },
     shops,
 };
@@ -29,9 +29,11 @@ use messoria_shared::{
 use crate::{
     actions::INTERACT_KEY,
     art::Models,
+    barber::{self, Styling},
     camera::View,
     clock::LocalClock,
     icons::ItemIcons,
+    mirror::Mirror,
     panels::OpenPanel,
     talk::{Hearts, WordWithKeeper},
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
@@ -178,8 +180,13 @@ fn show_shop_window(
     icons: Res<ItemIcons>,
     clock: Res<LocalClock>,
     hearts: Res<Hearts>,
+    styling: Res<Styling>,
+    mut mirror: ResMut<Mirror>,
     stalls: Query<&Shopfront>,
-    player: Query<(Ref<Belongings>, Ref<Money>, Ref<SoldToday>), With<InputMarker<PlayerInput>>>,
+    player: Query<
+        (Ref<Belongings>, Ref<Money>, Ref<SoldToday>, Ref<Appearance>),
+        With<InputMarker<PlayerInput>>,
+    >,
     market: Query<Ref<MarketState>>,
     mut shown_at: Local<Option<WorldTime>>,
     mut window: Single<&mut Visibility, With<ShopWindow>>,
@@ -194,21 +201,30 @@ fn show_shop_window(
         | OpenPanel::Board(_)
         | OpenPanel::Talk(_)
         | OpenPanel::Villagers
+        | OpenPanel::Wardrobe(_)
+        | OpenPanel::Creator
         | OpenPanel::Menu
         | OpenPanel::Options => None,
     };
     window.set_if_neq(ui::visible_if(stall.is_some()));
-    let (Some(stall), Ok((belongings, money, sold)), Ok(market), Some(now)) =
+    let (Some(stall), Ok((belongings, money, sold, appearance)), Ok(market), Some(now)) =
         (stall, player.single(), market.single(), clock.time())
     else {
         return;
     };
+    let styled = (stall.shop == content.village().haircut.shop)
+        .then(|| barber::styled(&styling, &appearance.0));
+    if let Some(styled) = &styled {
+        mirror.show(styled);
+    }
     let changed = panel.is_changed()
         || belongings.is_changed()
         || money.is_changed()
         || sold.is_changed()
         || market.is_changed()
         || hearts.is_changed()
+        || styling.is_changed()
+        || appearance.is_changed()
         || *shown_at != Some(now);
     if !changed {
         return;
@@ -229,7 +245,20 @@ fn show_shop_window(
     commands
         .entity(*listing)
         .despawn_related::<Children>()
-        .with_children(|listing| counter.show(listing));
+        .with_children(|listing| {
+            counter.show_head(listing);
+            match &styled {
+                Some(styled) => barber::show(
+                    listing,
+                    &content,
+                    styled,
+                    &appearance.0,
+                    mirror.image.clone(),
+                    money.0.coins(),
+                ),
+                None => counter.show_wares(listing),
+            }
+        });
 }
 
 fn press_deals(
@@ -316,7 +345,9 @@ impl Counter<'_> {
         )
     }
 
-    fn show(&self, listing: &mut ChildSpawnerCommands) {
+    /// The shop's name, a word with its keeper, its hours and the
+    /// player's coins.
+    fn show_head(&self, listing: &mut ChildSpawnerCommands) {
         let shop = self.definition();
         listing
             .spawn(Node {
@@ -344,7 +375,11 @@ impl Counter<'_> {
             TEXT_SIZE,
             TEXT_COLOR,
         ));
+    }
 
+    /// What the shop buys among what the player carries, and what it sells.
+    fn show_wares(&self, listing: &mut ChildSpawnerCommands) {
+        let shop = self.definition();
         listing.spawn(ui::label("Sell", HEADING_SIZE, TEXT_COLOR));
         let mut selling = false;
         for (slot, stack) in self.inventory.slots().iter().enumerate() {

@@ -62,6 +62,14 @@ fn main() -> AppExit {
         }
     };
 
+    let profile = match Profile::load_or_create(Path::new(PROFILE_FILE)) {
+        Ok(profile) => profile,
+        Err(error) => {
+            eprintln!("error: the player profile cannot be loaded: {error}");
+            return AppExit::error();
+        }
+    };
+
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -72,13 +80,6 @@ fn main() -> AppExit {
     }));
 
     if let Some(server_addr) = args.connect {
-        let profile = match Profile::load_or_create(Path::new(PROFILE_FILE)) {
-            Ok(profile) => profile,
-            Err(error) => {
-                eprintln!("error: the player profile cannot be loaded: {error}");
-                return AppExit::error();
-            }
-        };
         app.add_plugins((
             SharedPlugin {
                 role: NetworkRole::Client,
@@ -91,6 +92,8 @@ fn main() -> AppExit {
                     simulated_latency: args.simulate_latency.map(Duration::from_millis),
                 },
                 settings_file: SETTINGS_FILE.into(),
+                profile,
+                profile_file: Some(PROFILE_FILE.into()),
             },
         ));
     } else {
@@ -123,6 +126,8 @@ fn main() -> AppExit {
             ClientPlugin {
                 session: Session::Host,
                 settings_file: SETTINGS_FILE.into(),
+                profile,
+                profile_file: Some(PROFILE_FILE.into()),
             },
         ));
     }

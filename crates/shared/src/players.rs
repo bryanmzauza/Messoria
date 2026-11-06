@@ -1,8 +1,11 @@
 //! How players are known: the key that names a player's file and that
-//! lots and invitations refer to, and the name shown for a player until
-//! players choose names of their own.
+//! lots and invitations refer to, the name shown for a player until they
+//! choose one, and what a chosen name may be.
 
 use lightyear::prelude::PeerId;
+
+/// Longest name a player may take, in characters.
+pub const NAME_LENGTH: usize = 16;
 
 /// The key naming a player, the same every time they join: the id in their
 /// profile, or `host` for the player hosting the world from the game.
@@ -28,6 +31,14 @@ pub fn name_of(peer: PeerId) -> String {
     player_key(peer).map_or_else(|| "Someone".to_owned(), |key| player_name(&key))
 }
 
+/// `name` as a player may be called, trimmed, if it is: something, at most
+/// [`NAME_LENGTH`] characters, and nothing that cannot be printed.
+pub fn proper_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    let fits = (1..=NAME_LENGTH).contains(&name.chars().count());
+    (fits && name.chars().all(|letter| !letter.is_control())).then(|| name.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -39,5 +50,13 @@ mod tests {
         assert_eq!(player_name(&key), "Player ABCD");
         assert_eq!(name_of(PeerId::Local(0)), "Host");
         assert_eq!(player_key(PeerId::Server), None);
+    }
+
+    #[test]
+    fn names_are_trimmed_and_kept_short_and_printable() {
+        assert_eq!(proper_name("  Wren Ashby "), Some("Wren Ashby".to_owned()));
+        assert_eq!(proper_name("   "), None);
+        assert_eq!(proper_name("a name that goes on and on"), None);
+        assert_eq!(proper_name("odd\u{7}name"), None);
     }
 }

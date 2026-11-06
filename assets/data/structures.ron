@@ -10,8 +10,9 @@
 // structures built along with it, and `door` where its front door opens,
 // for whoever lives or works in it.
 // A structure's `purpose` is `Bed` (players sleep in it), `Storage` (it
-// keeps items) or `NoticeBoard` (players pick their farm lots at it). The
-// `home` is the structure every player gets the item to build one of.
+// keeps items), `Wardrobe` (players change clothes at it) or `NoticeBoard`
+// (players pick their farm lots at it). The `home` is the structure every
+// player gets the item to build one of.
 //
 // Models are drawn at a scale of 1 unless a part says otherwise.
 (
@@ -37,6 +38,8 @@
             contains: [
                 (structure: "bed", at: (-1.6, 1.3)),
                 (structure: "chest", at: (1.6, 1.95)),
+                // Against the left wall, its doors toward the room.
+                (structure: "wardrobe", at: (-2.04, -1.2), turn: 270),
             ],
         ),
         (
@@ -56,6 +59,14 @@
             purpose: Storage,
             parts: [(model: "home/chest.glb")],
             solids: [(at: (0.0, 0.0), size: (0.7, 0.6), height: 0.6)],
+        ),
+        (
+            id: "wardrobe",
+            name: "Wardrobe",
+            size: (1.2, 0.6),
+            purpose: Wardrobe,
+            parts: [(model: "home/wardrobe.glb")],
+            solids: [(at: (0.0, 0.0), size: (1.2, 0.6), height: 1.9)],
         ),
 
         // The village, which village.ron lays out. The tavern and the

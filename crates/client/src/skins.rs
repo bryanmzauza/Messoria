@@ -10,7 +10,7 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use messoria_content::Look;
+use messoria_content::{Look, SkinLayer};
 use messoria_shared::content::Content;
 
 /// Folder the skin layers are in, within the assets.
@@ -53,8 +53,8 @@ impl Tailor<'_> {
         if let Some((_, material)) = self.skins.looks.iter().find(|(known, _)| known == look) {
             return material.clone();
         }
-        for layer in look.layers() {
-            if !self.skins.layers.contains_key(layer) {
+        for SkinLayer { file, .. } in self.content.characters().layers_of(look) {
+            if !self.skins.layers.contains_key(file) {
                 let handle = self
                     .assets
                     .load_builder()
@@ -62,8 +62,8 @@ impl Tailor<'_> {
                     .with_settings(|settings: &mut ImageLoaderSettings| {
                         settings.asset_usage = RenderAssetUsages::MAIN_WORLD;
                     })
-                    .load(format!("{SKINS_FOLDER}/{layer}"));
-                self.skins.layers.insert(layer.to_owned(), handle);
+                    .load(format!("{SKINS_FOLDER}/{file}"));
+                self.skins.layers.insert(file.to_owned(), handle);
             }
         }
         let (width, height) = self.content.characters().skin_size;
@@ -97,6 +97,7 @@ impl Tailor<'_> {
 
 fn lay_skins(
     mut skins: ResMut<Skins>,
+    content: Res<Content>,
     assets: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
 ) {
@@ -105,7 +106,8 @@ fn lay_skins(
     }
     let Skins { layers, unlaid, .. } = &mut *skins;
     unlaid.retain(|(look, skin)| {
-        let handles = look.layers().map(|layer| &layers[layer]);
+        let wanted = content.characters().layers_of(look);
+        let handles: Vec<&Handle<Image>> = wanted.iter().map(|layer| &layers[layer.file]).collect();
         if let Some(failed) = handles
             .iter()
             .find(|handle| assets.load_state(**handle).is_failed())
@@ -115,13 +117,14 @@ fn lay_skins(
         }
         let Some(loaded) = handles
             .iter()
-            .map(|handle| images.get(*handle))
-            .collect::<Option<Vec<&Image>>>()
+            .zip(&wanted)
+            .map(|(handle, layer)| images.get(*handle).map(|image| (image, layer.tint)))
+            .collect::<Option<Vec<_>>>()
         else {
             return true;
         };
-        let size = loaded[0].size();
-        let laid = lay(&loaded, look.hair_color);
+        let size = loaded[0].0.size();
+        let laid = lay(&loaded);
         match (laid, images.get_mut(skin)) {
             (Some(texels), Some(mut image)) if image.size() == size => image.data = Some(texels),
             _ => warn!("the skin layers of {look:?} are not all the skin's size"),
@@ -130,13 +133,12 @@ fn lay_skins(
     });
 }
 
-/// Lays `layers` over each other, bottom first, the last one tinted with
-/// `hair_color`. `None` if any layer is not the size of the first.
-fn lay(layers: &[&Image], hair_color: (f32, f32, f32)) -> Option<Vec<u8>> {
-    let size = layers.first()?.size();
+/// Lays `layers` over each other, bottom first, each tinted with its color
+/// if it has one. `None` if any layer is not the size of the first.
+fn lay(layers: &[(&Image, Option<(f32, f32, f32)>)]) -> Option<Vec<u8>> {
+    let size = layers.first()?.0.size();
     let mut laid = vec![0_u8; 4 * size.element_product() as usize];
-    let last = layers.len() - 1;
-    for (index, layer) in layers.iter().enumerate() {
+    for (layer, tint) in layers {
         if layer.size() != size {
             return None;
         }
@@ -144,11 +146,7 @@ fn lay(layers: &[&Image], hair_color: (f32, f32, f32)) -> Option<Vec<u8>> {
             TextureFormat::Rgba8UnormSrgb => Cow::Borrowed(*layer),
             _ => Cow::Owned(layer.convert(TextureFormat::Rgba8UnormSrgb)?),
         };
-        let tint = if index == last {
-            [hair_color.0, hair_color.1, hair_color.2]
-        } else {
-            [1.0; 3]
-        };
+        let tint = tint.map_or([1.0; 3], |(red, green, blue)| [red, green, blue]);
         let (laid_texels, _) = laid.as_chunks_mut::<4>();
         let (layer_texels, _) = layer.data.as_ref()?.as_chunks::<4>();
         for (below, above) in laid_texels.iter_mut().zip(layer_texels) {
@@ -192,11 +190,16 @@ mod tests {
     }
 
     #[test]
-    fn hair_is_tinted_and_laid_over_the_rest() {
+    fn tinted_layers_are_laid_over_the_rest() {
         let body = image([200, 150, 100, 255]);
         let outfit = image([0, 0, 0, 0]);
         let hair = image([200, 200, 200, 255]);
-        let laid = lay(&[&body, &outfit, &hair], (0.5, 0.25, 1.0)).expect("same sizes");
+        let laid = lay(&[
+            (&body, None),
+            (&outfit, None),
+            (&hair, Some((0.5, 0.25, 1.0))),
+        ])
+        .expect("same sizes");
         assert_eq!(&laid[..4], &[100, 50, 200, 255]);
     }
 
@@ -204,7 +207,12 @@ mod tests {
     fn transparent_layers_leave_what_is_below() {
         let body = image([10, 20, 30, 255]);
         let clear = image([0, 0, 0, 0]);
-        let laid = lay(&[&body, &clear, &clear], (1.0, 1.0, 1.0)).expect("same sizes");
+        let laid = lay(&[
+            (&body, None),
+            (&clear, Some((0.0, 0.0, 0.0))),
+            (&clear, None),
+        ])
+        .expect("same sizes");
         assert_eq!(&laid[..4], &[10, 20, 30, 255]);
     }
 }

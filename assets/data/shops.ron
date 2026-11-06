@@ -110,7 +110,20 @@
             buys: [
                 ("wheat", 20),
             ],
-            sells: [],
+            sells: [
+                (item: "smock", price: 90),
+                (item: "flannel_shirt", price: 140),
+                (item: "overalls", price: 150),
+                (item: "linen_dress", price: 160),
+                (item: "vest_and_shirt", price: 170),
+                (item: "green_tunic", price: 180),
+                (item: "traveling_clothes", price: 200),
+                (item: "wool_kirtle", price: 220),
+                (item: "doublet", price: 420),
+                (item: "kerchief", price: 40),
+                (item: "straw_hat", price: 60),
+                (item: "wool_cap", price: 80),
+            ],
         ),
         (
             id: "barber",

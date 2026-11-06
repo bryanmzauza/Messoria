@@ -29,8 +29,8 @@ use messoria_shared::{
     network::{self, NetworkRole},
     protocol::{
         ActionChannel, Belongings, ClaimLot, Crop, Deal, Dialogue, Field, Friendships, Happening,
-        HarvestRequest, ItemAction, LotClaim, Money, Notice, PlayerInput, Position, Shopfront,
-        SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
+        HarvestRequest, ItemAction, LotClaim, Money, Newcomer, Notice, PlayerInput, Position,
+        Shopfront, SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
@@ -54,6 +54,8 @@ pub struct Heard {
     pub happenings: Vec<Happening>,
     pub dialogues: Vec<Dialogue>,
     pub friendships: Vec<Friendships>,
+    /// How many times the server said the player is new here.
+    pub newcomers: u32,
 }
 
 /// A world hosted in-process, with the host playing in it.
@@ -546,6 +548,7 @@ fn listen(
     mut happenings: Query<&mut MessageReceiver<Happening>, With<Client>>,
     mut dialogues: Query<&mut MessageReceiver<Dialogue>, With<Client>>,
     mut friendships: Query<&mut MessageReceiver<Friendships>, With<Client>>,
+    mut newcomers: Query<&mut MessageReceiver<Newcomer>, With<Client>>,
     mut heard: ResMut<Heard>,
 ) {
     for mut receiver in &mut notices {
@@ -559,5 +562,8 @@ fn listen(
     }
     for mut receiver in &mut friendships {
         heard.friendships.extend(receiver.receive());
+    }
+    for mut receiver in &mut newcomers {
+        heard.newcomers += u32::try_from(receiver.receive().count()).unwrap_or(u32::MAX);
     }
 }

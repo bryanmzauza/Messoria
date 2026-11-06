@@ -126,7 +126,7 @@ fn handling(kind: &ItemKind) -> Option<Handling> {
         ItemKind::Seed | ItemKind::Fertilizer => Some(Handling::FieldSupply),
         ItemKind::Structure => Some(Handling::Builder),
         ItemKind::Food { .. } => Some(Handling::Consumable),
-        ItemKind::Terrain { .. } | ItemKind::Goods => None,
+        ItemKind::Terrain { .. } | ItemKind::Goods | ItemKind::Garment { .. } => None,
     }
 }
 

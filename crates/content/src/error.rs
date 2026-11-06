@@ -28,6 +28,10 @@ pub enum Problem {
     EmptyStack(String),
     #[error("item `{0}` is a tool, and tools do not stack")]
     StackedTool(String),
+    #[error("item `{0}` is a garment, and garments do not stack")]
+    StackedGarment(String),
+    #[error("item `{0}` names a garment skin that is not a .png file inside the skins folder")]
+    InvalidGarmentSkin(String),
     #[error("item `{0}` has a shelf life but does not say what it spoils into")]
     SpoilsIntoNothing(String),
     #[error("item `{0}` spoils into itself")]

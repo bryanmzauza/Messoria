@@ -7,7 +7,7 @@ use std::fmt;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, Reaction, ShopId, StructureId, Tool, VillagerId};
+use messoria_content::{ItemId, Look, Reaction, ShopId, StructureId, Tool, VillagerId};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -344,6 +344,41 @@ pub struct Friendship {
     pub gave_today: bool,
 }
 
+/// How a character looks, as everyone sees it: chosen by the player on
+/// arrival, changed at the wardrobe and at the barber's.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Appearance(pub Look);
+
+/// What a player is called, as they introduced themselves.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PlayerName(pub String);
+
+/// Tells a client its player is new to this world and should introduce
+/// themselves.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Newcomer;
+
+/// A newcomer saying who they are: a name and the look they made.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Introduce {
+    pub name: String,
+    pub look: Look,
+}
+
+/// A client having its character change, at the wardrobe it stands by,
+/// into the garment in a slot, or out of its hat.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChangeClothes {
+    pub slot: Option<u8>,
+}
+
+/// A client asking the barber for this hair, in this color.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Restyle {
+    pub hair: String,
+    pub hair_color: (f32, f32, f32),
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -397,6 +432,10 @@ pub enum Notice {
     GaveAlready,
     /// Giving a villager something that cannot be given.
     NothingToGive,
+    /// Changing into a slot that holds no garment, or out of no hat.
+    NothingToWear,
+    /// Asking the barber for more than the player can pay.
+    HaircutCosts(u32),
     Trade(Refusal),
 }
 
@@ -433,6 +472,8 @@ impl fmt::Display for Notice {
             Self::AlreadyInvited => "They can already work that lot.",
             Self::GaveAlready => "They already got a gift from you today.",
             Self::NothingToGive => "Hold something to give it.",
+            Self::NothingToWear => "There is nothing to change into.",
+            Self::HaircutCosts(price) => return write!(f, "A new look costs {price} coins."),
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -573,6 +614,14 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ServerToClient);
         app.register_message::<Friendships>()
             .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Newcomer>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Introduce>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<ChangeClothes>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Restyle>()
+            .add_direction(NetworkDirection::ClientToServer);
 
         app.component::<WorldClock>().replicate();
         app.component::<SleepTally>().replicate();
@@ -594,6 +643,8 @@ impl Plugin for ProtocolPlugin {
         app.component::<LotClaim>().replicate();
         app.component::<Villager>().replicate();
         app.component::<Doing>().replicate();
+        app.component::<Appearance>().replicate();
+        app.component::<PlayerName>().replicate();
 
         app.component::<PlayerId>().replicate();
 

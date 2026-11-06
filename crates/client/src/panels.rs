@@ -32,6 +32,10 @@ pub(crate) enum OpenPanel {
     Talk(Entity),
     /// The list of villagers.
     Villagers,
+    /// The wardrobe that is this entity.
+    Wardrobe(Entity),
+    /// The character creator, on first arrival.
+    Creator,
     /// The game menu, as opened with Escape.
     Menu,
     Options,
@@ -41,18 +45,27 @@ impl OpenPanel {
     pub(crate) fn is_open(self) -> bool {
         self != Self::None
     }
+
+    /// Whether keys are being typed into the panel, so the game's own keys
+    /// must wait.
+    pub(crate) fn takes_typing(self) -> bool {
+        self == Self::Creator
+    }
 }
 
 fn answer_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) {
     if keys.just_pressed(KeyCode::Escape) {
         *panel = match *panel {
             OpenPanel::None | OpenPanel::Options => OpenPanel::Menu,
+            // Nobody sets out without a name.
+            OpenPanel::Creator => OpenPanel::Creator,
             OpenPanel::Backpack
             | OpenPanel::Shop(_)
             | OpenPanel::Chest(_)
             | OpenPanel::Board(_)
             | OpenPanel::Talk(_)
             | OpenPanel::Villagers
+            | OpenPanel::Wardrobe(_)
             | OpenPanel::Menu => OpenPanel::None,
         };
     }

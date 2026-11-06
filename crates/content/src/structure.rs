@@ -60,6 +60,8 @@ pub enum Purpose {
     Storage,
     /// Players pick and manage their farm lots at it.
     NoticeBoard,
+    /// Players change clothes at it.
+    Wardrobe,
 }
 
 /// A model a structure is drawn with.

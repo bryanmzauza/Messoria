@@ -23,6 +23,7 @@ pub struct Village {
     pub spots: Vec<Spot>,
     pub paths: Paths,
     pub lots: Lots,
+    pub haircut: Haircut,
 }
 
 impl Village {
@@ -67,6 +68,14 @@ pub struct Paths {
     pub edges: Vec<(usize, usize)>,
 }
 
+/// What the barber asks for a new hairstyle or color, and which shop the
+/// barber's is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Haircut {
+    pub price: u32,
+    pub shop: ShopId,
+}
+
 /// What the village asks for a farm lot, and how the lots are fenced.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -100,6 +109,14 @@ pub(crate) struct VillageFile {
     #[serde(default)]
     paths: Paths,
     lots: Lots,
+    haircut: HaircutEntry,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HaircutEntry {
+    price: u32,
+    shop: String,
 }
 
 /// Something placed in the village: a shop's stall or a structure, by id.
@@ -128,6 +145,40 @@ struct SpotEntry {
     pose: SpotPose,
     #[serde(default)]
     via: Vec<String>,
+}
+
+/// The spots villagers go to, each labeled once and reached via spots
+/// that exist.
+fn resolve_spots(entries: Vec<SpotEntry>) -> Result<Vec<Spot>, Problem> {
+    let mut spots: Vec<Spot> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if spots.iter().any(|spot| spot.label == entry.label) {
+            return Err(Problem::InvalidVillage(format!(
+                "two spots are labeled `{}`",
+                entry.label
+            )));
+        }
+        spots.push(Spot {
+            label: entry.label,
+            at: entry.at,
+            face: entry.face * PI / 180.0,
+            pose: entry.pose,
+            via: entry.via,
+        });
+    }
+    for spot in &spots {
+        if let Some(unknown) = spot
+            .via
+            .iter()
+            .find(|label| !spots.iter().any(|other| other.label == **label))
+        {
+            return Err(Problem::InvalidVillage(format!(
+                "spot `{}` is reached via unknown spot `{unknown}`",
+                spot.label
+            )));
+        }
+    }
+    Ok(spots)
 }
 
 impl VillageFile {
@@ -188,34 +239,7 @@ impl VillageFile {
                 )));
             }
         }
-        let mut spots: Vec<Spot> = Vec::with_capacity(self.spots.len());
-        for entry in self.spots {
-            if spots.iter().any(|spot| spot.label == entry.label) {
-                return Err(Problem::InvalidVillage(format!(
-                    "two spots are labeled `{}`",
-                    entry.label
-                )));
-            }
-            spots.push(Spot {
-                label: entry.label,
-                at: entry.at,
-                face: entry.face * PI / 180.0,
-                pose: entry.pose,
-                via: entry.via,
-            });
-        }
-        for spot in &spots {
-            if let Some(unknown) = spot
-                .via
-                .iter()
-                .find(|label| !spots.iter().any(|other| other.label == **label))
-            {
-                return Err(Problem::InvalidVillage(format!(
-                    "spot `{}` is reached via unknown spot `{unknown}`",
-                    spot.label
-                )));
-            }
-        }
+        let spots = resolve_spots(self.spots)?;
         let paths = self.paths;
         if let Some(&(a, b)) = paths
             .edges
@@ -233,6 +257,12 @@ impl VillageFile {
             spots,
             paths,
             lots: self.lots,
+            haircut: Haircut {
+                price: self.haircut.price,
+                shop: *shops
+                    .get(&self.haircut.shop)
+                    .ok_or_else(|| unknown("shop", &self.haircut.shop))?,
+            },
         })
     }
 }

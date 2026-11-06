@@ -199,7 +199,7 @@ pub(crate) fn item_color(content: &Content, item: ItemId) -> Color {
         ItemKind::Terrain { materials } => materials.first().map_or(GOODS_COLOR, |&material| {
             srgb(content.palette().ground(material.exposed(), Season::Summer))
         }),
-        ItemKind::Structure => GOODS_COLOR,
+        ItemKind::Structure | ItemKind::Garment { .. } => GOODS_COLOR,
         ItemKind::Food { .. } | ItemKind::Goods => content
             .crops()
             .find(|(_, crop)| crop.produce == item)

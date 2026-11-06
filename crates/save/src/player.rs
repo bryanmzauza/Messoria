@@ -1,8 +1,8 @@
-//! A player's file: where they are, what they have and who their friends
-//! in the village are.
+//! A player's file: where they are, what they have, who their friends in
+//! the village are and how they look.
 
 use glam::Vec3;
-use messoria_content::{Catalog, VillagerId};
+use messoria_content::{Catalog, Look, VillagerId};
 use messoria_economy::{SalesLedger, Wallet};
 use messoria_inventory::Inventory;
 use serde::{Deserialize, Serialize};
@@ -14,9 +14,11 @@ use crate::{
 };
 
 /// Version of the format this game writes. Version 1 files had no
-/// friendships; they are read as having none.
-const VERSION: u32 = 2;
+/// friendships, and version 2 files no name or look; they are read as
+/// having none.
+const VERSION: u32 = 3;
 const WITHOUT_FRIENDSHIPS: u32 = 1;
+const WITHOUT_A_LOOK: u32 = 2;
 
 /// Everything about a player that outlasts their connection.
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +35,10 @@ pub struct PlayerState {
     /// while the player was away.
     pub saved_on: u32,
     pub friendships: Vec<FriendshipState>,
+    /// What the player is called and how they look, once they have
+    /// introduced themselves.
+    pub name: Option<String>,
+    pub look: Option<Look>,
 }
 
 /// How a player stands with one villager.
@@ -61,6 +67,10 @@ struct PlayerFile {
     sold_today: Vec<SaleEntry>,
     #[serde(default)]
     friendships: Vec<FriendshipEntry>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    look: Option<Look>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -112,12 +122,14 @@ impl PlayerState {
             inventory,
             sold_today,
             friendships,
+            name: self.name.clone(),
+            look: self.look.clone(),
         })
     }
 
     pub(crate) fn from_ron(text: &str, mut resolver: Resolver<'_>) -> Result<Self, Problem> {
         let file: PlayerFile = match version_of(text)? {
-            VERSION | WITHOUT_FRIENDSHIPS => ron::from_str(text)?,
+            VERSION | WITHOUT_A_LOOK | WITHOUT_FRIENDSHIPS => ron::from_str(text)?,
             found => return Err(unreadable(found, VERSION)),
         };
 
@@ -165,6 +177,8 @@ impl PlayerState {
             sold_today,
             saved_on: file.saved_on,
             friendships,
+            name: file.name,
+            look: file.look,
         })
     }
 }

@@ -25,8 +25,8 @@ use messoria_shared::{
     content::Content,
     movement::{SPRINT_FACTOR, WALK_SPEED},
     protocol::{
-        Asleep, Belongings, Doing, Happened, Heading, Holding, PlayerId, PlayerInput, Position,
-        Shopfront, Structure, Velocity, Villager,
+        Appearance, Asleep, Belongings, Doing, Happened, Heading, Holding, PlayerId, PlayerInput,
+        Position, Shopfront, Structure, Velocity, Villager,
     },
 };
 
@@ -100,7 +100,7 @@ impl Plugin for AvatarPlugin {
             .add_observer(smooth_villagers)
             .add_systems(
                 Update,
-                (act_out, hold_items, pose_figures, hide_indoors).chain(),
+                (redress, act_out, hold_items, pose_figures, hide_indoors).chain(),
             )
             .add_systems(
                 PostUpdate,
@@ -344,7 +344,7 @@ struct HeldModel {
 }
 
 /// Builds a figure dressed in `look` under `owner`, which also gets a pose.
-fn dress(
+pub(crate) fn dress(
     commands: &mut Commands,
     content: &Content,
     meshes: &FigureMeshes,
@@ -366,18 +366,18 @@ fn dress(
     ));
 }
 
+/// Characters are dressed as the server says they look.
 fn attach_avatar(
-    trigger: On<Add, PlayerId>,
-    players: Query<&PlayerId>,
+    trigger: On<Add, Appearance>,
+    players: Query<&Appearance, With<PlayerId>>,
     content: Res<Content>,
     meshes: Res<FigureMeshes>,
     mut tailor: Tailor,
     mut commands: Commands,
 ) {
-    let Ok(&PlayerId(peer)) = players.get(trigger.entity) else {
+    let Ok(appearance) = players.get(trigger.entity) else {
         return;
     };
-    let look = content.characters().look_for(peer.to_bits());
     commands.entity(trigger.entity).insert(Transform::default());
     dress(
         &mut commands,
@@ -385,8 +385,34 @@ fn attach_avatar(
         &meshes,
         &mut tailor,
         trigger.entity,
-        &look,
+        &appearance.0,
     );
+}
+
+/// A character whose look changed, at the wardrobe or the barber's, gets a
+/// new figure; what it held hangs from the new hand next frame.
+fn redress(
+    characters: Query<(Entity, Ref<Appearance>, &Figure), Changed<Appearance>>,
+    content: Res<Content>,
+    meshes: Res<FigureMeshes>,
+    mut tailor: Tailor,
+    mut commands: Commands,
+) {
+    for (entity, appearance, figure) in &characters {
+        if appearance.is_added() {
+            continue;
+        }
+        commands.entity(figure.root).despawn();
+        commands.entity(entity).remove::<HeldModel>();
+        dress(
+            &mut commands,
+            &content,
+            &meshes,
+            &mut tailor,
+            entity,
+            &appearance.0,
+        );
+    }
 }
 
 fn attach_villager(

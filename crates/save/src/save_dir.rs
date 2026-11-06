@@ -226,7 +226,7 @@ fn text(bytes: &[u8], path: &Path) -> Result<String, SaveError> {
 mod tests {
     use glam::{IVec2, IVec3, Vec3};
     use messoria_calendar::WorldTime;
-    use messoria_content::Quality;
+    use messoria_content::{Look, Quality};
     use messoria_economy::{Market, SalesLedger, Wallet};
     use messoria_farming::Planting;
     use messoria_inventory::Inventory;
@@ -347,6 +347,15 @@ mod tests {
                 gave_on: None,
                 received: vec![2],
             }],
+            name: Some("Wren".to_owned()),
+            look: Some(Look {
+                body: "body-fair.png".to_owned(),
+                eyes: (0.3, 0.2, 0.1),
+                outfit: "outfit-tunic.png".to_owned(),
+                hair: "hair-braid.png".to_owned(),
+                hair_color: (0.5, 0.3, 0.1),
+                hat: Some("hat-straw.png".to_owned()),
+            }),
         }
     }
 

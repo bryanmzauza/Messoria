@@ -9,6 +9,7 @@
 //! reads before building the app, as it does content, so a damaged save stops
 //! the program instead of being overwritten.
 
+mod appearance;
 mod building;
 mod connections;
 mod day_cycle;
@@ -142,6 +143,7 @@ impl Plugin for ServerPlugin {
                 storage::StoragePlugin,
                 lots::LotsPlugin,
                 friendship::FriendshipPlugin,
+                appearance::AppearancePlugin,
             ))
             // The world itself, what each player is sent of it, and keeping it.
             .add_plugins((

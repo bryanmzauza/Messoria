@@ -1,5 +1,6 @@
 // The people of the village: who they are, how they look (see
-// characters.ron for the skins), which house in village.ron is theirs,
+// characters.ron for the skins; a `hat` is one the tailor sells, from
+// items.ron), which house in village.ron is theirs,
 // which shop they keep, and what they do through the day.
 //
 // A day is a list of slots from one time to another. The first slot that
@@ -19,7 +20,7 @@
         (
             id: "hester",
             name: "Hester Brambly",
-            look: (body: "body-fair.png", outfit: "outfit-dress.png", hair: "hair-bun.png", hair_color: (0.55, 0.3, 0.12)),
+            look: (body: "body-fair.png", eyes: (0.36, 0.22, 0.12), outfit: "outfit-dress.png", hair: "hair-bun.png", hair_color: (0.55, 0.3, 0.12)),
             home: "brambly_house",
             keeps: Some("tavern"),
             day: [
@@ -59,7 +60,7 @@
         (
             id: "odo",
             name: "Odo Flint",
-            look: (body: "body-tan.png", outfit: "outfit-vest.png", hair: "hair-short.png", hair_color: (0.12, 0.09, 0.07)),
+            look: (body: "body-tan.png", eyes: (0.18, 0.12, 0.1), outfit: "outfit-vest.png", hair: "hair-short.png", hair_color: (0.12, 0.09, 0.07)),
             home: "flint_house",
             keeps: Some("blacksmith"),
             day: [
@@ -103,7 +104,7 @@
         (
             id: "linnet",
             name: "Linnet Quill",
-            look: (body: "body-dark.png", outfit: "outfit-adventurer.png", hair: "hair-long.png", hair_color: (0.1, 0.08, 0.06)),
+            look: (body: "body-dark.png", eyes: (0.5, 0.55, 0.6), outfit: "outfit-adventurer.png", hair: "hair-long.png", hair_color: (0.1, 0.08, 0.06)),
             home: "quill_house",
             keeps: Some("tailor"),
             day: [
@@ -146,7 +147,7 @@
         (
             id: "barnaby",
             name: "Barnaby Shears",
-            look: (body: "body-light.png", outfit: "outfit-flannel.png", hair: "hair-curly.png", hair_color: (0.3, 0.2, 0.1)),
+            look: (body: "body-light.png", eyes: (0.3, 0.48, 0.25), outfit: "outfit-flannel.png", hair: "hair-curly.png", hair_color: (0.3, 0.2, 0.1)),
             home: "shears_house",
             keeps: Some("barber"),
             day: [
@@ -188,7 +189,7 @@
         (
             id: "marit",
             name: "Marit Greengage",
-            look: (body: "body-brown.png", outfit: "outfit-grocer.png", hair: "hair-bob.png", hair_color: (0.2, 0.12, 0.08)),
+            look: (body: "body-brown.png", eyes: (0.5, 0.38, 0.18), outfit: "outfit-grocer.png", hair: "hair-bob.png", hair_color: (0.2, 0.12, 0.08), hat: "hat-kerchief.png"),
             home: "greengage_house",
             keeps: Some("grocer"),
             day: [
@@ -230,7 +231,7 @@
         (
             id: "tobin",
             name: "Tobin Ashcombe",
-            look: (body: "body-light.png", outfit: "outfit-carpenter.png", hair: "hair-beard.png", hair_color: (0.62, 0.3, 0.14)),
+            look: (body: "body-light.png", eyes: (0.3, 0.5, 0.72), outfit: "outfit-carpenter.png", hair: "hair-beard.png", hair_color: (0.62, 0.3, 0.14), hat: "hat-cap.png"),
             home: "ashcombe_house",
             keeps: Some("carpenter"),
             day: [
@@ -271,7 +272,7 @@
         (
             id: "wilma",
             name: "Wilma Thistle",
-            look: (body: "body-fair.png", outfit: "outfit-overalls.png", hair: "hair-bun.png", hair_color: (0.82, 0.8, 0.76)),
+            look: (body: "body-fair.png", eyes: (0.5, 0.55, 0.6), outfit: "outfit-overalls.png", hair: "hair-bun.png", hair_color: (0.82, 0.8, 0.76)),
             home: "thistle_house",
             day: [
                 (from: "07:00", to: "11:00", at: At("garden_north_east"), rain: false),
@@ -312,7 +313,7 @@
         (
             id: "pip",
             name: "Pip Hollowell",
-            look: (body: "body-tan.png", outfit: "outfit-vest.png", hair: "hair-curly.png", hair_color: (0.75, 0.5, 0.2)),
+            look: (body: "body-tan.png", eyes: (0.3, 0.5, 0.72), outfit: "outfit-vest.png", hair: "hair-curly.png", hair_color: (0.75, 0.5, 0.2)),
             home: "hollowell_house",
             day: [
                 (from: "08:00", to: "11:00", at: Stroll(["lane_north_east", "lane_north_west", "well_side"]), rain: false),
@@ -355,7 +356,7 @@
         (
             id: "edric",
             name: "Edric Marrow",
-            look: (body: "body-brown.png", outfit: "outfit-flannel.png", hair: "hair-short.png", hair_color: (0.7, 0.7, 0.68)),
+            look: (body: "body-brown.png", eyes: (0.36, 0.22, 0.12), outfit: "outfit-flannel.png", hair: "hair-short.png", hair_color: (0.7, 0.7, 0.68)),
             home: "marrow_house",
             day: [
                 (from: "09:00", to: "12:00", at: At("bench_north_east"), rain: false),
@@ -396,7 +397,7 @@
         (
             id: "sable",
             name: "Sable Wren",
-            look: (body: "body-dark.png", outfit: "outfit-adventurer.png", hair: "hair-ponytail.png", hair_color: (0.08, 0.07, 0.06)),
+            look: (body: "body-dark.png", eyes: (0.3, 0.48, 0.25), outfit: "outfit-adventurer.png", hair: "hair-ponytail.png", hair_color: (0.08, 0.07, 0.06), hat: "hat-straw.png"),
             home: "wren_house",
             day: [
                 (from: "06:30", to: "10:00", at: Stroll(["north_gate", "east_gate", "lane_north_east"]), seasons: [Spring, Summer, Autumn]),

@@ -212,7 +212,7 @@ fn toggle_villagers(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel
     if keys.just_pressed(VILLAGERS_KEY) {
         *panel = match *panel {
             OpenPanel::Villagers => OpenPanel::None,
-            OpenPanel::Menu | OpenPanel::Options => return,
+            OpenPanel::Menu | OpenPanel::Options | OpenPanel::Creator => return,
             _ => OpenPanel::Villagers,
         };
     }

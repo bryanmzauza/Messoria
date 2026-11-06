@@ -6,6 +6,7 @@
 //! sees exactly the traffic real players would produce.
 
 mod farm;
+mod introduce;
 mod reshape;
 mod roam;
 mod wander;
@@ -109,6 +110,10 @@ fn run_bot(
         content,
     });
     let seed = u64::from(index);
+    app.add_plugins(introduce::IntroducePlugin {
+        name: format!("Bot {index}"),
+        seed,
+    });
     match behavior {
         Behavior::Wander => {
             app.add_plugins(wander::WanderPlugin { seed });

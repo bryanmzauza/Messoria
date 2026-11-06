@@ -13,9 +13,11 @@
 // Every player's first farm lot is free; each one after costs `lots.price`
 // coins, paid at the notice board. The lots are fenced with sections of
 // `fence` (2 m, post first, rails along +x) and opened by a `gate` (4 m
-// across x).
+// across x). A new hairstyle or hair color costs `haircut.price` coins at
+// the counter of `haircut.shop`.
 (
     lots: (price: 3000, fence: "farm/fence.glb", gate: "farm/gate.glb"),
+    haircut: (price: 60, shop: "barber"),
     stalls: [
         (id: "grocer", at: (5.5, -4.6), turn: 180),
         (id: "carpenter", at: (-5.5, -4.6), turn: 180),
