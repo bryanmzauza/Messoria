@@ -159,7 +159,9 @@ impl Act {
             Happened::Dug(_) | Happened::Raised => Self::Dig,
             Happened::Planted | Happened::Fertilized | Happened::Harvested => Self::Pick,
             Happened::Watered => Self::Water,
-            Happened::Traded | Happened::Built | Happened::ClaimedLot => Self::Reach,
+            Happened::Traded | Happened::Built | Happened::ClaimedLot | Happened::Gave => {
+                Self::Reach
+            }
             Happened::Ate => Self::Eat,
         }
     }

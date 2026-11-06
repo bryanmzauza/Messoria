@@ -112,7 +112,7 @@ fn describe_target(
         if let Some(villager) = aim.villager.and_then(|entity| villagers.get(entity).ok()) {
             Some(Description {
                 name: content.villager(villager.0).name.clone(),
-                detail: String::new(),
+                detail: format!("Press {INTERACT_KEY_NAME} to talk"),
             })
         } else if let Some((Blocker::Prop(key), _)) = aim.thing {
             Some(describe_prop(&content, key, scenery.gathered(key), today))

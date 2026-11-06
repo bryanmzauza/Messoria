@@ -28,6 +28,10 @@ pub(crate) enum OpenPanel {
     Chest(Entity),
     /// The village notice board that is this entity.
     Board(Entity),
+    /// A word with the villager that is this entity.
+    Talk(Entity),
+    /// The list of villagers.
+    Villagers,
     /// The game menu, as opened with Escape.
     Menu,
     Options,
@@ -47,6 +51,8 @@ fn answer_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) 
             | OpenPanel::Shop(_)
             | OpenPanel::Chest(_)
             | OpenPanel::Board(_)
+            | OpenPanel::Talk(_)
+            | OpenPanel::Villagers
             | OpenPanel::Menu => OpenPanel::None,
         };
     }

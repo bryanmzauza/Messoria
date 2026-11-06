@@ -161,7 +161,7 @@ impl Cue {
             Happened::Watered => Self::Water,
             Happened::Planted => Self::Plant,
             Happened::Fertilized => Self::Fertilize,
-            Happened::Harvested => Self::Harvest,
+            Happened::Harvested | Happened::Gave => Self::Harvest,
             Happened::Struck(Tool::Axe) => Self::Chop,
             Happened::Traded | Happened::ClaimedLot => Self::Coins,
             Happened::Built => Self::Build,

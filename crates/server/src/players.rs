@@ -1,8 +1,8 @@
 //! Player characters: one per connected client, gone when it disconnects.
 //!
 //! The server remembers every player who has been in the world. A player who
-//! comes back finds their character as they left it; if days went by, they
-//! slept through them, and their perishables aged.
+//! comes back finds their character as they left it, friendships and all;
+//! if days went by, they slept through them, and their perishables aged.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -23,7 +23,7 @@ use messoria_shared::{
     valley::Valley,
 };
 
-use crate::{Beginning, WorldStart};
+use crate::{Beginning, WorldStart, friendship::Bonds};
 
 /// Distance from the world origin at which players appear.
 const SPAWN_RADIUS: f32 = 3.0;
@@ -60,11 +60,12 @@ pub(crate) type CharacterState<'a> = (
     &'a Belongings,
     &'a Money,
     &'a SoldToday,
+    &'a Bonds,
 );
 
 /// A character's state, to save or to keep while its player is away.
 pub(crate) fn state_of(
-    (_, position, heading, energy, belongings, money, sold): CharacterState<'_>,
+    (_, position, heading, energy, belongings, money, sold, bonds): CharacterState<'_>,
     today: u32,
 ) -> PlayerState {
     PlayerState {
@@ -75,6 +76,7 @@ pub(crate) fn state_of(
         money: money.0,
         sold_today: sold.0.clone(),
         saved_on: today,
+        friendships: bonds.to_saved(),
     }
 }
 
@@ -118,6 +120,7 @@ fn spawn_player(
             Belongings(state.inventory),
             Money(state.money),
             SoldToday(state.sold_today),
+            Bonds::from_saved(&state.friendships),
             Replicate::to_clients(NetworkTarget::All),
             // The owner predicts its own character; everyone else interpolates it.
             PredictionTarget::to_clients(NetworkTarget::Single(peer)),
@@ -170,6 +173,7 @@ fn newcomer(content: &Catalog, position: Vec3, today: u32) -> PlayerState {
         money: Wallet::with(content.starting_money()),
         sold_today: default(),
         saved_on: today,
+        friendships: Vec::new(),
     }
 }
 
@@ -208,6 +212,7 @@ mod tests {
         let grocer = content.shop_id("grocer").expect("the grocer exists");
         let berries = content.id("wild_berries").expect("wild berries exist");
         player.sold_today.record(grocer, berries, 5);
+        player.friendships.clear();
         player
     }
 

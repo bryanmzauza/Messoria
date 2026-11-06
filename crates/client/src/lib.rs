@@ -37,6 +37,7 @@ mod skins;
 mod sky;
 mod sounds;
 mod structures;
+mod talk;
 mod target;
 mod terrain;
 mod ui;
@@ -106,6 +107,7 @@ impl Plugin for ClientPlugin {
             inventory::InventoryPlugin,
             shops::ShopsPlugin,
             board::BoardPlugin,
+            talk::TalkPlugin,
             wallet::WalletPlugin,
             settings::SettingsPlugin {
                 file: self.settings_file.clone(),

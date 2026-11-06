@@ -291,14 +291,18 @@ schedule, and all of them keep to it with players anywhere on the map.
 
 Goal: getting to know the villagers is part of the game.
 
-- [ ] Talking to a villager with the interact key opens a dialogue with
+- [x] Talking to a villager with the interact key opens a dialogue with
       their lines, chosen by friendship, season, weather and time of day
-- [ ] Gifts: each villager loves, likes and dislikes some items, and reacts
+- [x] Gifts: each villager loves, likes and dislikes some items, and reacts
       with an expression
-- [ ] Friendship per player, raised by a daily talk and by gifts, shown in a
+- [x] Friendship per player, raised by a daily talk and by gifts, shown in a
       list of villagers and kept in the save
-- [ ] Friendship opens small things: warmer lines, a discount, a recipe or
+- [x] Friendship opens small things: warmer lines, a discount, a recipe or
       seeds as a gift
+
+**Decided:** friendship brings warmer lines, a present from the villager
+at new hearts and a friend's price at their counter; recipes wait for
+crafting ([ADR 0019](adr/0019-talking-gifts-and-friendship.md)).
 
 **Exit criterion:** two players befriend the same villager at different
 rates, and each sees their own friendship after a restart.

@@ -28,9 +28,9 @@ use messoria_shared::{
     lots::{self, Lot, LotId},
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Belongings, ClaimLot, Crop, Deal, Field, Happening, HarvestRequest,
-        ItemAction, LotClaim, Money, Notice, PlayerInput, Position, Shopfront, SleepRequest,
-        Structure, Trade, UseItem, Watered, WorldClock,
+        ActionChannel, Belongings, ClaimLot, Crop, Deal, Dialogue, Field, Friendships, Happening,
+        HarvestRequest, ItemAction, LotClaim, Money, Notice, PlayerInput, Position, Shopfront,
+        SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
@@ -52,6 +52,8 @@ pub const PAUSE_BETWEEN_USES: u32 = 10;
 pub struct Heard {
     pub notices: Vec<Notice>,
     pub happenings: Vec<Happening>,
+    pub dialogues: Vec<Dialogue>,
+    pub friendships: Vec<Friendships>,
 }
 
 /// A world hosted in-process, with the host playing in it.
@@ -520,10 +522,15 @@ pub fn run_apps_until(
 ) {
     let deadline = Instant::now() + TIMEOUT;
     while !done(server, clients) {
-        assert!(
-            Instant::now() < deadline,
-            "timed out waiting for {waiting_for}"
-        );
+        if Instant::now() >= deadline {
+            let seen: Vec<Option<Vec3>> = clients
+                .iter_mut()
+                .map(|client| local_character_if_any(client))
+                .collect();
+            panic!(
+                "timed out waiting for {waiting_for}; the clients see their characters at {seen:?}"
+            );
+        }
         server.update();
         for client in clients.iter_mut() {
             client.update();
@@ -537,6 +544,8 @@ pub fn run_apps_until(
 fn listen(
     mut notices: Query<&mut MessageReceiver<Notice>, With<Client>>,
     mut happenings: Query<&mut MessageReceiver<Happening>, With<Client>>,
+    mut dialogues: Query<&mut MessageReceiver<Dialogue>, With<Client>>,
+    mut friendships: Query<&mut MessageReceiver<Friendships>, With<Client>>,
     mut heard: ResMut<Heard>,
 ) {
     for mut receiver in &mut notices {
@@ -544,5 +553,11 @@ fn listen(
     }
     for mut receiver in &mut happenings {
         heard.happenings.extend(receiver.receive());
+    }
+    for mut receiver in &mut dialogues {
+        heard.dialogues.extend(receiver.receive());
+    }
+    for mut receiver in &mut friendships {
+        heard.friendships.extend(receiver.receive());
     }
 }

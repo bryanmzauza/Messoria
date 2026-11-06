@@ -35,7 +35,7 @@ mod world;
 
 pub use crate::{
     error::{Problem, SaveError},
-    player::PlayerState,
+    player::{FriendshipState, PlayerState},
     profile::Profile,
     save_dir::{SaveDir, SavedWorld, is_valid_player_key},
     settings::{Graphics, Settings},

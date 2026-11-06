@@ -8,6 +8,7 @@
 pub mod content;
 pub mod energy;
 pub mod fields;
+pub mod friendship;
 pub mod lots;
 pub mod movement;
 pub mod network;

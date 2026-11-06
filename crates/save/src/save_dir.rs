@@ -235,6 +235,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        player::FriendshipState,
         profile::Profile,
         world::{FieldState, GatheredProp, LotState, StructureState},
     };
@@ -339,6 +340,13 @@ mod tests {
                 .into_iter()
                 .collect::<SalesLedger>(),
             saved_on: 12,
+            friendships: vec![FriendshipState {
+                villager: catalog.villager_id("marit").unwrap(),
+                points: 240,
+                talked_on: Some(12),
+                gave_on: None,
+                received: vec![2],
+            }],
         }
     }
 

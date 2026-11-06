@@ -14,6 +14,7 @@ mod connections;
 mod day_cycle;
 mod feedback;
 mod fields;
+mod friendship;
 mod gathering;
 mod homes;
 mod interest;
@@ -140,6 +141,7 @@ impl Plugin for ServerPlugin {
                 homes::HomesPlugin,
                 storage::StoragePlugin,
                 lots::LotsPlugin,
+                friendship::FriendshipPlugin,
             ))
             // The world itself, what each player is sent of it, and keeping it.
             .add_plugins((

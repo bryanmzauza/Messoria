@@ -206,7 +206,7 @@ impl Catalog {
             .and_then(|file| file.resolve(&shops.by_key, &structures.by_key))
             .map_err(in_file(VILLAGE_FILE))?;
         let villagers: Villagers = parse::<VillagersFile>(sources.villagers)
-            .and_then(|file| file.resolve(&shops.by_key, &village))
+            .and_then(|file| file.resolve(&shops.by_key, &items, &village))
             .map_err(in_file(VILLAGERS_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();

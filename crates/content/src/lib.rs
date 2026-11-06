@@ -31,5 +31,8 @@ pub use crate::{
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
     village::{Lots, Paths, Spot, SpotPose, Stall, Village},
-    villager::{Activity, Slot, VillagerDef, VillagerId},
+    villager::{
+        Activity, Gift, GiftLines, HEART, Line, MOST_HEARTS, Reaction, Slot, VillagerDef,
+        VillagerId, hearts,
+    },
 };

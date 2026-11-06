@@ -54,6 +54,13 @@ impl Plugin for VillagersPlugin {
     }
 }
 
+/// A villager turned toward whoever is talking to them, for a while.
+#[derive(Component)]
+pub(crate) struct Attending {
+    pub heading: f32,
+    pub ticks: u32,
+}
+
 /// Where a villager is bound, and the way there.
 #[derive(Component, Default)]
 struct Errand {
@@ -173,16 +180,19 @@ fn live(
     players: Query<&Position, With<PlayerId>>,
     mut villagers: Query<
         (
+            Entity,
             &Villager,
             &mut Position,
             &mut Velocity,
             &mut Heading,
             &mut Doing,
             &mut Errand,
+            Option<&mut Attending>,
         ),
         Without<PlayerId>,
     >,
     mut ticks: Local<u32>,
+    mut commands: Commands,
 ) {
     let (clock, weather) = *clock;
     let watched = players
@@ -197,7 +207,16 @@ fn live(
     #[expect(clippy::cast_precision_loss, reason = "the tick rate is small")]
     let step = PACE / TICK_RATE_HZ as f32;
 
-    for (villager, mut position, mut velocity, mut heading, mut doing, mut errand) in &mut villagers
+    for (
+        entity,
+        villager,
+        mut position,
+        mut velocity,
+        mut heading,
+        mut doing,
+        mut errand,
+        attending,
+    ) in &mut villagers
     {
         let definition = content.villager(villager.0);
         let activity = definition.activity(clock.0, rains);
@@ -220,6 +239,18 @@ fn live(
         }
 
         let Some(&next) = errand.waypoints.front() else {
+            if let Some(mut attending) = attending {
+                // Facing whoever is talking to them, until they lose interest.
+                attending.ticks = attending.ticks.saturating_sub(1);
+                if attending.ticks == 0 {
+                    commands.entity(entity).remove::<Attending>();
+                } else if !matches!(activity, Activity::Stroll(_)) {
+                    if (heading.0 - attending.heading).abs() > f32::EPSILON {
+                        heading.0 = attending.heading;
+                    }
+                    continue;
+                }
+            }
             if let Activity::Stroll(stops) = activity {
                 // Turn at each stop and walk on to the next.
                 errand.stop = (errand.stop + 1) % stops.len();

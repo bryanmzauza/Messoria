@@ -163,6 +163,15 @@ See [ADR 0018](adr/0018-villagers-with-days-of-their-own.md).
   bends them to the ground or hides them indoors as `Doing` says, names
   them under the crosshair (`actions`, `target`) and has the one keeping
   a shop greet whoever trades at its stall.
+- Talking (`TalkTo`) and giving (`GiveGift`) go to the server's
+  `friendship` module, which keeps each character's friendships (`Bonds`,
+  saved in the player's file), picks the villager's line from the content
+  by the moment and the hearts, counts the points, hands over the
+  villager's present at new hearts, answers with a `Dialogue` and sends
+  the player's `Friendships` whenever they change. A friend of a shop's
+  keeper pays less there (`messoria_shared::friendship`). The client's
+  `talk` module shows the dialogue window and the list of villagers.
+  See [ADR 0019](adr/0019-talking-gifts-and-friendship.md).
 
 ## Farm lots
 

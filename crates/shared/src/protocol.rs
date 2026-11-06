@@ -7,7 +7,7 @@ use std::fmt;
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, ShopId, StructureId, Tool, VillagerId};
+use messoria_content::{ItemId, Reaction, ShopId, StructureId, Tool, VillagerId};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
@@ -306,6 +306,44 @@ pub enum Doing {
     Indoors,
 }
 
+/// A client having its character talk to the villager it stands by.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TalkTo {
+    pub villager: VillagerId,
+}
+
+/// A client giving the villager it stands by the item in a hotbar slot.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GiveGift {
+    pub villager: VillagerId,
+    pub slot: u8,
+}
+
+/// What a villager said to the player, with how the two stand and, for a
+/// gift, what the villager made of it and gave back.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Dialogue {
+    pub villager: VillagerId,
+    pub says: String,
+    pub points: u16,
+    pub reaction: Option<Reaction>,
+    /// What the villager gave the player, for befriending them.
+    pub given: Option<(ItemId, u16)>,
+}
+
+/// How the player stands with every villager they have met, sent when they
+/// arrive and whenever it changes.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Friendships(pub Vec<Friendship>);
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Friendship {
+    pub villager: VillagerId,
+    pub points: u16,
+    pub talked_today: bool,
+    pub gave_today: bool,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -355,6 +393,10 @@ pub enum Notice {
     LotCosts(u32),
     /// Inviting someone who may already work the lot.
     AlreadyInvited,
+    /// Giving a villager a second gift in a day.
+    GaveAlready,
+    /// Giving a villager something that cannot be given.
+    NothingToGive,
     Trade(Refusal),
 }
 
@@ -389,6 +431,8 @@ impl fmt::Display for Notice {
             Self::LotTaken => "Someone already owns that lot.",
             Self::LotCosts(price) => return write!(f, "That lot costs {price} coins."),
             Self::AlreadyInvited => "They can already work that lot.",
+            Self::GaveAlready => "They already got a gift from you today.",
+            Self::NothingToGive => "Hold something to give it.",
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -435,6 +479,8 @@ pub enum Happened {
     Ate,
     /// A farm lot was claimed at the notice board.
     ClaimedLot,
+    /// A gift was handed to a villager.
+    Gave,
 }
 
 impl Ease for Position {
@@ -519,6 +565,14 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<Uninvite>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<TalkTo>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<GiveGift>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Dialogue>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Friendships>()
+            .add_direction(NetworkDirection::ServerToClient);
 
         app.component::<WorldClock>().replicate();
         app.component::<SleepTally>().replicate();

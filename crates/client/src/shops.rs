@@ -12,10 +12,13 @@ use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_calendar::WorldTime;
 use messoria_content::{Catalog, ItemId, Quality, ShopDef, ShopId};
-use messoria_economy::{Customer, Market, PriceBasis, Refusal, SalesLedger, Wallet, buy, sell};
+use messoria_economy::{
+    Customer, Discount, Market, PriceBasis, Refusal, SalesLedger, Wallet, buy, sell,
+};
 use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
+    friendship::{discount, keeper_of},
     protocol::{
         ActionChannel, Belongings, Deal, MarketState, Money, PlayerInput, Position, Shopfront,
         SoldToday, Trade,
@@ -30,6 +33,7 @@ use crate::{
     clock::LocalClock,
     icons::ItemIcons,
     panels::OpenPanel,
+    talk::{Hearts, WordWithKeeper},
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
@@ -173,6 +177,7 @@ fn show_shop_window(
     content: Res<Content>,
     icons: Res<ItemIcons>,
     clock: Res<LocalClock>,
+    hearts: Res<Hearts>,
     stalls: Query<&Shopfront>,
     player: Query<(Ref<Belongings>, Ref<Money>, Ref<SoldToday>), With<InputMarker<PlayerInput>>>,
     market: Query<Ref<MarketState>>,
@@ -187,6 +192,8 @@ fn show_shop_window(
         | OpenPanel::Backpack
         | OpenPanel::Chest(_)
         | OpenPanel::Board(_)
+        | OpenPanel::Talk(_)
+        | OpenPanel::Villagers
         | OpenPanel::Menu
         | OpenPanel::Options => None,
     };
@@ -201,6 +208,7 @@ fn show_shop_window(
         || money.is_changed()
         || sold.is_changed()
         || market.is_changed()
+        || hearts.is_changed()
         || *shown_at != Some(now);
     if !changed {
         return;
@@ -216,6 +224,7 @@ fn show_shop_window(
         ledger: &sold.0,
         market: &market.0,
         icons: &icons,
+        discount: discount(keeper_of(&content, stall.shop).map_or(0, |keeper| hearts.with(keeper))),
     };
     commands
         .entity(*listing)
@@ -256,6 +265,8 @@ struct Counter<'a> {
     ledger: &'a SalesLedger,
     market: &'a Market,
     icons: &'a ItemIcons,
+    /// What the keeper takes off for a friend.
+    discount: Discount,
 }
 
 impl Counter<'_> {
@@ -294,12 +305,39 @@ impl Counter<'_> {
             wallet: &mut wallet,
             ledger: &mut ledger,
         };
-        buy(self.content, self.shop, self.now, customer, item, count)
+        buy(
+            self.content,
+            self.shop,
+            self.now,
+            customer,
+            item,
+            count,
+            self.discount,
+        )
     }
 
     fn show(&self, listing: &mut ChildSpawnerCommands) {
         let shop = self.definition();
-        listing.spawn(ui::label(shop.name.clone(), HEADING_SIZE, TEXT_COLOR));
+        listing
+            .spawn(Node {
+                column_gap: px(12),
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn((
+                    ui::label(shop.name.clone(), HEADING_SIZE, TEXT_COLOR),
+                    Node {
+                        flex_grow: 1.0,
+                        ..default()
+                    },
+                ));
+                if let Some(keeper) = keeper_of(self.content, self.shop) {
+                    let name = &self.content.villager(keeper).name;
+                    let first = name.split(' ').next().unwrap_or(name);
+                    ui::spawn_button(row, format!("A word with {first}"), WordWithKeeper(keeper));
+                }
+            });
         listing.spawn(ui::label(self.hours(), TEXT_SIZE, MUTED_TEXT_COLOR));
         listing.spawn(ui::label(
             format!("You have {} coins.", self.wallet.coins()),
@@ -351,12 +389,19 @@ impl Counter<'_> {
         }
 
         listing.spawn(ui::label("Buy", HEADING_SIZE, TEXT_COLOR));
+        if self.discount != Discount::NONE {
+            listing.spawn(ui::label(
+                format!("A friend's price: {} percent off.", self.discount.0),
+                TEXT_SIZE,
+                MUTED_TEXT_COLOR,
+            ));
+        }
         let season = self.now.season();
         for listed in shop.sells.iter().filter(|listed| listed.on_sale_in(season)) {
             let description = format!(
                 "{}: {} each",
                 self.content.item(listed.item).name,
-                listed.price
+                self.discount.apply(listed.price)
             );
             let deals = [1, BULK_PURCHASE].map(|count| {
                 self.try_buy(listed.item, count).map(|cost| {
