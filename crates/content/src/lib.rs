@@ -29,5 +29,5 @@ pub use crate::{
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
-    village::{Stall, Village},
+    village::{Lots, Stall, Village},
 };

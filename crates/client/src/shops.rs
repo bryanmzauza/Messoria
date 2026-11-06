@@ -212,6 +212,7 @@ fn show_shop_window(
         OpenPanel::None
         | OpenPanel::Backpack
         | OpenPanel::Chest(_)
+        | OpenPanel::Board(_)
         | OpenPanel::Menu
         | OpenPanel::Options => None,
     };

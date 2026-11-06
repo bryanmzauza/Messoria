@@ -15,6 +15,7 @@ use messoria_content::{Catalog, Quality};
 use messoria_economy::Wallet;
 use messoria_inventory::Inventory;
 use messoria_save::PlayerState;
+pub(crate) use messoria_shared::players::player_key;
 use messoria_shared::{
     content::Content,
     energy::Energy,
@@ -60,17 +61,6 @@ pub(crate) type CharacterState<'a> = (
     &'a Money,
     &'a SoldToday,
 );
-
-/// The name of a player's save file, for the players the server can
-/// recognize when they come back.
-pub(crate) fn player_key(peer: PeerId) -> Option<String> {
-    match peer {
-        PeerId::Netcode(id) => Some(format!("{id:016x}")),
-        // The player hosting the world from the game.
-        PeerId::Local(_) => Some("host".to_owned()),
-        PeerId::Entity(_) | PeerId::Raw(_) | PeerId::Steam(_) | PeerId::Server => None,
-    }
-}
 
 /// A character's state, to save or to keep while its player is away.
 pub(crate) fn state_of(

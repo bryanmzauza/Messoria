@@ -5,7 +5,10 @@
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
-use messoria_shared::protocol::{ActionChannel, GiveMoney, Money, PlayerId, PlayerInput};
+use messoria_shared::{
+    players::name_of,
+    protocol::{ActionChannel, GiveMoney, Money, PlayerId, PlayerInput},
+};
 
 use crate::{
     inventory::BackpackSide,
@@ -154,7 +157,7 @@ fn show_gift_panel(
                     })
                     .with_children(|row| {
                         row.spawn((
-                            ui::label(player_name(peer), TEXT_SIZE, TEXT_COLOR),
+                            ui::label(name_of(peer), TEXT_SIZE, TEXT_COLOR),
                             Node {
                                 flex_grow: 1.0,
                                 ..default()
@@ -170,9 +173,4 @@ fn show_gift_panel(
                     });
             }
         });
-}
-
-/// How a player is named on screen until players choose their own names.
-fn player_name(peer: PeerId) -> String {
-    format!("Player {:04X}", peer.to_bits() & 0xFFFF)
 }

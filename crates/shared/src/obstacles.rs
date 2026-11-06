@@ -1,5 +1,6 @@
-//! Things characters cannot walk through: tree trunks, rocks, stalls, and
-//! the walls and furniture of what players build.
+//! Things characters cannot walk through: tree trunks, rocks, stalls, the
+//! fences of the farm lots, and the walls and furniture of what players
+//! build.
 //!
 //! Round things are upright cylinders, built things upright boxes. The
 //! server and every client build the same set, from the scenery each grows
@@ -39,12 +40,13 @@ impl Plugin for ObstaclesPlugin {
     }
 }
 
-/// What an obstacle belongs to: an entity, such as a stall or a cabin, or a
-/// prop of the scenery, which has none.
+/// What an obstacle belongs to: an entity, such as a stall or a cabin, a
+/// prop of the scenery, which has none, or the fences on a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Blocker {
     Thing(Entity),
     Prop(PropKey),
+    Fences(IVec2),
 }
 
 /// Something upright nothing walks through.
@@ -189,6 +191,49 @@ impl Obstacles {
             bottom: position.y - REACH_DOWN,
             top: position.y + REACH_UP,
             owner: Blocker::Prop(key),
+        });
+    }
+
+    /// Makes a stretch of fence from `from` to `to`, standing `thickness`
+    /// across, an obstacle of `owner`, reaching from `bottom` to `top`.
+    pub(crate) fn block_with_fence(
+        &mut self,
+        owner: Blocker,
+        from: Vec2,
+        to: Vec2,
+        thickness: f32,
+        bottom: f32,
+        top: f32,
+    ) {
+        let along = to - from;
+        self.insert(Obstacle {
+            center: from.midpoint(to),
+            shape: Shape::Box {
+                half_size: Vec2::new(along.length() / 2.0, thickness / 2.0),
+                // Turning by the opposite angle lays the box's x along the run.
+                turn: -along.to_angle(),
+            },
+            bottom,
+            top,
+            owner,
+        });
+    }
+
+    /// Makes an upright post at `center` an obstacle of `owner`.
+    pub(crate) fn block_with_post(
+        &mut self,
+        owner: Blocker,
+        center: Vec2,
+        radius: f32,
+        bottom: f32,
+        top: f32,
+    ) {
+        self.insert(Obstacle {
+            center,
+            shape: Shape::Cylinder { radius },
+            bottom,
+            top,
+            owner,
         });
     }
 
@@ -450,6 +495,29 @@ mod tests {
             None,
             "over it"
         );
+    }
+
+    #[test]
+    fn fences_lie_along_their_run() {
+        let mut obstacles = Obstacles::default();
+        let owner = Blocker::Fences(IVec2::ZERO);
+        obstacles.block_with_fence(
+            owner,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.0, 2.0),
+            0.2,
+            0.0,
+            1.2,
+        );
+        let across = obstacles.push_out(Vec3::new(0.2, 0.0, 1.0), 0.3, 1.8);
+        assert!((across.x - 0.4).abs() < 1e-4, "pushed to {across}");
+        let beyond_the_end = Vec3::new(0.0, 0.0, 2.6);
+        assert_eq!(obstacles.push_out(beyond_the_end, 0.3, 1.8), beyond_the_end);
+        let over = Vec3::new(0.0, 1.5, 1.0);
+        assert_eq!(obstacles.push_out(over, 0.3, 1.8), over);
+        obstacles.clear(owner);
+        let through = Vec3::new(0.0, 0.0, 1.0);
+        assert_eq!(obstacles.push_out(through, 0.3, 1.8), through);
     }
 
     #[test]

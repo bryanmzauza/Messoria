@@ -11,11 +11,26 @@ use crate::{
     structure::{Placement, StructureId},
 };
 
-/// The village's layout, relative to the middle of its square.
+/// The village's layout, relative to the middle of its square, and the
+/// farm lots around it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Village {
     pub stalls: Vec<Stall>,
     pub structures: Vec<Placement>,
+    pub lots: Lots,
+}
+
+/// What the village asks for a farm lot, and how the lots are fenced.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lots {
+    /// What a lot costs, in coins, after a player's first.
+    pub price: u32,
+    /// A section of fence, relative to the models folder: a post with
+    /// rails running along +x to where the next section starts.
+    pub fence: String,
+    /// A gateway, 4 m across x, standing where the fence opens.
+    pub gate: String,
 }
 
 /// Where a shop trades: the middle of its counter, and the way the counter
@@ -33,6 +48,7 @@ pub(crate) struct VillageFile {
     stalls: Vec<PlaceEntry>,
     #[serde(default)]
     structures: Vec<PlaceEntry>,
+    lots: Lots,
 }
 
 /// Something placed in the village: a shop's stall or a structure, by id.
@@ -89,9 +105,15 @@ impl VillageFile {
                 "shop `{key}` must have exactly one stall"
             )));
         }
+        if self.lots.price == 0 {
+            return Err(Problem::InvalidVillage(
+                "a farm lot must cost something after the first".to_owned(),
+            ));
+        }
         Ok(Village {
             stalls,
             structures: placed,
+            lots: self.lots,
         })
     }
 }

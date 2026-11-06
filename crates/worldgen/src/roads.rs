@@ -1,13 +1,17 @@
 //! Roads: dirt tracks from the village square out across the farmland, one
 //! toward each point of the compass, and a ring road around the village
 //! joining them. Each is graded along its length, so its surface climbs
-//! gently where the ground beside it rolls.
+//! gently where the ground beside it rolls. The compass roads run straight
+//! past the farm lots that line them, and wander only beyond.
 
 use std::collections::HashMap;
 
 use glam::{IVec2, Vec2};
 
-use crate::noise::{fractal, mix, smoothstep};
+use crate::{
+    lots::LOTS_REACH,
+    noise::{fractal, mix, smoothstep},
+};
 
 /// Half the width of a road's surface, in meters.
 pub const ROAD_HALF_WIDTH: f32 = 2.0;
@@ -18,11 +22,13 @@ const SHOULDER: f32 = 3.5;
 const STEP: f32 = 16.0;
 /// Where the roads out of the village end, at the foot of the mountains.
 const ROAD_LENGTH: f32 = 820.0;
-/// Radius of the ring road around the village.
-const RING_RADIUS: f32 = 280.0;
+/// Radius of the ring road around the village, at the edge of the farmland.
+const RING_RADIUS: f32 = 340.0;
 /// How far a road wanders from a straight line, and over what distance.
 const WANDER: f32 = 18.0;
 const WANDER_LENGTH: f32 = 140.0;
+/// Over what distance past the lots a road takes to its full wander.
+const WANDER_ONSET: f32 = 120.0;
 /// Points on each side averaged into a road's grade.
 const GRADING: isize = 3;
 /// Size of the cells roads are indexed by.
@@ -73,10 +79,11 @@ impl Roads {
             let mut points = Vec::new();
             let mut along = square;
             while along <= ROAD_LENGTH {
-                // Straight out of the square, wandering once clear of it.
+                // Straight out of the square and past the lots, wandering
+                // once clear of them.
                 let wander = fractal(wander_seed, Vec2::new(along / WANDER_LENGTH, 0.5), 2)
                     * WANDER
-                    * smoothstep(40.0, 140.0, along);
+                    * smoothstep(LOTS_REACH, LOTS_REACH + WANDER_ONSET, along);
                 points.push(village + direction * along + across * wander);
                 along += STEP;
             }

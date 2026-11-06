@@ -8,8 +8,8 @@
 //! held; seeds, fertilizer and food act once per click. `F` picks what is
 //! under the crosshair, such as berries, or harvests the ripe crop there,
 //! unless it opens a shop. The server carries out every use, so the world
-//! changes when its update arrives. Aim markers turn red over the village,
-//! whose ground cannot be worked.
+//! changes when its update arrives. Aim markers turn red over ground the
+//! player cannot work: the village's, and any lot but their own.
 
 use std::time::Duration;
 
@@ -19,11 +19,13 @@ use messoria_content::{ItemKind, Tool};
 use messoria_shared::{
     content::Content,
     fields::{tile_at, tile_center},
+    lots::Claims,
     movement::EYE_HEIGHT,
     obstacles::{Blocker, Obstacles},
+    players::player_key,
     protocol::{
-        ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerInput, Position,
-        UseItem,
+        ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerId, PlayerInput,
+        Position, UseItem,
     },
     structures,
     terrain::Terrain,
@@ -248,19 +250,27 @@ fn draw_aim(
     view: Res<View>,
     content: Res<Content>,
     held: Res<HeldSlot>,
-    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
+    claims: Claims,
+    player: Query<(&Belongings, &PlayerId), With<InputMarker<PlayerInput>>>,
     mut gizmos: Gizmos,
 ) {
-    let (Some(hit), Ok(belongings)) = (aim.ground, player.single()) else {
+    let (Some(hit), Ok((belongings, player))) = (aim.ground, player.single()) else {
         return;
     };
     // Gizmo shapes are drawn facing +Z; this lays them on the ground.
     let flat = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    let key = player_key(player.0);
+    let workable = |point: Vec3, reach: f32| {
+        !village::reaches(point, reach)
+            && key
+                .as_deref()
+                .is_some_and(|key| claims.allows(key, point.xz()))
+    };
     let color = |reach| {
-        if village::reaches(hit.point, reach) {
-            PROTECTED_AIM_COLOR
-        } else {
+        if workable(hit.point, reach) {
             AIM_COLOR
+        } else {
+            PROTECTED_AIM_COLOR
         }
     };
     match held_handling(&content, &held, belongings) {
@@ -292,10 +302,10 @@ fn draw_aim(
                 );
                 let reach = Vec2::new(width, depth).length() / 2.0;
                 gizmos.rect(ground, Vec2::new(width, depth), {
-                    if village::reaches(plan.position, reach) {
-                        PROTECTED_AIM_COLOR
-                    } else {
+                    if workable(plan.position, reach) {
                         AIM_COLOR
+                    } else {
+                        PROTECTED_AIM_COLOR
                     }
                 });
             }

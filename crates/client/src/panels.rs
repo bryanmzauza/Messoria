@@ -1,5 +1,6 @@
 //! Windows that take the cursor away from the world, such as the backpack,
-//! shops, chests and the game menu. At most one is open at a time.
+//! shops, chests, the notice board and the game menu. At most one is open
+//! at a time.
 //!
 //! Escape closes the open window, or opens the game menu when none is; from
 //! the options it goes back to the menu.
@@ -25,6 +26,8 @@ pub(crate) enum OpenPanel {
     Shop(Entity),
     /// The chest that is this entity.
     Chest(Entity),
+    /// The village notice board that is this entity.
+    Board(Entity),
     /// The game menu, as opened with Escape.
     Menu,
     Options,
@@ -40,9 +43,11 @@ fn answer_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) 
     if keys.just_pressed(KeyCode::Escape) {
         *panel = match *panel {
             OpenPanel::None | OpenPanel::Options => OpenPanel::Menu,
-            OpenPanel::Backpack | OpenPanel::Shop(_) | OpenPanel::Chest(_) | OpenPanel::Menu => {
-                OpenPanel::None
-            }
+            OpenPanel::Backpack
+            | OpenPanel::Shop(_)
+            | OpenPanel::Chest(_)
+            | OpenPanel::Board(_)
+            | OpenPanel::Menu => OpenPanel::None,
         };
     }
 }

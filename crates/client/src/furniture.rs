@@ -1,8 +1,10 @@
-//! Furniture: going to bed and getting up, and opening chests.
+//! Furniture: going to bed and getting up, opening chests and reading the
+//! notice board.
 //!
 //! `F` on a bed goes to sleep in it, and `F` again gets up. `F` on a chest
-//! opens its window, which closes when the character walks away. The server
-//! decides whether the character may sleep, and says why not.
+//! or on the notice board opens its window, which closes when the
+//! character walks away. The server decides whether the character may
+//! sleep, and says why not.
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
@@ -78,6 +80,7 @@ fn use_furniture(
             }
         }
         Purpose::Storage => *panel = OpenPanel::Chest(thing),
+        Purpose::NoticeBoard => *panel = OpenPanel::Board(thing),
         Purpose::None => return,
     }
     keys.clear_just_pressed(INTERACT_KEY);

@@ -240,14 +240,14 @@ per second in a release build, and the server stays within its tick budget.
 
 Goal: every player farms on land of their own.
 
-- [ ] The land around the village laid out in fenced 64 m lots, from data,
+- [x] The land around the village laid out in fenced 64 m lots, from data,
       each with a gate on a road
-- [ ] A notice board in the village to pick a free lot: the first one is
+- [x] A notice board in the village to pick a free lot: the first one is
       free, more can be bought
-- [ ] Only a lot's owner and the players they invite till, dig, plant,
+- [x] Only a lot's owner and the players they invite till, dig, plant,
       harvest, build and open chests there; anyone may walk through
-- [ ] Outside the lots, anyone may gather, but not till, plant or build
-- [ ] The cabin is built on the player's own lot; lots and invitations are
+- [x] Outside the lots, anyone may gather, but not till, plant or build
+- [x] The cabin is built on the player's own lot; lots and invitations are
       kept in the save
 
 **Exit criterion:** two players on neighboring lots cannot change each

@@ -326,7 +326,7 @@ mod tests {
                 grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
                 wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.0, 0.0, 0.0)]),
             )"#,
-            village: "(stalls: [])",
+            village: "(stalls: [], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"))",
         })
         .unwrap();
         let id = |key| catalog.id(key).unwrap();

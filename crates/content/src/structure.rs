@@ -55,6 +55,8 @@ pub enum Purpose {
     Bed,
     /// It keeps items.
     Storage,
+    /// Players pick and manage their farm lots at it.
+    NoticeBoard,
 }
 
 /// A model a structure is drawn with.

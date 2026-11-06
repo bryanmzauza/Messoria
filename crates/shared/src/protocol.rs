@@ -1,5 +1,6 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! the valley, inventories, fields, money, shops and player actions.
+//! the valley, inventories, fields, farm lots, money, shops and player
+//! actions.
 
 use std::fmt;
 
@@ -13,7 +14,7 @@ use messoria_inventory::Inventory;
 use messoria_voxel::{ChunkChanges, Material};
 use serde::{Deserialize, Serialize};
 
-use crate::{energy::Energy, valley::PropKey};
+use crate::{energy::Energy, lots::LotId, valley::PropKey};
 
 /// The peer an entity belongs to.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -247,6 +248,46 @@ pub struct GiveMoney {
     pub amount: u32,
 }
 
+/// A farm lot someone owns: whose it is and who they let work it, by the
+/// players' keys. One entity per claimed lot, sent to everyone, so the
+/// notice board can list every lot wherever a player is.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct LotClaim {
+    pub lot: LotId,
+    pub owner: String,
+    pub invited: Vec<String>,
+}
+
+impl LotClaim {
+    /// Whether the player `key` names may work the lot.
+    pub fn allows(&self, key: &str) -> bool {
+        self.owner == key || self.invited.iter().any(|invited| invited == key)
+    }
+}
+
+/// A client taking the free lot `lot` at the village notice board: for
+/// nothing if it is the player's first, for the village's price otherwise.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClaimLot {
+    pub lot: LotId,
+}
+
+/// A client letting another player, who is in the world, work a lot of
+/// theirs.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InviteToLot {
+    pub lot: LotId,
+    pub player: PeerId,
+}
+
+/// A client taking back an invitation to a lot of theirs, by the invited
+/// player's key, who need not be in the world.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Uninvite {
+    pub lot: LotId,
+    pub player: String,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -284,6 +325,18 @@ pub enum Notice {
     GroundTooUneven,
     /// Going to sleep away from a bed.
     SleepInABed,
+    /// Working ground that is on no lot of the player's.
+    OnlyOnYourLot,
+    /// Working ground on a lot somebody else owns.
+    NotYourLot,
+    /// Building a home anywhere but on a lot of one's own.
+    HomeOnYourLot,
+    /// Claiming a lot somebody owns.
+    LotTaken,
+    /// Claiming a lot that costs more than the player has.
+    LotCosts(u32),
+    /// Inviting someone who may already work the lot.
+    AlreadyInvited,
     Trade(Refusal),
 }
 
@@ -312,6 +365,12 @@ impl fmt::Display for Notice {
             Self::NoRoomToBuild => "There is no room to build that here.",
             Self::GroundTooUneven => "The ground is too uneven to build that here.",
             Self::SleepInABed => "Sleep in a bed.",
+            Self::OnlyOnYourLot => "Only on a farm lot of your own. Pick one at the notice board.",
+            Self::NotYourLot => "This lot belongs to someone else.",
+            Self::HomeOnYourLot => "Build your cabin on a lot of your own.",
+            Self::LotTaken => "Someone already owns that lot.",
+            Self::LotCosts(price) => return write!(f, "That lot costs {price} coins."),
+            Self::AlreadyInvited => "They can already work that lot.",
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -356,6 +415,8 @@ pub enum Happened {
     Built,
     Traded,
     Ate,
+    /// A farm lot was claimed at the notice board.
+    ClaimedLot,
 }
 
 impl Ease for Position {
@@ -434,6 +495,12 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<GiveMoney>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<ClaimLot>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<InviteToLot>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Uninvite>()
+            .add_direction(NetworkDirection::ClientToServer);
 
         app.component::<WorldClock>().replicate();
         app.component::<SleepTally>().replicate();
@@ -452,6 +519,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<Structure>().replicate();
         app.component::<Stored>().replicate();
         app.component::<Holding>().replicate();
+        app.component::<LotClaim>().replicate();
 
         app.component::<PlayerId>().replicate();
 

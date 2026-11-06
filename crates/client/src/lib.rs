@@ -8,12 +8,14 @@
 mod actions;
 mod art;
 mod avatars;
+mod board;
 mod camera;
 mod clock;
 mod connection;
 mod cover;
 mod environment;
 mod feedback;
+mod fences;
 mod fields;
 mod figures;
 mod furniture;
@@ -83,6 +85,7 @@ impl Plugin for ClientPlugin {
             art::ArtPlugin,
             wind::WindPlugin,
             scenery::SceneryPlugin,
+            fences::FencesPlugin,
             structures::StructuresPlugin,
             cover::CoverPlugin,
             sky::SkyPlugin,
@@ -102,6 +105,7 @@ impl Plugin for ClientPlugin {
             panels::PanelsPlugin,
             inventory::InventoryPlugin,
             shops::ShopsPlugin,
+            board::BoardPlugin,
             wallet::WalletPlugin,
             settings::SettingsPlugin {
                 file: self.settings_file.clone(),

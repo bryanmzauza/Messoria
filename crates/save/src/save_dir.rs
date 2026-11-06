@@ -231,11 +231,12 @@ mod tests {
     use messoria_farming::Planting;
     use messoria_inventory::Inventory;
     use messoria_voxel::{Material, Voxel};
+    use messoria_worldgen::LotId;
 
     use super::*;
     use crate::{
         profile::Profile,
-        world::{FieldState, GatheredProp, StructureState},
+        world::{FieldState, GatheredProp, LotState, StructureState},
     };
 
     fn catalog() -> Catalog {
@@ -302,6 +303,18 @@ mod tests {
                     }),
                 },
             ],
+            lots: vec![
+                LotState {
+                    lot: LotId(4),
+                    owner: "host".to_owned(),
+                    invited: vec!["0123abcd".to_owned()],
+                },
+                LotState {
+                    lot: LotId(9),
+                    owner: "0123abcd".to_owned(),
+                    invited: Vec::new(),
+                },
+            ],
         }
     }
 
@@ -360,7 +373,7 @@ mod tests {
         let path = save.root().join(WORLD_FILE);
         let text = fs::read_to_string(&path)
             .unwrap()
-            .replacen("version: 4", "version: 9", 1);
+            .replacen("version: 5", "version: 9", 1);
         fs::write(&path, text).unwrap();
 
         let error = save.load(&catalog).unwrap_err();
@@ -369,7 +382,7 @@ mod tests {
             error.problem,
             Problem::Newer {
                 found: 9,
-                supported: 4
+                supported: 5
             }
         ));
     }
@@ -381,11 +394,11 @@ mod tests {
         let path = save.root().join(WORLD_FILE);
         let text = fs::read_to_string(&path)
             .unwrap()
-            .replacen("version: 4", "version: 3", 1);
+            .replacen("version: 5", "version: 4", 1);
         fs::write(&path, text).unwrap();
 
         let error = save.load(&catalog).unwrap_err();
-        assert!(matches!(error.problem, Problem::OlderValley(3)));
+        assert!(matches!(error.problem, Problem::OlderValley(4)));
         assert!(error.to_string().contains("start a new world"));
     }
 

@@ -24,7 +24,7 @@ pub const DEFAULT_PORT: u16 = 5717;
 
 /// Identifies this wire protocol. Builds with different values refuse to
 /// connect to each other, so bump it on every incompatible protocol change.
-const PROTOCOL_ID: u64 = 1;
+const PROTOCOL_ID: u64 = 2;
 
 /// Key that signs connect tokens.
 ///

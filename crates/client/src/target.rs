@@ -1,16 +1,19 @@
 //! What the crosshair is on, named under it: a crop and how it is doing, a
-//! field, a stall, something built, or a piece of scenery and how to gather
-//! it.
+//! field, a stall, something built, a fence, a piece of scenery and how to
+//! gather it, or whose farm lot the ground belongs to.
 
 use bevy::prelude::*;
+use lightyear::prelude::input::native::InputMarker;
 use messoria_calendar::WorldTime;
 use messoria_content::{CropDef, Purpose, Tool};
 use messoria_farming::Planting;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
+    lots::{self, Claims, GATE_WIDTH},
     obstacles::Blocker,
-    protocol::{Crop, Fertilized, Field, Shopfront, Structure, Watered},
+    players::{player_key, player_name},
+    protocol::{Crop, Fertilized, Field, PlayerId, PlayerInput, Shopfront, Structure, Watered},
     scenery::Scenery,
     valley::PropKey,
 };
@@ -96,12 +99,23 @@ fn describe_target(
     scenery: Res<Scenery>,
     stalls: Query<&Shopfront>,
     structures: Query<&Structure>,
+    claims: Claims,
+    player: Query<&PlayerId, With<InputMarker<PlayerInput>>>,
     mut name: Single<&mut Text, (With<TargetName>, Without<TargetDetail>)>,
     mut detail: Single<&mut Text, With<TargetDetail>>,
 ) {
     let today = clock.time().map(WorldTime::day);
     let described = if let Some((Blocker::Prop(key), _)) = aim.thing {
         Some(describe_prop(&content, key, scenery.gathered(key), today))
+    } else if let Some((Blocker::Fences(_), point)) = aim.thing {
+        Some(Description {
+            name: if lots::gate_distance(point.xz()) < GATE_WIDTH {
+                "Gate".to_owned()
+            } else {
+                "Fence".to_owned()
+            },
+            detail: String::new(),
+        })
     } else if let Some((Blocker::Thing(thing), _)) = aim.thing {
         if let Ok(stall) = stalls.get(thing) {
             Some(Description {
@@ -116,11 +130,19 @@ fn describe_target(
         }
     } else if let Some(hit) = aim.ground {
         let tile = tile_at(hit.point);
-        fields.iter().find(|(field, ..)| field.tile == tile).map(
-            |(_, crop, watered, fertilized)| {
+        fields
+            .iter()
+            .find(|(field, ..)| field.tile == tile)
+            .map(|(_, crop, watered, fertilized)| {
                 describe_field(&content, clock.time(), crop, watered, fertilized)
-            },
-        )
+            })
+            .or_else(|| {
+                let key = player
+                    .single()
+                    .ok()
+                    .and_then(|player| player_key(player.0))?;
+                describe_lot(&claims, &key, hit.point.xz())
+            })
     } else {
         None
     }
@@ -142,9 +164,28 @@ fn describe_structure(content: &Content, structure: &Structure) -> Description {
         detail: match definition.purpose {
             Purpose::Bed => format!("Press {INTERACT_KEY_NAME} to sleep, from 18:00"),
             Purpose::Storage => format!("Press {INTERACT_KEY_NAME} to open"),
+            Purpose::NoticeBoard => format!("Press {INTERACT_KEY_NAME} to pick a farm lot"),
             Purpose::None => String::new(),
         },
     }
+}
+
+/// The lot the ground at `point` belongs to, and whose it is, as the player
+/// `key` names sees it.
+fn describe_lot(claims: &Claims, key: &str, point: Vec2) -> Option<Description> {
+    let lot = lots::lot_at(point)?;
+    let detail = match claims.on(lot) {
+        None => "Free: pick it at the village notice board".to_owned(),
+        Some(claim) if claim.owner == key => "Your farm".to_owned(),
+        Some(claim) if claim.allows(key) => {
+            format!("{}'s farm, which you may work", player_name(&claim.owner))
+        }
+        Some(claim) => format!("{}'s farm", player_name(&claim.owner)),
+    };
+    Some(Description {
+        name: format!("Lot {}", lot.number()),
+        detail,
+    })
 }
 
 /// A prop's name, and how to gather it or when it grows back, if it was

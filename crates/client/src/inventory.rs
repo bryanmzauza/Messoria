@@ -496,7 +496,9 @@ fn toggle_windows(
         match *panel {
             OpenPanel::Backpack | OpenPanel::Chest(_) => *panel = OpenPanel::None,
             OpenPanel::Menu | OpenPanel::Options => {}
-            OpenPanel::None | OpenPanel::Shop(_) => *panel = OpenPanel::Backpack,
+            OpenPanel::None | OpenPanel::Shop(_) | OpenPanel::Board(_) => {
+                *panel = OpenPanel::Backpack;
+            }
         }
     }
     if panel.is_changed() {

@@ -6,6 +6,7 @@ version = 2
 yanked = "deny"
 ignore = [
   { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; pulled in by winit's Wayland decorations and not replaceable from here" },
+  { id = "RUSTSEC-2026-0344", reason = "ruzstd can be made to allocate too much by a crafted zstd stream; Bevy 0.19 only reaches it for zstd-compressed KTX2 textures, which the game neither ships nor downloads, and the fix is in ruzstd 0.9, which Bevy 0.19 does not take" },
 ]
 
 [licenses]

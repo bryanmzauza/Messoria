@@ -22,6 +22,7 @@ fn refused_actions_tell_the_player_why() {
     });
     assert_eq!(world.heard().notices, [Notice::TooEarlyToSleep]);
 
+    world.settle_on_a_lot(&content);
     let target = world.ground_ahead();
     let (hoe, seeds) = (
         world.slot_holding(&content, "hoe"),
@@ -40,6 +41,8 @@ fn refused_actions_tell_the_player_why() {
 fn work_on_a_field_is_shown_where_it_happened() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
+    world.settle_on_a_lot(&content);
+    let claimed = world.heard().happenings.len();
 
     let target = world.ground_ahead();
     let (hoe, seeds) = (
@@ -49,17 +52,16 @@ fn work_on_a_field_is_shown_where_it_happened() {
     world.use_item(hoe, target);
     world.use_item(seeds, target);
     world.run_until("both happenings to arrive", |world| {
-        world.heard().happenings.len() == 2
+        world.heard().happenings.len() == claimed + 2
     });
 
     let heard = world.heard();
-    let what: Vec<_> = heard
-        .happenings
+    let what: Vec<_> = heard.happenings[claimed..]
         .iter()
         .map(|happening| happening.what)
         .collect();
     assert_eq!(what, [Happened::Tilled, Happened::Planted]);
-    for happening in &heard.happenings {
+    for happening in &heard.happenings[claimed..] {
         assert!(
             happening.at.distance(target) < 1.0,
             "{happening:?} is shown at the field at {target}"

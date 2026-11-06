@@ -24,7 +24,7 @@ crates/
   inventory/         messoria-inventory         Slots, stacks, quality and spoilage
   save/              messoria-save              Versioned save files for worlds and players
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
-  worldgen/          messoria-worldgen          The valley grown from the seed: its shape, river, roads and scenery
+  worldgen/          messoria-worldgen          The valley grown from the seed: its shape, river, roads, farm lots and scenery
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
   client/            messoria-client            Rendering, input, camera, UI, audio
@@ -99,8 +99,8 @@ which groups are added.
   world is a lightyear room. Fields, structures, stalls and characters are
   put in the room of the column they stand in, characters changing rooms as
   they walk, and each client joins the rooms around its character, as far as
-  it holds terrain. What is in no room (the clock, the market) reaches
-  everyone. See [ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
+  it holds terrain. What is in no room (the clock, the market, the claims
+  on farm lots) reaches everyone. See [ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
 
 ## Terrain
 
@@ -112,8 +112,9 @@ See [ADR 0004](adr/0004-terrain-representation.md),
 - `messoria-worldgen` grows the valley from the seed: `Landscape` gives the
   ground's height and material anywhere, the river's course and the roads,
   and generates any column of chunks; `props_in_column` grows the scenery of
-  a column. The world is 64 by 64 columns of three chunks, two kilometers
-  across. `messoria_shared::valley::Valley` holds the `Landscape`: the server
+  a column; `lots` lays out the farm lots along the roads, the same in
+  every world. The world is 64 by 64 columns of three chunks, two
+  kilometers across. `messoria_shared::valley::Valley` holds the `Landscape`: the server
   from the start, a client once `TerrainUpdate::World` tells it the seed.
 - The server owns the authoritative `Terrain` resource, holding the columns
   within a few columns of any player: `terrain::loading` generates missing
@@ -142,6 +143,28 @@ See [ADR 0004](adr/0004-terrain-representation.md),
   (`horizon`): tiles of the heightfield on a coarse grid, in the same ground,
   leaving out the columns drawn in full with skirts beside them. `water`
   lays the river's water along its whole course.
+
+## Farm lots
+
+See [ADR 0016](adr/0016-farm-lots.md).
+
+- The lots are laid out by the valley (`messoria_worldgen::lots`): three to
+  a side along each road out of the village, 64 meters square, a gate on
+  the road. Who owns one is a replicated `LotClaim` (owner and guests, by
+  key), one entity per claimed lot, in no room, so every client can list
+  them at the notice board. The world file keeps them.
+- `messoria_shared::lots` grows the fences of every loaded column as
+  obstacles on every peer, and its `Claims` tells the systems that work
+  the ground whether a player may work a point: only on a lot they own or
+  were invited to. The server's `lots` module answers `ClaimLot` (at the
+  notice board; free the first time, the village's price after),
+  `InviteToLot` and `Uninvite`. The shovel, the fields, building and chests
+  refuse with a notice everywhere else, and a home is built only on a lot
+  of one's own.
+- The client draws fence sections and gateways for the columns it draws in
+  full (`fences`), opens the notice board's window with the interact key
+  (`board`), names the lot the crosshair is on and whose it is, and colors
+  the aim red over ground the player cannot work.
 
 ## Days
 
@@ -360,7 +383,7 @@ See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
 - The village is a fixed area of the valley (`messoria_shared::village`),
   generated level and paved. Its ground cannot be dug, raised or tilled.
 - `village.ron` places each shop's stall and the village's buildings around
-  the square. At startup the server spawns a replicated `Shopfront` for each
+  the square, and says what a farm lot costs and how the lots are fenced. At startup the server spawns a replicated `Shopfront` for each
   stall and a `Structure` marked `Landmark` for each building; landmarks are
   rebuilt from the data every time, so saves leave them out. A client trades by sending `Trade` while its character
   stands at the stall; the server checks the stall, the shop's hours and the

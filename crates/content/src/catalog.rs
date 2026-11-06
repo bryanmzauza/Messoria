@@ -117,12 +117,14 @@ impl Catalog {
         let item_models = catalog.items.iter().filter_map(|item| item.model.as_ref());
         let crop_models = catalog.crops.iter().flat_map(|crop| &crop.models);
         let shop_models = catalog.shops.iter().map(|shop| &shop.stall);
+        let lot_models = [&catalog.village.lots.fence, &catalog.village.lots.gate];
         let used = models_used
             .map(|model| (model, SCENERY_FILE))
             .chain(structure_models.map(|model| (model, STRUCTURES_FILE)))
             .chain(item_models.map(|model| (model, ITEMS_FILE)))
             .chain(crop_models.map(|model| (model, CROPS_FILE)))
-            .chain(shop_models.map(|model| (model, SHOPS_FILE)));
+            .chain(shop_models.map(|model| (model, SHOPS_FILE)))
+            .chain(lot_models.map(|model| (model, VILLAGE_FILE)));
         for (model, file) in used {
             if !models.join(model).is_file() {
                 return Err(ContentError {
@@ -516,7 +518,7 @@ mod tests {
             palette,
             structures: "(structures: [])",
             characters: CHARACTERS,
-            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)])",
+            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"))",
         })
     }
 

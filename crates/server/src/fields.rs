@@ -3,7 +3,8 @@
 //!
 //! Each field is an entity replicated to every client. Growth happens in one
 //! batch at dawn rather than continuously, so thousands of fields cost almost
-//! nothing during the day.
+//! nothing during the day. Fields are tilled, tended and harvested only on
+//! a lot the player owns or was invited to.
 
 use std::collections::HashMap;
 
@@ -14,10 +15,12 @@ use messoria_shared::{
     content::Content,
     energy::Energy,
     fields::{tile_at, tile_center, tillable_ground},
+    lots::{self, Claims},
     movement::EYE_HEIGHT,
+    players::player_key,
     protocol::{
         Asleep, Belongings, Crop, CurrentWeather, Fertilized, Field, Happened, HarvestRequest,
-        Notice, Position, Watered, WorldClock,
+        Notice, PlayerId, Position, Watered, WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
@@ -100,9 +103,10 @@ fn work_fields(
     terrain: Res<Terrain>,
     scenery: Res<Scenery>,
     built: Built,
+    claims: Claims,
     clock: Single<&WorldClock>,
     mut work: MessageReader<FieldWork>,
-    characters: Query<&Position>,
+    characters: Query<(&Position, &PlayerId)>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Has<Crop>)>,
     mut index: ResMut<FieldIndex>,
@@ -111,7 +115,7 @@ fn work_fields(
     mut commands: Commands,
 ) {
     for job in work.read() {
-        let (Ok(feet), Ok((mut energy, mut belongings))) = (
+        let (Ok((feet, player)), Ok((mut energy, mut belongings))) = (
             characters.get(job.character),
             workers.get_mut(job.character),
         ) else {
@@ -129,6 +133,10 @@ fn work_fields(
             notice,
         };
         let at = |height: f32| Vec3::new(middle.x, height, middle.y);
+        if let Err(notice) = allowed(&claims, player, middle) {
+            tell.write(refuse(notice));
+            continue;
+        }
 
         match (job.task, field, state) {
             (FieldTask::Till, None, _) => {
@@ -138,7 +146,10 @@ fn work_fields(
                     continue;
                 }
                 let ground = at(job.target.y);
-                if scenery.blocks(ground, 0.71) || built.covers(ground, 0.71) {
+                if scenery.blocks(ground, 0.71)
+                    || built.covers(ground, 0.71)
+                    || lots::fence_keeps(middle, 0.71)
+                {
                     tell.write(refuse(Notice::SceneryInTheWay));
                     continue;
                 }
@@ -186,12 +197,20 @@ fn work_fields(
     }
 }
 
+/// Whether `player` may work the ground at `point`, which lies on a lot
+/// they own or were invited to.
+fn allowed(claims: &Claims, player: &PlayerId, point: Vec2) -> Result<(), Notice> {
+    let key = player_key(player.0).ok_or(Notice::OnlyOnYourLot)?;
+    claims.may_work(&key, point).map(|_| ())
+}
+
 fn harvest_crops(
     content: Res<Content>,
     clock: Single<&WorldClock>,
     index: Res<FieldIndex>,
+    claims: Claims,
     mut clients: Query<(&mut MessageReceiver<HarvestRequest>, &ControlledCharacter)>,
-    characters: Query<&Position>,
+    characters: Query<(&Position, &PlayerId)>,
     mut workers: Query<&mut Belongings, Without<Asleep>>,
     mut crops: Query<(&Field, &mut Crop, Has<Fertilized>)>,
     mut tell: MessageWriter<Tell>,
@@ -200,7 +219,7 @@ fn harvest_crops(
 ) {
     for (mut requests, character) in &mut clients {
         for HarvestRequest { target } in requests.receive() {
-            let (Ok(feet), Ok(mut belongings)) =
+            let (Ok((feet, player)), Ok(mut belongings)) =
                 (characters.get(character.0), workers.get_mut(character.0))
             else {
                 continue;
@@ -214,6 +233,13 @@ fn harvest_crops(
             let Ok((land, mut crop, fertilized)) = crops.get_mut(field) else {
                 continue;
             };
+            if let Err(notice) = allowed(&claims, player, tile_center(land.tile)) {
+                tell.write(Tell {
+                    character: character.0,
+                    notice,
+                });
+                continue;
+            }
             let definition = content.crop(crop.0.crop);
             let quality = harvest_quality(rand::random_range(0..100), fertilized);
             let room = belongings.0.room_for(&content, definition.produce, quality);

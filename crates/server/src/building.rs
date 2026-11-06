@@ -3,11 +3,12 @@
 //!
 //! Using a structure's item on the ground builds it there, its front toward
 //! whoever builds it. A structure that levels the ground needs open ground
-//! that is not too uneven, clear of props, fields, other structures and
-//! people, even around it, where the levelled ground eases back into the
-//! valley. Smaller structures stand on nearly flat ground, outside or on
-//! the floor of a structure that levelled its ground, such as a chest in a
-//! cabin, but never on what stands there.
+//! that is not too uneven, clear of props, fields, fences, other structures
+//! and people, even around it, where the levelled ground eases back into
+//! the valley. Smaller structures stand on nearly flat ground, outside or
+//! on the floor of a structure that levelled its ground, such as a chest in
+//! a cabin, but never on what stands there. Everything is built on a farm
+//! lot the builder may work, and a home only on a lot of their own.
 
 use bevy::{
     ecs::{message::Message, system::SystemParam},
@@ -19,6 +20,7 @@ use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
     fields::tile_center,
+    lots::{self, Claims},
     movement::{BODY_RADIUS, EYE_HEIGHT},
     obstacles::Obstacles,
     protocol::{
@@ -174,6 +176,7 @@ fn build(
     obstacles: Res<Obstacles>,
     fields: Query<&Field>,
     built: Built,
+    claims: Claims,
     mut terrain: ResMut<Terrain>,
     mut edited: MessageWriter<TerrainEdited>,
     mut chunk_changed: MessageWriter<ChunkChanged>,
@@ -210,6 +213,23 @@ fn build(
         }
 
         let plan = structures::planned(kind, definition, work.target, heading.0);
+        let margin = if definition.levels_ground {
+            LEVELLING_MARGIN
+        } else {
+            0.0
+        };
+        let refused = if village::reaches(plan.position, half_size(definition).length() + margin) {
+            Err(Notice::ProtectedGround)
+        } else {
+            on_own_lot(&claims, owner.as_deref(), definition, plan)
+        };
+        if let Err(notice) = refused {
+            tell.write(Tell {
+                character: work.character,
+                notice,
+            });
+            continue;
+        }
         let site = Site {
             content: &content,
             terrain: &terrain,
@@ -267,6 +287,40 @@ fn half_size(definition: &StructureDef) -> Vec2 {
     Vec2::new(definition.size.0, definition.size.1) / 2.0
 }
 
+/// Whether `plan` stands wholly on one lot the player `owner` may work, or
+/// owns if it is their home, and why not otherwise.
+fn on_own_lot(
+    claims: &Claims,
+    owner: Option<&str>,
+    definition: &StructureDef,
+    plan: Structure,
+) -> Result<(), Notice> {
+    let owner = owner.ok_or(Notice::OnlyOnYourLot)?;
+    let half = half_size(definition);
+    let mut lots = corners(half)
+        .into_iter()
+        .chain(std::iter::once(Vec2::ZERO))
+        .map(|local| claims.may_work(owner, plan.to_world(local.extend(0.0).xzy()).xz()));
+    let on_one_lot = || {
+        let first = lots.next().unwrap_or(Err(Notice::OnlyOnYourLot))?;
+        for lot in lots {
+            if lot? != first {
+                return Err(Notice::NoRoomToBuild);
+            }
+        }
+        Ok(first)
+    };
+    if definition.home {
+        let lot = on_one_lot().map_err(|_| Notice::HomeOnYourLot)?;
+        if claims.on(lot).is_none_or(|claim| claim.owner != owner) {
+            return Err(Notice::HomeOnYourLot);
+        }
+    } else {
+        on_one_lot()?;
+    }
+    Ok(())
+}
+
 /// What decides whether a structure can be built somewhere.
 struct Site<'a> {
     content: &'a Catalog,
@@ -277,9 +331,10 @@ struct Site<'a> {
 }
 
 impl Site<'_> {
-    /// The height `plan` stands at if it can be built, or why it cannot.
-    /// `people` are where characters stand, and `fields` the middles of
-    /// tilled squares.
+    /// The height `plan` stands at if it can be built, or why it cannot,
+    /// on ground outside the village that the builder may work. `people`
+    /// are where characters stand, and `fields` the middles of tilled
+    /// squares.
     fn check(
         &self,
         definition: &StructureDef,
@@ -293,10 +348,6 @@ impl Site<'_> {
         } else {
             0.0
         };
-        if village::reaches(plan.position, half.length() + margin) {
-            return Err(Notice::ProtectedGround);
-        }
-
         let samples = footprint_samples(half).map(|local| plan.to_world(local.extend(0.0).xzy()));
         let heights = samples
             .map(|point| self.terrain.surface_below(point + Vec3::Y * 4.0, 8.0))
@@ -325,6 +376,13 @@ impl Site<'_> {
 
         let reach = half.length() + margin;
         let near = |point: Vec2, radius: f32| plan.covers(definition, point, radius + margin);
+        let fenced = corners(half)
+            .into_iter()
+            .map(|local| plan.to_world(local.extend(0.0).xzy()).xz())
+            .any(|corner| lots::fence_keeps(corner, margin));
+        if fenced {
+            return Err(Notice::NoRoomToBuild);
+        }
         let floor = self.floor_under(definition, plan);
         if floor.is_none()
             && self

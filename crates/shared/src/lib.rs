@@ -8,9 +8,11 @@
 pub mod content;
 pub mod energy;
 pub mod fields;
+pub mod lots;
 pub mod movement;
 pub mod network;
 pub mod obstacles;
+pub mod players;
 pub mod protocol;
 pub mod scenery;
 pub mod shops;
@@ -73,6 +75,7 @@ impl Plugin for SharedPlugin {
             valley::ValleyPlugin,
             terrain::TerrainPlugin,
             scenery::SceneryPlugin,
+            lots::LotsPlugin,
             obstacles::ObstaclesPlugin,
             movement::MovementPlugin,
         ))

@@ -18,6 +18,7 @@ mod gathering;
 mod homes;
 mod interest;
 mod inventory;
+mod lots;
 mod market;
 mod players;
 mod report;
@@ -137,6 +138,7 @@ impl Plugin for ServerPlugin {
                 building::BuildingPlugin,
                 homes::HomesPlugin,
                 storage::StoragePlugin,
+                lots::LotsPlugin,
             ))
             // The world itself, what each player is sent of it, and keeping it.
             .add_plugins((

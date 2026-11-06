@@ -36,7 +36,8 @@ impl Plugin for ArtPlugin {
         app.init_resource::<DrawnSeason>()
             .init_resource::<PaletteLooks>()
             .init_resource::<Models>()
-            .add_systems(Startup, load_models)
+            // Before anything is drawn, which the village is at startup.
+            .add_systems(PreStartup, load_models)
             .add_systems(PreUpdate, (follow_season, use_palette_materials))
             .add_systems(Update, keep_on_layers);
     }
@@ -218,7 +219,8 @@ fn load_models(content: Res<Content>, assets: Res<AssetServer>, mut models: ResM
         )
         .chain(content.items().filter_map(|(_, item)| item.model.as_ref()))
         .chain(content.crops().flat_map(|(_, crop)| &crop.models))
-        .chain(content.shops().map(|(_, shop)| &shop.stall));
+        .chain(content.shops().map(|(_, shop)| &shop.stall))
+        .chain([&content.village().lots.fence, &content.village().lots.gate]);
     for path in paths {
         if models.files.contains_key(path) {
             continue;
