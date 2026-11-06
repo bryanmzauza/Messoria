@@ -505,7 +505,8 @@ fn toggle_windows(
             | OpenPanel::Shop(_)
             | OpenPanel::Board(_)
             | OpenPanel::Talk(_)
-            | OpenPanel::Villagers => {
+            | OpenPanel::Villagers
+            | OpenPanel::Controls => {
                 *panel = OpenPanel::Backpack;
             }
         }

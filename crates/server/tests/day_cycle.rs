@@ -138,6 +138,8 @@ impl World {
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                open_to_guests: true,
+                max_players: 8,
                 sleep_rule,
                 minute_length: GAME_MINUTE,
                 world: WorldSetup::fresh(1, WorldTime::FIRST_DAWN),

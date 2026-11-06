@@ -11,13 +11,7 @@
 
 use std::path::PathBuf;
 
-use bevy::{
-    input::{
-        ButtonState,
-        keyboard::{Key, KeyboardInput},
-    },
-    prelude::*,
-};
+use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_content::{Characters, Look};
 use messoria_save::Profile;
@@ -28,9 +22,10 @@ use messoria_shared::{
 };
 
 use crate::{
+    controls::FirstArrival,
     mirror::{MIRROR_SIZE, Mirror},
     panels::OpenPanel,
-    ui::{self, ACCENT_COLOR, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, TITLE_SIZE},
+    ui::{self, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE, TITLE_SIZE, TextField},
 };
 
 /// Width of the column of choices, and of each choice's value.
@@ -38,8 +33,7 @@ const CHOICES_WIDTH: f32 = 330.0;
 const VALUE_WIDTH: f32 = 170.0;
 /// How a color is shown: a square of it.
 const SWATCH_SIZE: f32 = 18.0;
-/// How often the caret in the name field blinks, in seconds.
-const CARET_BLINK: f32 = 1.0;
+const NAME_FIELD_WIDTH: f32 = 230.0;
 
 pub(crate) struct CreatorPlugin {
     pub profile: Profile,
@@ -58,14 +52,7 @@ impl Plugin for CreatorPlugin {
         .add_systems(PreUpdate, receive.after(MessageSystems::Receive))
         .add_systems(
             Update,
-            (
-                type_name,
-                press_buttons,
-                show_creator_window,
-                blink_caret,
-                close_when_introduced,
-            )
-                .chain(),
+            (press_buttons, show_creator_window, close_when_introduced).chain(),
         );
     }
 }
@@ -77,10 +64,9 @@ struct Identity {
     file: Option<PathBuf>,
 }
 
-/// The name and look being made.
+/// The look being made; the name is typed into its field.
 #[derive(Resource, Default)]
 struct Draft {
-    name: String,
     look: Option<Look>,
 }
 
@@ -90,9 +76,12 @@ struct CreatorWindow;
 #[derive(Component)]
 struct CreatorListing;
 
-/// The text of the name field.
 #[derive(Component)]
-struct NameText;
+struct NameField;
+
+/// Why the player cannot set out yet.
+#[derive(Component)]
+struct CreatorHint;
 
 /// A part of the look picked with arrows.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -186,9 +175,11 @@ fn receive(
     mut senders: Query<&mut MessageSender<Introduce>, With<Client>>,
     mut draft: ResMut<Draft>,
     mut panel: ResMut<OpenPanel>,
+    mut arrival: ResMut<FirstArrival>,
 ) {
     for mut receiver in &mut newcomers {
         for Newcomer in receiver.receive() {
+            arrival.0 = true;
             let characters = content.characters();
             let kept = identity
                 .profile
@@ -202,42 +193,8 @@ fn receive(
                 sender.send::<ActionChannel>(Introduce { name, look });
                 continue;
             }
-            draft.name.clear();
             draft.look = Some(characters.look_for(identity.profile.player_id));
             *panel = OpenPanel::Creator;
-        }
-    }
-}
-
-/// Types into the name field while the window is open.
-fn type_name(
-    panel: Res<OpenPanel>,
-    mut keys: MessageReader<KeyboardInput>,
-    mut draft: ResMut<Draft>,
-    mut begin: Local<bool>,
-) {
-    *begin = false;
-    if *panel != OpenPanel::Creator {
-        keys.clear();
-        return;
-    }
-    for key in keys.read() {
-        if key.state != ButtonState::Pressed {
-            continue;
-        }
-        match &key.logical_key {
-            Key::Backspace => {
-                draft.name.pop();
-            }
-            Key::Enter => *begin = true,
-            _ => {
-                let typed = key.text.iter().flat_map(|text| text.chars());
-                for letter in typed.filter(|letter| !letter.is_control()) {
-                    if draft.name.chars().count() < NAME_LENGTH {
-                        draft.name.push(letter);
-                    }
-                }
-            }
         }
     }
 }
@@ -245,8 +202,9 @@ fn type_name(
 fn press_buttons(
     content: Res<Content>,
     panel: Res<OpenPanel>,
-    keys: Res<ButtonInput<KeyCode>>,
     buttons: Query<(&Interaction, &CreatorButton), Changed<Interaction>>,
+    name: Query<&TextField, With<NameField>>,
+    mut hint: Query<&mut Text, With<CreatorHint>>,
     mut draft: ResMut<Draft>,
     mut identity: ResMut<Identity>,
     mut senders: Query<&mut MessageSender<Introduce>, With<Client>>,
@@ -254,7 +212,8 @@ fn press_buttons(
     if *panel != OpenPanel::Creator {
         return;
     }
-    let mut begin = keys.just_pressed(KeyCode::Enter);
+    let typed = name.single().ok();
+    let mut begin = typed.is_some_and(|field| field.submitted);
     for (interaction, button) in &buttons {
         if *interaction != Interaction::Pressed {
             continue;
@@ -273,12 +232,16 @@ fn press_buttons(
             CreatorButton::Begin => begin = true,
         }
     }
-    let (Some(name), Some(look)) = (proper_name(&draft.name), draft.look.clone()) else {
-        return;
-    };
     if !begin {
         return;
     }
+    let name = typed.and_then(|field| proper_name(&field.text));
+    let (Some(name), Some(look)) = (name, draft.look.clone()) else {
+        for mut hint in &mut hint {
+            "Give yourself a name first.".clone_into(&mut hint.0);
+        }
+        return;
+    };
     if let Ok(mut sender) = senders.single_mut() {
         sender.send::<ActionChannel>(Introduce {
             name: name.clone(),
@@ -327,7 +290,6 @@ fn show_creator_window(
         return;
     }
     let image = mirror.image.clone();
-    let ready = proper_name(&draft.name).is_some();
     commands
         .entity(*listing)
         .despawn_related::<Children>()
@@ -350,7 +312,7 @@ fn show_creator_window(
                         ..default()
                     })
                     .with_children(|column| {
-                        spawn_name_row(column, &draft.name);
+                        spawn_name_row(column);
                         for part in Trait::ALL {
                             spawn_choice_row(column, &content, look, part);
                         }
@@ -371,20 +333,13 @@ fn show_creator_window(
                     ..default()
                 })
                 .with_children(|row| {
-                    if ready {
-                        ui::spawn_button(row, "Set out", CreatorButton::Begin);
-                    } else {
-                        row.spawn(ui::label(
-                            "Give yourself a name.",
-                            TEXT_SIZE,
-                            MUTED_TEXT_COLOR,
-                        ));
-                    }
+                    ui::spawn_button(row, "Set out", CreatorButton::Begin);
+                    row.spawn((CreatorHint, ui::label("", TEXT_SIZE, MUTED_TEXT_COLOR)));
                 });
         });
 }
 
-fn spawn_name_row(column: &mut ChildSpawnerCommands, name: &str) {
+fn spawn_name_row(column: &mut ChildSpawnerCommands) {
     column
         .spawn(Node {
             column_gap: px(10),
@@ -399,21 +354,15 @@ fn spawn_name_row(column: &mut ChildSpawnerCommands, name: &str) {
                     ..default()
                 },
             ));
-            row.spawn((
-                Node {
-                    flex_grow: 1.0,
-                    padding: UiRect::axes(px(8), px(5)),
-                    border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(4)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.35)),
-                BorderColor::all(ACCENT_COLOR),
-            ))
-            .with_child((
-                NameText,
-                ui::label(format!("{name}|"), HEADING_SIZE, TEXT_COLOR),
-            ));
+            ui::spawn_text_field(
+                row,
+                "",
+                "What are you called?",
+                NAME_LENGTH,
+                NAME_FIELD_WIDTH,
+                true,
+                NameField,
+            );
         });
 }
 
@@ -501,28 +450,6 @@ pub(crate) fn garment_name(content: &Content, skin: &str) -> String {
     content
         .garment_with(skin)
         .map_or_else(|| skin_name(skin), |item| content.item(item).name.clone())
-}
-
-fn blink_caret(
-    time: Res<Time>,
-    panel: Res<OpenPanel>,
-    draft: Res<Draft>,
-    mut texts: Query<&mut Text, With<NameText>>,
-) {
-    if *panel != OpenPanel::Creator {
-        return;
-    }
-    let caret = if (time.elapsed_secs() / CARET_BLINK).fract() < 0.5 {
-        "|"
-    } else {
-        " "
-    };
-    for mut text in &mut texts {
-        let shown = format!("{}{caret}", draft.name);
-        if text.0 != shown {
-            text.0 = shown;
-        }
-    }
 }
 
 #[cfg(test)]

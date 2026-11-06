@@ -406,6 +406,8 @@ fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
         },
         ServerPlugin {
             bind_addr,
+            open_to_guests: true,
+            max_players: 8,
             sleep_rule: SleepRule::Everyone,
             minute_length: GAME_MINUTE,
             world: WorldSetup::fresh(1, start_time),

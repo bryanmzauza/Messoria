@@ -37,7 +37,7 @@ pub use crate::{
     error::{Problem, SaveError},
     player::{FriendshipState, PlayerState},
     profile::Profile,
-    save_dir::{SaveDir, SavedWorld, is_valid_player_key},
-    settings::{Graphics, Settings},
+    save_dir::{SaveDir, SavedWorld, WorldSummary, is_valid_player_key, is_valid_world_name},
+    settings::{Graphics, RECENT_SERVERS, Settings},
     world::{FieldState, GatheredProp, LotState, StructureState, WorldState},
 };

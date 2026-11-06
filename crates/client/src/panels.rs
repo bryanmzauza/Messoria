@@ -36,6 +36,8 @@ pub(crate) enum OpenPanel {
     Wardrobe(Entity),
     /// The character creator, on first arrival.
     Creator,
+    /// The card of controls.
+    Controls,
     /// The game menu, as opened with Escape.
     Menu,
     Options,
@@ -66,6 +68,7 @@ fn answer_escape(keys: Res<ButtonInput<KeyCode>>, mut panel: ResMut<OpenPanel>) 
             | OpenPanel::Talk(_)
             | OpenPanel::Villagers
             | OpenPanel::Wardrobe(_)
+            | OpenPanel::Controls
             | OpenPanel::Menu => OpenPanel::None,
         };
     }

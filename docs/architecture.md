@@ -79,6 +79,29 @@ lightyear requires its client and server plugin groups to exist before the
 protocol is registered, and the role (`Server`, `Client` or `Host`) decides
 which groups are added.
 
+## Sessions
+
+See [ADR 0021](adr/0021-playing-from-the-game.md).
+
+- The game executable runs the title screen (`TitlePlugin`, Bevy's
+  default plugins and nothing of the game) when given no world or
+  address; the title lists the worlds under the saves folder
+  (`SaveDir::worlds`), remembers the last one and the addresses joined
+  lately in the settings, and starts the chosen world or server in a new
+  instance of the executable with the arguments for it (`launch`). The
+  game comes back to the title the same way, carrying a notice when it
+  was sent away or cut off (`connection`).
+- Every client says hello with `PROTOCOL_VERSION` once connected
+  (`SharedPlugin`); the server's `hosting` module admits it, or answers
+  `Rejected` with the reason (another version, a full world, a closed
+  one) and the client leaves. Only admitted connections get a character.
+  The host's own client opens and closes the world (`SetHospitality`);
+  the clock entity carries `Hosting`: open or not, the port, who is here.
+- The client's `menu` shows the world's door and who is in it, `controls`
+  the card of controls (F1, and on first arrival), `nametags` other
+  players' names over their heads, and `names` the name to call a player
+  by wherever players are listed.
+
 ## Networking
 
 - Transport is UDP with netcode.io authentication, configured in

@@ -30,7 +30,7 @@ use messoria_shared::{
     protocol::{
         ActionChannel, Belongings, ClaimLot, Crop, Deal, Dialogue, Field, Friendships, Happening,
         HarvestRequest, ItemAction, LotClaim, Money, Newcomer, Notice, PlayerInput, Position,
-        Shopfront, SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
+        Rejected, Shopfront, SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
@@ -56,6 +56,7 @@ pub struct Heard {
     pub friendships: Vec<Friendships>,
     /// How many times the server said the player is new here.
     pub newcomers: u32,
+    pub rejections: Vec<Rejected>,
 }
 
 /// A world hosted in-process, with the host playing in it.
@@ -80,6 +81,8 @@ impl HostedWorld {
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                open_to_guests: true,
+                max_players: 8,
                 sleep_rule: SleepRule::Everyone,
                 minute_length: GAME_MINUTE,
                 world,
@@ -448,6 +451,16 @@ impl HostedWorld {
 
 /// A dedicated server listening on `bind_addr`, driven by hand.
 pub fn server_app(bind_addr: SocketAddr, world: WorldSetup) -> App {
+    server_app_for(bind_addr, world, true, 8)
+}
+
+/// A dedicated server with room for `max_players`, open to guests or not.
+pub fn server_app_for(
+    bind_addr: SocketAddr,
+    world: WorldSetup,
+    open_to_guests: bool,
+    max_players: u32,
+) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -457,6 +470,8 @@ pub fn server_app(bind_addr: SocketAddr, world: WorldSetup) -> App {
         },
         ServerPlugin {
             bind_addr,
+            open_to_guests,
+            max_players,
             sleep_rule: SleepRule::Everyone,
             minute_length: GAME_MINUTE,
             world,
@@ -549,6 +564,7 @@ fn listen(
     mut dialogues: Query<&mut MessageReceiver<Dialogue>, With<Client>>,
     mut friendships: Query<&mut MessageReceiver<Friendships>, With<Client>>,
     mut newcomers: Query<&mut MessageReceiver<Newcomer>, With<Client>>,
+    mut rejections: Query<&mut MessageReceiver<Rejected>, With<Client>>,
     mut heard: ResMut<Heard>,
 ) {
     for mut receiver in &mut notices {
@@ -565,5 +581,8 @@ fn listen(
     }
     for mut receiver in &mut newcomers {
         heard.newcomers += u32::try_from(receiver.receive().count()).unwrap_or(u32::MAX);
+    }
+    for mut receiver in &mut rejections {
+        heard.rejections.extend(receiver.receive());
     }
 }

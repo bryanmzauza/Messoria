@@ -18,6 +18,7 @@ mod fields;
 mod friendship;
 mod gathering;
 mod homes;
+mod hosting;
 mod interest;
 mod inventory;
 mod lots;
@@ -41,6 +42,11 @@ use messoria_shared::valley::{Landscape, Valley};
 pub struct ServerPlugin {
     /// Address the server listens on for clients.
     pub bind_addr: SocketAddr,
+    /// Whether guests may join from the start; the host may open or close
+    /// the world later.
+    pub open_to_guests: bool,
+    /// Players the world takes at once, the host included.
+    pub max_players: u32,
     /// How many players must sleep to end the day.
     pub sleep_rule: SleepRule,
     /// Real time one game minute lasts; `messoria_calendar::GAME_MINUTE` for
@@ -88,10 +94,25 @@ impl WorldSetup {
         content: &Catalog,
         new_start_time: WorldTime,
     ) -> Result<Self, SaveError> {
+        Self::open_with(save_dir, content, new_start_time, None)
+    }
+
+    /// Like [`Self::open`], with the seed a new world gets, if one is
+    /// wanted.
+    ///
+    /// # Errors
+    ///
+    /// If a save exists but cannot be read.
+    pub fn open_with(
+        save_dir: SaveDir,
+        content: &Catalog,
+        new_start_time: WorldTime,
+        new_seed: Option<u64>,
+    ) -> Result<Self, SaveError> {
         let start = match save_dir.load(content)? {
             Some(saved) => WorldStart::Resume(Box::new(saved)),
             None => WorldStart::New {
-                seed: rand::random(),
+                seed: new_seed.unwrap_or_else(rand::random),
                 start_time: new_start_time,
             },
         };
@@ -131,6 +152,11 @@ impl Plugin for ServerPlugin {
             .add_plugins((
                 connections::ConnectionsPlugin {
                     bind_addr: self.bind_addr,
+                },
+                hosting::HostingPlugin {
+                    bind_addr: self.bind_addr,
+                    open_to_guests: self.open_to_guests,
+                    max_players: self.max_players,
                 },
                 players::PlayersPlugin,
                 feedback::FeedbackPlugin,

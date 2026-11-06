@@ -28,6 +28,10 @@ struct Args {
     #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u8).range(1..=100))]
     sleep_percent: u8,
 
+    /// Players the world takes at once.
+    #[arg(long, default_value_t = 16, value_parser = clap::value_parser!(u32).range(1..))]
+    max_players: u32,
+
     /// Folder the world is saved in. The world saved there is resumed, or a
     /// new one is created.
     #[arg(long, value_name = "FOLDER", default_value = "saves/world")]
@@ -72,6 +76,8 @@ fn main() -> AppExit {
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::UNSPECIFIED, args.port)),
+                open_to_guests: true,
+                max_players: args.max_players,
                 sleep_rule: SleepRule::Share {
                     percent: args.sleep_percent,
                 },

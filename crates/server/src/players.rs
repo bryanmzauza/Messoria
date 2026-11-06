@@ -32,6 +32,7 @@ use crate::{
     Beginning, WorldStart,
     appearance::{Unintroduced, wearable},
     friendship::Bonds,
+    hosting::Admitted,
 };
 
 /// Distance from the world origin at which players appear.
@@ -117,10 +118,10 @@ fn remember_saved_players(beginning: Res<Beginning>, mut absent: ResMut<AbsentPl
     }
 }
 
-/// Spawns a character once the connection is confirmed, not when the link is
-/// first created: the server may still reject a connection attempt.
+/// Spawns a character once the client is admitted, which takes a hello of
+/// the right version on a connection the world has room for.
 fn spawn_player(
-    trigger: On<Add, Connected>,
+    trigger: On<Add, Admitted>,
     clients: Query<&RemoteId, With<ClientOf>>,
     valley: Res<Valley>,
     content: Res<Content>,

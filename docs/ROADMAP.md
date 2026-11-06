@@ -337,6 +337,55 @@ Goal: the slice feels like a game.
 
 **Exit criterion:** the MVP success criteria in the design document are met.
 
+## M22 — Playing from the game
+
+Goal: the game is entered from a title screen, not a terminal.
+
+- [x] A title screen in the game's own style: continue the last world, a
+      new world (name, seed if wanted), host for friends (port, sleepers to
+      end the night), join by address with the addresses joined lately,
+      options, quit; the command-line flags still work and skip it
+- [x] Worlds listed from the saves folder with their date and when they were
+      last played; a world is deleted after a second thought
+- [x] From the game menu: open or close the world to friends, see who is
+      here, go back to the title screen. A lost connection, a full world or
+      another version of the game lead back to the title with a clear word;
+      the server tells clients of another version why
+- [x] A card of controls on first arrival in a world, and on F1 after
+- [x] Players go by the name chosen in the character creator, over their
+      heads and wherever players are listed
+
+**Exit criterion:** a new player opens the game, makes a world, hosts it,
+a friend joins by address and both see each other's names; the friend is
+sent back to the title screen with the reason when the host closes the
+world.
+
+**Decided:** the title screen starts the game in a second instance rather
+than rebuilding the server and client at runtime
+([ADR 0021](adr/0021-playing-from-the-game.md)).
+
+## M23 — Release
+
+Goal: anyone downloads a zip, unpacks it and plays.
+
+- [ ] Release builds find `assets/` next to the executable, and keep
+      worlds, the profile and the settings in the user's data folder
+      (`%APPDATA%\Messoria` on Windows, the XDG data folder on Linux), with
+      `--world` and `--data-dir` for anywhere else
+- [ ] An icon on the window and the Windows executable, no console behind
+      the game on Windows (its log goes to a file in the data folder); the
+      dedicated server keeps its console
+- [ ] A release workflow on tags `v*`: Windows and Linux x64 zips with the
+      game, the server, the assets, the README, the license, the credits and
+      the changelog, with checksums and a GitHub release from the changelog
+- [ ] Version 0.1.0, a changelog, a README for players first (download and
+      play, hosting for friends step by step, a dedicated server, the
+      controls) and builders after, with honest hardware requirements
+- [ ] A last sweep of the public repository
+
+**Exit criterion:** the release zip, unpacked in an empty folder on another
+machine, plays alone, hosts for a friend and runs a dedicated server.
+
 ## After the MVP
 
 - **Open to friends:** a rendezvous service issuing short access codes and

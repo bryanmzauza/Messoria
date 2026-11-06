@@ -203,6 +203,7 @@ fn show_shop_window(
         | OpenPanel::Villagers
         | OpenPanel::Wardrobe(_)
         | OpenPanel::Creator
+        | OpenPanel::Controls
         | OpenPanel::Menu
         | OpenPanel::Options => None,
     };

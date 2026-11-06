@@ -5,13 +5,11 @@
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
-use messoria_shared::{
-    players::name_of,
-    protocol::{ActionChannel, GiveMoney, Money, PlayerId, PlayerInput},
-};
+use messoria_shared::protocol::{ActionChannel, GiveMoney, Money, PlayerId, PlayerInput};
 
 use crate::{
     inventory::BackpackSide,
+    names::Names,
     panels::OpenPanel,
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
@@ -96,6 +94,7 @@ fn show_gift_panel(
     amount: Res<GiftAmount>,
     player: Query<Ref<Money>, With<InputMarker<PlayerInput>>>,
     others: Query<&PlayerId, Without<InputMarker<PlayerInput>>>,
+    names: Names,
     mut shown_players: Local<Vec<PeerId>>,
     listing: Single<Entity, With<GiftPanel>>,
     mut commands: Commands,
@@ -157,7 +156,7 @@ fn show_gift_panel(
                     })
                     .with_children(|row| {
                         row.spawn((
-                            ui::label(name_of(peer), TEXT_SIZE, TEXT_COLOR),
+                            ui::label(names.of(peer), TEXT_SIZE, TEXT_COLOR),
                             Node {
                                 flex_grow: 1.0,
                                 ..default()

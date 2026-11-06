@@ -22,9 +22,15 @@ use lightyear::{
 /// UDP port a server listens on unless told otherwise.
 pub const DEFAULT_PORT: u16 = 5717;
 
-/// Identifies this wire protocol. Builds with different values refuse to
-/// connect to each other, so bump it on every incompatible protocol change.
-const PROTOCOL_ID: u64 = 3;
+/// The version of what crosses the wire: the messages and components of
+/// the protocol module. Bump it on every incompatible change. A client
+/// says it in its hello, and a server of another version turns it away
+/// with the reason, which the transport alone could not give.
+pub const PROTOCOL_VERSION: u64 = 4;
+
+/// Identifies the game to the transport, which drops packets from anything
+/// else. It stays put: versions are told apart by [`PROTOCOL_VERSION`].
+const PROTOCOL_ID: u64 = 1;
 
 /// Key that signs connect tokens.
 ///

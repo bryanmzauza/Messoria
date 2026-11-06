@@ -13,7 +13,7 @@ use messoria_shared::{
     content::Content,
     lots::{Claims, LOT_COUNT, LotId},
     movement::EYE_HEIGHT,
-    players::{name_of, player_key, player_name},
+    players::{player_key, player_name},
     protocol::{
         ActionChannel, ClaimLot, InviteToLot, LotClaim, Money, PlayerId, PlayerInput, Position,
         Structure, Uninvite,
@@ -23,6 +23,7 @@ use messoria_shared::{
 
 use crate::{
     actions::INTERACT_KEY,
+    names::Names,
     panels::OpenPanel,
     ui::{self, ACCENT_COLOR, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
@@ -108,6 +109,7 @@ fn show_board_window(
     mut removed_claims: RemovedComponents<LotClaim>,
     player: Query<(&PlayerId, Ref<Money>), With<InputMarker<PlayerInput>>>,
     others: Query<&PlayerId, Without<InputMarker<PlayerInput>>>,
+    names: Names,
     mut shown_players: Local<Vec<PeerId>>,
     mut window: Single<&mut Visibility, With<BoardWindow>>,
     listing: Single<Entity, With<BoardListing>>,
@@ -139,6 +141,7 @@ fn show_board_window(
         key: &key,
         coins: money.0.coins(),
         others: &shown_players,
+        names: &names,
     };
     commands
         .entity(*listing)
@@ -189,6 +192,7 @@ struct Board<'a> {
     coins: u32,
     /// The other players around.
     others: &'a [PeerId],
+    names: &'a Names<'a, 'a>,
 }
 
 impl Board<'_> {
@@ -340,7 +344,7 @@ impl Board<'_> {
                 for peer in to_invite {
                     ui::spawn_button(
                         row,
-                        format!("Invite {}", name_of(peer)),
+                        format!("Invite {}", self.names.of(peer)),
                         BoardButton::Invite(claim.lot, peer),
                     );
                 }

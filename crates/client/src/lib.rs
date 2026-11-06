@@ -13,6 +13,7 @@ mod board;
 mod camera;
 mod clock;
 mod connection;
+mod controls;
 mod cover;
 mod creator;
 mod environment;
@@ -27,9 +28,13 @@ mod hud;
 mod icons;
 mod input;
 mod inventory;
+mod launch;
 mod menu;
 mod mirror;
+mod names;
+mod nametags;
 mod noise;
+mod options;
 mod panels;
 mod particles;
 mod picture;
@@ -43,6 +48,7 @@ mod structures;
 mod talk;
 mod target;
 mod terrain;
+mod title;
 mod ui;
 mod viewmodel;
 mod wallet;
@@ -65,10 +71,41 @@ pub struct ClientPlugin {
     /// Who the player is, and where that is kept, if anywhere.
     pub profile: Profile,
     pub profile_file: Option<PathBuf>,
+    /// Started from the title screen, which leaving goes back to.
+    pub from_title: bool,
+}
+
+/// The title screen, for an app with Bevy's default plugins and nothing
+/// of the game: it starts the game in another instance.
+pub struct TitlePlugin {
+    /// The folder worlds are saved in.
+    pub saves: PathBuf,
+    pub settings_file: PathBuf,
+    /// A word to the player, such as why they are back here.
+    pub notice: Option<String>,
+}
+
+impl Plugin for TitlePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins((
+            ui::UiPlugin,
+            settings::SettingsPlugin {
+                file: self.settings_file.clone(),
+            },
+            options::OptionsPlugin,
+            title::TitlePlugin {
+                saves: self.saves.clone(),
+                notice: self.notice.clone(),
+            },
+        ));
+    }
 }
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(launch::Launched {
+            from_title: self.from_title,
+        });
         // The world and the player in it.
         app.add_plugins((
             connection::ConnectionPlugin {
@@ -127,7 +164,9 @@ impl Plugin for ClientPlugin {
             settings::SettingsPlugin {
                 file: self.settings_file.clone(),
             },
+            options::OptionsPlugin,
             menu::MenuPlugin,
-        ));
+        ))
+        .add_plugins((controls::ControlsPlugin, nametags::NameTagsPlugin));
     }
 }

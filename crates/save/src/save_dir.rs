@@ -4,10 +4,13 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
+use messoria_calendar::WorldTime;
 use messoria_content::Catalog;
 use messoria_voxel::{Chunk, ChunkPos};
+use serde::Deserialize;
 
 use crate::{
     error::{Problem, SaveError},
@@ -41,6 +44,35 @@ pub struct SavedWorld {
     pub lost: Vec<String>,
 }
 
+/// A saved world as the title screen lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorldSummary {
+    /// The folder's name.
+    pub name: String,
+    pub folder: PathBuf,
+    /// The world's clock when it was last saved, if its file reads that far.
+    pub clock: Option<WorldTime>,
+    /// When it was last saved.
+    pub saved: SystemTime,
+}
+
+/// The little of a world file the title screen shows.
+#[derive(Deserialize)]
+struct WorldPeek {
+    clock: WorldTime,
+}
+
+/// Whether `name` can name a world's folder: 1 to 32 letters, digits,
+/// spaces, `-` or `_`, not blank.
+pub fn is_valid_world_name(name: &str) -> bool {
+    (1..=32).contains(&name.chars().count())
+        && name.trim() == name
+        && !name.is_empty()
+        && name
+            .chars()
+            .all(|letter| letter.is_alphanumeric() || letter == ' ' || "-_".contains(letter))
+}
+
 /// Whether `key` can name a player's file: 1 to 64 lowercase letters,
 /// digits, `-` or `_`.
 pub fn is_valid_player_key(key: &str) -> bool {
@@ -57,6 +89,43 @@ impl SaveDir {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Every world saved in a folder under `saves`, the latest saved
+    /// first. Folders without a world file are not worlds.
+    pub fn worlds(saves: &Path) -> Vec<WorldSummary> {
+        let Ok(entries) = fs::read_dir(saves) else {
+            return Vec::new();
+        };
+        let mut worlds: Vec<WorldSummary> = entries
+            .flatten()
+            .filter_map(|entry| {
+                let folder = entry.path();
+                let world_file = folder.join(WORLD_FILE);
+                let modified = fs::metadata(&world_file).ok()?.modified().ok()?;
+                let clock = fs::read_to_string(&world_file)
+                    .ok()
+                    .and_then(|text| ron::from_str::<WorldPeek>(&text).ok())
+                    .map(|peek| peek.clock);
+                Some(WorldSummary {
+                    name: folder.file_name()?.to_str()?.to_owned(),
+                    folder,
+                    clock,
+                    saved: modified,
+                })
+            })
+            .collect();
+        worlds.sort_by(|a, b| b.saved.cmp(&a.saved).then_with(|| a.name.cmp(&b.name)));
+        worlds
+    }
+
+    /// Removes the world's folder with everything in it.
+    ///
+    /// # Errors
+    ///
+    /// If the folder cannot be removed.
+    pub fn delete(&self) -> io::Result<()> {
+        fs::remove_dir_all(&self.root)
     }
 
     /// Reads the world saved here, or `None` if nothing has been saved yet.
@@ -357,6 +426,31 @@ mod tests {
                 hat: Some("hat-straw.png".to_owned()),
             }),
         }
+    }
+
+    #[test]
+    fn saved_worlds_are_listed_latest_first_and_can_be_deleted() {
+        let catalog = catalog();
+        let saves =
+            std::env::temp_dir().join(format!("messoria-save-tests-{}-worlds", std::process::id()));
+        let _ = fs::remove_dir_all(&saves);
+        fs::create_dir_all(saves.join("not a world")).unwrap();
+        let older = SaveDir::new(saves.join("older"));
+        older.save_world(&catalog, &world(&catalog)).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let newer = SaveDir::new(saves.join("newer"));
+        newer.save_world(&catalog, &world(&catalog)).unwrap();
+
+        let listed = SaveDir::worlds(&saves);
+        let names: Vec<&str> = listed.iter().map(|world| world.name.as_str()).collect();
+        assert_eq!(names, ["newer", "older"]);
+        assert_eq!(listed[0].clock, Some(world(&catalog).clock));
+
+        older.delete().unwrap();
+        assert_eq!(SaveDir::worlds(&saves).len(), 1);
+        assert!(is_valid_world_name("Green Valley"));
+        assert!(!is_valid_world_name(" lead"));
+        assert!(!is_valid_world_name("up/there"));
     }
 
     #[test]

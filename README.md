@@ -55,11 +55,14 @@ cargo run -p messoria-game --features dev
 Arguments go after `--`:
 
 ```sh
-cargo client -- --host                       # open your world to others (UDP port 5717)
-cargo client -- --world saves/farm           # play the world saved in another folder
+cargo client                                 # the title screen: worlds, hosting, joining
+cargo client -- --host                       # open saves/local to others (UDP port 5717)
+cargo client -- --world saves/farm           # play the world saved in a folder, skipping the title
+cargo client -- --world saves/farm --seed 7  # a new world with a seed of your choosing
 cargo client -- --connect 192.168.0.10       # join a hosted world or a dedicated server
 cargo server -- --port 5717                  # dedicated server
 cargo server -- --sleep-percent 50           # share of players that must sleep to end the day
+cargo server -- --max-players 16             # players the world takes at once
 cargo server -- --world saves/community      # folder the world is saved in
 cargo server -- --start-time 21:00           # start a new world's clock at a given time
 cargo server -- --minute-length 20           # make days pass quickly, for testing
@@ -68,8 +71,9 @@ cargo bots -- --bots 2 --farm                # bots that farm and log their harv
 cargo bots -- --bots 8 --roam                # bots that run all over the valley
 ```
 
-Worlds are saved in `saves/`: the game's own world in `saves/local`, a
-dedicated server's in `saves/world`. They are saved every few minutes, at
+Worlds are saved in `saves/`, one folder each, which the title screen
+lists; `--host` without `--world` plays `saves/local`, and a dedicated
+server's world is `saves/world`. They are saved every few minutes, at
 dawn and on exit, and resume where they stopped. Worlds saved before the
 valley grew to its present size cannot be resumed; start a new one. A
 dedicated server logs every minute how long its updates take against the
@@ -84,12 +88,14 @@ packets from the server, for testing under latency.
 
 Controls: click the window to capture the mouse, `W` `A` `S` `D` to move,
 `Shift` to sprint, `Space` to jump, `1` to `0` or the mouse wheel to pick the
-held item, left and right mouse buttons to use it, `F` to harvest a ripe crop,
-pick berries, open a chest, go to bed (from 18:00) or get up, or at a stall
-open its shop, `E` to open the backpack (click a stack to pick it up and a
-slot to put it down, and give money to other players beside it), `F5` to cycle
-between first person, third person from behind and from the front, `Esc` for
-the game menu (options, and saving and quitting). What the crosshair is on is
+held item, left and right mouse buttons to use it, `F` to talk to a villager,
+harvest a ripe crop, pick berries, open a chest, the wardrobe or the notice
+board, go to bed (from 18:00) or get up, or at a counter open its shop, `E`
+to open the backpack (click a stack to pick it up and a slot to put it down,
+and give money to other players beside it), `V` for the villagers, `F5` to
+cycle between first person, third person from behind and from the front,
+`F1` for the card of controls, `Esc` for the game menu (options, opening the
+world to friends, who is here, and leaving). What the crosshair is on is
 named under it, and the game says why when an action does nothing.
 
 Every newcomer is given a cabin deed: used on open ground, aimed where the

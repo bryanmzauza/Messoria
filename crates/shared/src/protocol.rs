@@ -379,6 +379,55 @@ pub struct Restyle {
     pub hair_color: (f32, f32, f32),
 }
 
+/// What a client says on connecting: the version of the protocol it
+/// speaks, so a server of another version can say so.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hello {
+    pub protocol: u64,
+}
+
+/// Why a server will not have a client, which then leaves.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rejected {
+    pub reason: Rejection,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rejection {
+    /// The server runs another version of the game.
+    OtherVersion,
+    /// The world has as many players as it takes.
+    Full,
+    /// The host has not opened the world to guests, or closed it.
+    Closed,
+}
+
+impl fmt::Display for Rejection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OtherVersion => "That world runs another version of Messoria.",
+            Self::Full => "That world is full.",
+            Self::Closed => "That world is closed to guests.",
+        })
+    }
+}
+
+/// The host opening the world to guests, or closing it.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetHospitality {
+    pub open: bool,
+}
+
+/// Whether the world is open to guests, on which port, and who is here,
+/// on the clock entity.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Hosting {
+    pub open: bool,
+    /// The port guests come in on; `None` for a world nobody can join.
+    pub port: Option<u16>,
+    pub here: Vec<String>,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -614,6 +663,12 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ServerToClient);
         app.register_message::<Friendships>()
             .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Hello>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Rejected>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<SetHospitality>()
+            .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<Newcomer>()
             .add_direction(NetworkDirection::ServerToClient);
         app.register_message::<Introduce>()
@@ -645,6 +700,7 @@ impl Plugin for ProtocolPlugin {
         app.component::<Doing>().replicate();
         app.component::<Appearance>().replicate();
         app.component::<PlayerName>().replicate();
+        app.component::<Hosting>().replicate();
 
         app.component::<PlayerId>().replicate();
 
