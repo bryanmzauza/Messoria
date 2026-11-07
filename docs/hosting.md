@@ -13,7 +13,11 @@ night (50 percent unless changed), and starts the world open to guests.
 Any world started from the title screen listens on its port from the
 start, closed to guests. To let friends in without starting over, open the
 game menu with `Esc` and choose **Open the world to friends on port 5717**.
-A world opened this way ends the night only when everyone sleeps.
+A world opened this way ends the night only when everyone sleeps. If
+another program, such as a dedicated server on the same machine, holds
+port 5717, the world listens on the next free port and the menu names it.
+A world hosted with **Host for friends** keeps the port it was given: if
+that port is in use, the game goes back to the title screen and says so.
 
 The game menu names everyone here, the host included. **Close the world**
 sends every guest back to their title screen with "That world is closed to

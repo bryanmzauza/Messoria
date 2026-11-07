@@ -64,7 +64,7 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use messoria_save::Profile;
 
-pub use crate::connection::Session;
+pub use crate::{connection::Session, launch::back_to_title};
 
 pub struct ClientPlugin {
     pub session: Session,

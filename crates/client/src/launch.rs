@@ -55,7 +55,7 @@ fn kept(own: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
 }
 
 /// Starts the title screen, showing `notice` if there is one.
-pub(crate) fn back_to_title(notice: Option<&str>) {
+pub fn back_to_title(notice: Option<&str>) {
     let mut args = vec!["--from-title".to_owned()];
     if let Some(notice) = notice {
         args.push("--notice".to_owned());

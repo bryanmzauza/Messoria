@@ -170,10 +170,16 @@ fn spawn_title(assets: Res<AssetServer>, mut commands: Commands) {
                             ..default()
                         },
                     ));
+                    // A world that would not open sends its reason here,
+                    // file paths and all: it wraps.
                     page.spawn((
                         NoticeText,
                         ui::label("", TEXT_SIZE, ACCENT_COLOR),
                         TextShadow::default(),
+                        Node {
+                            max_width: px(2.0 * COLUMN_WIDTH),
+                            ..default()
+                        },
                     ));
                 });
         });
@@ -409,9 +415,12 @@ impl Desk<'_, '_> {
             self.title.notice = Some("Type the address of a world to join.".to_owned());
             return;
         }
+        // The system's own words for a failed lookup come in its language,
+        // with letters the interface's font may lack.
         if let Err(error) = network::resolve_server_addr(address) {
+            info!("{address} could not be resolved: {error}");
             self.title.notice = Some(format!(
-                "{address} is not an address that can be reached: {error}."
+                "No world could be found at {address}. Check the address: an IP like 192.168.0.10 or a host name, with :port if it is not {DEFAULT_PORT}."
             ));
             return;
         }
