@@ -236,6 +236,7 @@ fit together.
 - [Hosting and dedicated servers](docs/hosting.md)
 - [Decision records](docs/adr/)
 - [Changelog](CHANGELOG.md)
+- [Reporting a security problem](SECURITY.md)
 
 ## License
 
