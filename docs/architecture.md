@@ -7,9 +7,11 @@ render the state the server replicates back to them. The same server code runs
 in two places:
 
 - **Dedicated server:** a headless process for community hosting.
-- **Hosted world:** inside the game client. Solo play is a hosted world that
-  only listens on loopback; opening it to friends means listening on a public
-  port instead.
+- **Hosted world:** inside the game client. A world played from the title
+  screen listens on a public port from the start, closed to guests until
+  its host opens it from the game menu; one started from a terminal without
+  `--host` listens on loopback only
+  ([ADR 0021](adr/0021-playing-from-the-game.md)).
 
 See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 
@@ -45,7 +47,7 @@ starts, never ahead of time:
 
 | Crate | Milestone | Responsibility |
 |---|---|---|
-| `rendezvous` (binary) | M8 | Access codes, hole punching, relay |
+| `rendezvous` (binary) | After the MVP | Access codes, hole punching, relay |
 
 ## Dependency rules
 
@@ -127,7 +129,7 @@ See [ADR 0021](adr/0021-playing-from-the-game.md).
 
 - Transport is UDP with netcode.io authentication, configured in
   `messoria_shared::network`. Clients currently sign their own connect tokens;
-  the rendezvous service takes over token issuing in M8.
+  the rendezvous service planned after the MVP takes over token issuing.
 - The server spawns a character when a connection is confirmed and replicates
   it to everyone. Its owner predicts it; everyone else interpolates it.
   `ControlledBy` ties the character's lifetime to the connection.
