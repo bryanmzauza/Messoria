@@ -6,6 +6,14 @@ days of their own and can be befriended, as the days and seasons turn. A
 world is hosted from the game for a few friends, or on a dedicated server
 for a larger group.
 
+![The village in autumn, seen from above](docs/screenshots/village-autumn.jpg)
+
+| | |
+|---|---|
+| ![Crops growing on a farm lot beside its cabin](docs/screenshots/farm.jpg) | ![The village square on a spring morning](docs/screenshots/square.jpg) |
+| ![Trading at the grocer's stall](docs/screenshots/grocer.jpg) | ![Making a character on first arrival](docs/screenshots/character.jpg) |
+| ![The square at night, under its lanterns](docs/screenshots/night.jpg) | ![The square in winter](docs/screenshots/winter.jpg) |
+
 ## Download and play
 
 1. Download the zip for Windows x64 or Linux x64 from the
