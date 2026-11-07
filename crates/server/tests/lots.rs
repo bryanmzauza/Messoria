@@ -32,6 +32,11 @@ use messoria_shared::{
     valley::Valley,
 };
 
+/// Alice's and Bob's places in the list of clients. Every wait updates
+/// both, or the one left idle would see its connection time out.
+const ALICE: usize = 0;
+const BOB: usize = 1;
+
 #[test]
 fn the_first_lot_is_free_and_the_next_costs_the_village_price() {
     let content = load_content().expect("the shipped content is valid");
@@ -153,6 +158,7 @@ fn neighbors_work_each_others_lots_only_when_invited_and_that_outlasts_a_restart
         .expect("an empty folder opens a new world");
     let mut server = common::server_app(server_addr, setup);
     let (mut alice, mut bob) = (client_app(server_addr, 11), client_app(server_addr, 12));
+    let both = &mut [&mut alice, &mut bob];
     let (alice_id, bob_id) = (PeerId::Netcode(11), PeerId::Netcode(12));
     let (alice_key, bob_key) = (
         player_key(alice_id).expect("a key"),
@@ -160,7 +166,7 @@ fn neighbors_work_each_others_lots_only_when_invited_and_that_outlasts_a_restart
     );
     run_apps_until(
         &mut server,
-        &mut [&mut alice, &mut bob],
+        both,
         "both clients to control a character",
         |_, clients| {
             clients
@@ -170,37 +176,37 @@ fn neighbors_work_each_others_lots_only_when_invited_and_that_outlasts_a_restart
     );
 
     // Neighbors across the lane: lots 1 and 2 lie along the same road.
-    claim(&mut server, &mut alice, alice_id, LotId(0));
-    claim(&mut server, &mut bob, bob_id, LotId(1));
+    claim(&mut server, both, ALICE, alice_id, LotId(0));
+    claim(&mut server, both, BOB, bob_id, LotId(1));
     let hoe = 1;
 
     // Bob tries Alice's lot, and is refused until invited.
     let on_alices = lot(LotId(0)).center();
-    move_to(&mut server, &mut bob, bob_id, on_alices);
+    move_to(&mut server, both, BOB, bob_id, on_alices);
     let field = ground_at(&mut server, on_alices + Vec2::new(0.0, -2.0));
-    let refusal = till_and_hear(&mut server, &mut bob, hoe, field);
+    let refusal = till_and_hear(&mut server, both, BOB, hoe, field);
     assert_eq!(refusal, Notice::NotYourLot);
 
-    invite(&mut server, &mut alice, bob_id, &bob_key);
-    till(&mut server, &mut bob, hoe, field);
+    invite(&mut server, both, ALICE, bob_id, &bob_key);
+    till(&mut server, both, BOB, hoe, field);
     run_apps_until(
         &mut server,
-        &mut [&mut alice, &mut bob],
+        both,
         "Bob to till on Alice's lot",
         |server, _| has_field(server, field),
     );
 
     // Alice, who was not invited back, cannot touch Bob's lot.
     let on_bobs = lot(LotId(1)).center();
-    move_to(&mut server, &mut alice, alice_id, on_bobs);
+    move_to(&mut server, both, ALICE, alice_id, on_bobs);
     let bobs_field = ground_at(&mut server, on_bobs + Vec2::new(0.0, -2.0));
-    let refusal = till_and_hear(&mut server, &mut alice, hoe, bobs_field);
+    let refusal = till_and_hear(&mut server, both, ALICE, hoe, bobs_field);
     assert_eq!(refusal, Notice::NotYourLot);
     assert!(!has_field(&mut server, bobs_field));
 
     // Taking the invitation back takes the right away.
     send(
-        &mut alice,
+        both[ALICE],
         Uninvite {
             lot: LotId(0),
             player: bob_key.clone(),
@@ -208,16 +214,16 @@ fn neighbors_work_each_others_lots_only_when_invited_and_that_outlasts_a_restart
     );
     run_apps_until(
         &mut server,
-        &mut [&mut alice, &mut bob],
+        both,
         "the invitation to be withdrawn",
         |server, _| claim_on(server, LotId(0)).invited.is_empty(),
     );
     let farther = ground_at(&mut server, on_alices + Vec2::new(0.0, -4.0));
-    let refusal = till_and_hear(&mut server, &mut bob, hoe, farther);
+    let refusal = till_and_hear(&mut server, both, BOB, hoe, farther);
     assert_eq!(refusal, Notice::NotYourLot);
 
     // Invited again, then everyone leaves and the world is saved.
-    invite(&mut server, &mut alice, bob_id, &bob_key);
+    invite(&mut server, both, ALICE, bob_id, &bob_key);
     server.world_mut().write_message(AppExit::Success);
     server.update();
     drop(server);
@@ -248,10 +254,17 @@ fn neighbors_work_each_others_lots_only_when_invited_and_that_outlasts_a_restart
     );
 }
 
-/// Has `owner` invite `guest` to lot 1 and waits for the server to note it.
-fn invite(server: &mut App, owner: &mut App, guest: PeerId, guest_key: &str) {
+/// Has the `owner`th client invite `guest` to lot 1 and waits for the
+/// server to note it.
+fn invite(
+    server: &mut App,
+    clients: &mut [&mut App],
+    owner: usize,
+    guest: PeerId,
+    guest_key: &str,
+) {
     send(
-        owner,
+        clients[owner],
         InviteToLot {
             lot: LotId(0),
             player: guest,
@@ -259,25 +272,28 @@ fn invite(server: &mut App, owner: &mut App, guest: PeerId, guest_key: &str) {
     );
     run_apps_until(
         server,
-        &mut [owner],
+        clients,
         "the invitation to be noted",
         |server, _| claim_on(server, LotId(0)).invited == [guest_key.to_owned()],
     );
 }
 
-/// Has `client` use the hoe at `target` and waits for the server's notice
-/// about it.
-fn till_and_hear(server: &mut App, client: &mut App, hoe: u8, target: Vec3) -> Notice {
+/// Has the `who`th client use the hoe at `target` and waits for the
+/// server's notice about it.
+fn till_and_hear(
+    server: &mut App,
+    clients: &mut [&mut App],
+    who: usize,
+    hoe: u8,
+    target: Vec3,
+) -> Notice {
     let heard = |client: &App| client.world().resource::<common::Heard>().notices.len();
-    let before = heard(client);
-    till(server, client, hoe, target);
-    run_apps_until(
-        server,
-        &mut [client],
-        "the server's notice",
-        |_, clients| heard(clients[0]) > before,
-    );
-    *client
+    let before = heard(clients[who]);
+    till(server, clients, who, hoe, target);
+    run_apps_until(server, clients, "the server's notice", |_, clients| {
+        heard(clients[who]) > before
+    });
+    *clients[who]
         .world()
         .resource::<common::Heard>()
         .notices
@@ -285,8 +301,9 @@ fn till_and_hear(server: &mut App, client: &mut App, hoe: u8, target: Vec3) -> N
         .expect("a notice arrived")
 }
 
-/// Has `client`, playing as `peer`, claim `lot` at the notice board.
-fn claim(server: &mut App, client: &mut App, peer: PeerId, lot: LotId) {
+/// Has the `who`th client, playing as `peer`, claim `lot` at the notice
+/// board.
+fn claim(server: &mut App, clients: &mut [&mut App], who: usize, peer: PeerId, lot: LotId) {
     let content = load_content().expect("the shipped content is valid");
     let board = {
         let world = server.world_mut();
@@ -297,25 +314,20 @@ fn claim(server: &mut App, client: &mut App, peer: PeerId, lot: LotId) {
             .expect("the village has a notice board")
     };
     let front = board.to_world(Vec3::new(0.0, 0.0, -1.3));
-    move_to(server, client, peer, front.xz());
-    send(client, ClaimLot { lot });
-    run_apps_until(
-        server,
-        &mut [client],
-        "the lot to be claimed",
-        |server, _| {
-            server
-                .world_mut()
-                .query::<&LotClaim>()
-                .iter(server.world())
-                .any(|claim| claim.lot == lot)
-        },
-    );
+    move_to(server, clients, who, peer, front.xz());
+    send(clients[who], ClaimLot { lot });
+    run_apps_until(server, clients, "the lot to be claimed", |server, _| {
+        server
+            .world_mut()
+            .query::<&LotClaim>()
+            .iter(server.world())
+            .any(|claim| claim.lot == lot)
+    });
 }
 
-/// Moves the character of `peer` onto the ground at `place` and waits for
-/// `client` to see it there.
-fn move_to(server: &mut App, client: &mut App, peer: PeerId, place: Vec2) {
+/// Moves the character of `peer`, the `who`th client's, onto the ground at
+/// `place` and waits for that client to see it there.
+fn move_to(server: &mut App, clients: &mut [&mut App], who: usize, peer: PeerId, place: Vec2) {
     let feet = ground_at(server, place);
     let world = server.world_mut();
     for (player, mut position) in world.query::<(&PlayerId, &mut Position)>().iter_mut(world) {
@@ -323,14 +335,9 @@ fn move_to(server: &mut App, client: &mut App, peer: PeerId, place: Vec2) {
             position.0 = feet;
         }
     }
-    run_apps_until(
-        server,
-        &mut [client],
-        "the client to arrive",
-        |_, clients| {
-            local_character_if_any(clients[0]).is_some_and(|at| at.xz().distance(place) < 1.0)
-        },
-    );
+    run_apps_until(server, clients, "the client to arrive", |_, clients| {
+        local_character_if_any(clients[who]).is_some_and(|at| at.xz().distance(place) < 1.0)
+    });
 }
 
 fn ground_at(server: &mut App, place: Vec2) -> Vec3 {
@@ -347,14 +354,15 @@ fn send<M: lightyear::prelude::Message>(client: &mut App, message: M) {
         .send::<ActionChannel>(message);
 }
 
-/// Uses the hoe at `target`, after the pause the server asks between uses.
-fn till(server: &mut App, client: &mut App, hoe: u8, target: Vec3) {
+/// Has the `who`th client use the hoe at `target`, after the pause the
+/// server asks between uses.
+fn till(server: &mut App, clients: &mut [&mut App], who: usize, hoe: u8, target: Vec3) {
     let rested = Instant::now() + tools::USE_INTERVAL;
-    run_apps_until(server, &mut [client], "the use interval to pass", |_, _| {
+    run_apps_until(server, clients, "the use interval to pass", |_, _| {
         Instant::now() >= rested
     });
     send(
-        client,
+        clients[who],
         UseItem {
             slot: hoe,
             action: ItemAction::Primary,
