@@ -106,7 +106,8 @@ and runs from a terminal, without a window:
 | `--minute-length <MS>` | | Real milliseconds a game minute lasts, to make days pass faster for testing |
 
 The server saves the world every five minutes, at every dawn and when
-stopped with `Ctrl+C`. Every minute it logs how long its updates took.
+stopped with `Ctrl+C`; closing its window on Windows does not save. Every
+minute it logs how long its updates took.
 
 As a systemd service, with the Linux download unpacked in `/opt/messoria`
 and owned by a `messoria` user:

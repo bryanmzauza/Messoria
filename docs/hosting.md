@@ -109,8 +109,10 @@ folder of files; back it up by copying the folder while the server is
 stopped.
 
 The server saves every five minutes, at every dawn and when it stops with
-`Ctrl+C` (SIGINT). A save that cannot be read stops the server with the
-reason rather than being overwritten.
+`Ctrl+C` (SIGINT). On Windows, closing its console window ends it without
+saving: what changed since the last save, five minutes at most, is lost.
+A save that cannot be read stops the server with the reason rather than
+being overwritten.
 
 ### As a systemd service
 
