@@ -12,7 +12,7 @@ pub(crate) const CONTROLS_KEY: KeyCode = KeyCode::F1;
 const KEY_COLUMN_WIDTH: f32 = 130.0;
 
 /// What each key does, as the card lists it, a line each.
-const CONTROLS: [(&str, &str); 14] = [
+const CONTROLS: [(&str, &str); 13] = [
     (
         "Mouse",
         "Look around; click the window to take the mouse, Esc to let it go",
@@ -38,7 +38,6 @@ const CONTROLS: [(&str, &str); 14] = [
     ("F5", "First or third person"),
     ("F1", "This card"),
     ("Esc", "Close a window, or the game menu"),
-    ("Enter", "Set out, once you have a name"),
 ];
 
 pub(crate) struct ControlsPlugin;
