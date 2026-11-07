@@ -1,10 +1,15 @@
 use std::{
+    io::IsTerminal,
     net::{Ipv4Addr, SocketAddr},
     path::PathBuf,
     time::Duration,
 };
 
-use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
+use bevy::{
+    app::ScheduleRunnerPlugin,
+    log::{BoxedFmtLayer, LogPlugin, tracing_subscriber},
+    prelude::*,
+};
 use clap::Parser;
 use messoria_calendar::{ClockTime, GAME_MINUTE, SleepRule, WorldTime};
 use messoria_save::SaveDir;
@@ -27,6 +32,10 @@ struct Args {
     /// Percentage of the players online that must sleep to end the day.
     #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u8).range(1..=100))]
     sleep_percent: u8,
+
+    /// Players the world takes at once.
+    #[arg(long, default_value_t = 16, value_parser = clap::value_parser!(u32).range(1..))]
+    max_players: u32,
 
     /// Folder the world is saved in. The world saved there is resumed, or a
     /// new one is created.
@@ -61,27 +70,46 @@ fn main() -> AppExit {
         }
     };
 
-    App::new()
-        .add_plugins((
-            MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(tick_duration())),
-            LogPlugin::default(),
-            bevy::app::TerminalCtrlCHandlerPlugin,
-            SharedPlugin {
-                role: NetworkRole::Server,
-                content,
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(tick_duration())),
+        LogPlugin {
+            fmt_layer: |_| Some(log_to_stderr()),
+            ..default()
+        },
+        bevy::app::TerminalCtrlCHandlerPlugin,
+        SharedPlugin {
+            role: NetworkRole::Server,
+            content,
+        },
+        ServerPlugin {
+            bind_addr: SocketAddr::from((Ipv4Addr::UNSPECIFIED, args.port)),
+            open_to_guests: true,
+            max_players: args.max_players,
+            sleep_rule: SleepRule::Share {
+                percent: args.sleep_percent,
             },
-            ServerPlugin {
-                bind_addr: SocketAddr::from((Ipv4Addr::UNSPECIFIED, args.port)),
-                sleep_rule: SleepRule::Share {
-                    percent: args.sleep_percent,
-                },
-                minute_length: args
-                    .minute_length
-                    .map_or(GAME_MINUTE, Duration::from_millis),
-                world,
-            },
-        ))
-        .run()
+            minute_length: args
+                .minute_length
+                .map_or(GAME_MINUTE, Duration::from_millis),
+            world,
+        },
+    ));
+    // Windows ends the process as soon as its console window is closed,
+    // before the world can be saved.
+    info!("stop the server with Ctrl+C, which saves the world; closing the window does not");
+    app.run()
+}
+
+/// The log on the standard error, colored only when it is a terminal: a
+/// service manager's journal or a file would keep the color codes as text.
+fn log_to_stderr() -> BoxedFmtLayer {
+    let colored = std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none();
+    Box::new(
+        tracing_subscriber::fmt::layer()
+            .with_ansi(colored)
+            .with_writer(std::io::stderr),
+    )
 }
 
 fn parse_start_time(text: &str) -> Result<WorldTime, String> {

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Problem,
     palette::{Rgb, checked_color},
+    people::is_skin,
     scenery::check_models,
 };
 
@@ -62,8 +63,21 @@ pub enum ItemKind {
     /// Placed in the world to build a structure; the structures file says
     /// which.
     Structure,
+    /// Worn by players, from the wardrobe in their cabin: the skin layer it
+    /// paints on them.
+    Garment {
+        wear: Wear,
+        skin: String,
+    },
     /// Anything else: kept, traded and used as an ingredient.
     Goods,
+}
+
+/// Where on a player a garment goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Wear {
+    Outfit,
+    Hat,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -217,6 +231,14 @@ fn validate(item: &ItemDef, by_key: &HashMap<String, ItemId>) -> Result<(), Prob
     }
     if matches!(item.kind, ItemKind::Tool(_)) && item.max_stack > 1 {
         return Err(Problem::StackedTool(item.key.clone()));
+    }
+    if let ItemKind::Garment { skin, .. } = &item.kind {
+        if item.max_stack > 1 {
+            return Err(Problem::StackedGarment(item.key.clone()));
+        }
+        if !is_skin(skin) {
+            return Err(Problem::InvalidGarmentSkin(item.key.clone()));
+        }
     }
     if item.shelf_life.is_some() && item.spoils_into.is_none() {
         return Err(Problem::SpoilsIntoNothing(item.key.clone()));

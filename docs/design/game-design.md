@@ -203,25 +203,27 @@ Principles:
 
 ## 10. MVP scope (vertical slice)
 
-- [ ] Headless server + client connecting by IP
-- [ ] Smooth voxel farm terrain, deformable with the shovel
-- [ ] Movement, first/third-person camera, players see each other
-- [ ] Day cycle and sleep rules
-- [ ] 5 crops: till, plant, water, grow, harvest
-- [ ] Inventory + hotbar, items with shelf life
-- [ ] 1 village shop: buys crops (dynamic price + daily limit) and sells seeds
-- [ ] Individual wallet and transfers between players
-- [ ] Server-side save/load
-- [ ] A living valley: scenery, ground cover, seasons and a stylized sky
-- [ ] Responsive actions: sounds, particles, notices, collision
-- [ ] Gathering wood, stone and berries
-- [ ] A house with a bed, and chests
-- [ ] Animated characters and a village around the square
-- [ ] A world of about 2 km with fenced farm lots, one free per player
-- [ ] A larger village with shops and a tavern to walk into
-- [ ] Villagers with daily schedules, talk and gifts, and friendship per player
-- [ ] Character creation, clothes from the tailor and haircuts at the barber
-- [ ] Load test with bots
+- [x] Headless server + client connecting by IP
+- [x] Smooth voxel farm terrain, deformable with the shovel
+- [x] Movement, first/third-person camera, players see each other
+- [x] Day cycle and sleep rules
+- [x] 5 crops: till, plant, water, grow, harvest
+- [x] Inventory + hotbar, items with shelf life
+- [x] 1 village shop: buys crops (dynamic price + daily limit) and sells seeds
+- [x] Individual wallet and transfers between players
+- [x] Server-side save/load
+- [x] A living valley: scenery, ground cover, seasons and a stylized sky
+- [x] Responsive actions: sounds, particles, notices, collision
+- [x] Gathering wood, stone and berries
+- [x] A house with a bed, and chests
+- [x] Animated characters and a village around the square
+- [x] A world of about 2 km with fenced farm lots, one free per player
+- [x] A larger village with shops and a tavern to walk into
+- [x] Villagers with daily schedules, talk and gifts, and friendship per player
+- [x] Character creation, clothes from the tailor and haircuts at the barber
+- [x] Load test with bots
+- [x] Music for each season and the sounds of the valley
+- [x] A title screen, hosting from the game, and a release anyone can download
 
 **Success criteria:** 2–8 friends play one in-game week together and want to keep going. Access codes and 50-player servers follow the MVP.
 

@@ -17,6 +17,7 @@ messoria-economy.workspace = true
 messoria-farming.workspace = true
 messoria-inventory.workspace = true
 messoria-voxel.workspace = true
+messoria-worldgen.workspace = true
 rand.workspace = true
 ron.workspace = true
 serde.workspace = true

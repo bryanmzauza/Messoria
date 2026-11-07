@@ -190,9 +190,12 @@ fn gathering_of(content: &Catalog, prop: PlacedProp) -> Gathering {
 
 impl HostedWorld {
     /// The standing prop of kind `key` nearest where players arrive, among
-    /// those grown around the host.
+    /// those grown around the host once the valley around it has loaded.
     fn nearest_prop(&mut self, content: &Catalog, key: &str) -> PlacedProp {
         let kind = content.prop_id(key).expect("the prop exists");
+        // The server loads the columns around a player over a few updates,
+        // and the village, where players arrive, grows no scenery.
+        self.run(20);
         let scenery = self.world().resource::<Scenery>();
         scenery
             .props()

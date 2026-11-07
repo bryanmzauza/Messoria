@@ -8,3 +8,6 @@ bots = "run -p messoria-loadtest"
 # Development runs read assets from the workspace root rather than from each
 # crate's directory. Shipped builds find them next to the executable.
 BEVY_ASSET_ROOT = { value = "", relative = true }
+# Development runs keep worlds, the profile and the settings in the
+# workspace's saves folder. Shipped builds use the player's data folder.
+MESSORIA_DATA_DIR = { value = "saves", relative = true }

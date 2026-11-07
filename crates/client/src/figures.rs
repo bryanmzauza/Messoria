@@ -19,7 +19,8 @@ pub(crate) struct FiguresPlugin;
 
 impl Plugin for FiguresPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, build_meshes)
+        // Before anything spawns a figure, which the village does at startup.
+        app.add_systems(PreStartup, build_meshes)
             .add_systems(Update, fit_held_items);
     }
 }

@@ -77,6 +77,7 @@ fn a_restarted_world_resumes_exactly_where_it_stopped() {
 /// Digs, farms and trades, leaving a mark on every part of the world a save
 /// keeps, and returns the chunk it dug.
 fn play_a_morning(world: &mut HostedWorld, content: &Catalog) -> ChunkPos {
+    world.settle_on_a_lot(content);
     let (feet, _) = world.character().expect("the host has a character");
     let dig_at = ground(world, feet + Vec3::new(-3.0, 0.0, 0.0));
     let shovel = world.slot_holding(content, "shovel");

@@ -8,8 +8,8 @@
 //! held; seeds, fertilizer and food act once per click. `F` picks what is
 //! under the crosshair, such as berries, or harvests the ripe crop there,
 //! unless it opens a shop. The server carries out every use, so the world
-//! changes when its update arrives. Aim markers turn red over the village,
-//! whose ground cannot be worked.
+//! changes when its update arrives. Aim markers turn red over ground the
+//! player cannot work: the village's, and any lot but their own.
 
 use std::time::Duration;
 
@@ -19,11 +19,13 @@ use messoria_content::{ItemKind, Tool};
 use messoria_shared::{
     content::Content,
     fields::{tile_at, tile_center},
+    lots::Claims,
     movement::EYE_HEIGHT,
     obstacles::{Blocker, Obstacles},
+    players::player_key,
     protocol::{
-        ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerInput, Position,
-        UseItem,
+        ActionChannel, Belongings, Gather, HarvestRequest, ItemAction, PlayerId, PlayerInput,
+        Position, UseItem, Villager,
     },
     structures,
     terrain::Terrain,
@@ -46,6 +48,11 @@ const AIM_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
 const PROTECTED_AIM_COLOR: Color = Color::srgba(1.0, 0.3, 0.25, 0.8);
 /// Lifts aim markers off the surface so they are not hidden inside it.
 const AIM_LIFT: f32 = 0.05;
+/// How wide and tall a villager is to aim at, and how finely the aim is
+/// checked along its way.
+const VILLAGER_RADIUS: f32 = 0.45;
+const VILLAGER_HEIGHT: f32 = 1.9;
+const AIM_STEP: f32 = 0.2;
 const BUTTONS: [(MouseButton, ItemAction); 2] = [
     (MouseButton::Left, ItemAction::Primary),
     (MouseButton::Right, ItemAction::Secondary),
@@ -75,12 +82,14 @@ impl Plugin for ActionsPlugin {
 }
 
 /// What is under the crosshair within the character's reach: the ground, or
-/// something standing on it, such as a tree or a stall, whichever is nearer.
+/// something standing on it, such as a tree or a stall, or a villager,
+/// whichever is nearer.
 #[derive(Resource, Default)]
 pub(crate) struct Aim {
     pub ground: Option<RayHit>,
     /// What stands there, and the point on it aimed at.
     pub thing: Option<(Blocker, Vec3)>,
+    pub villager: Option<Entity>,
 }
 
 /// The local player used the held item.
@@ -117,7 +126,7 @@ fn handling(kind: &ItemKind) -> Option<Handling> {
         ItemKind::Seed | ItemKind::Fertilizer => Some(Handling::FieldSupply),
         ItemKind::Structure => Some(Handling::Builder),
         ItemKind::Food { .. } => Some(Handling::Consumable),
-        ItemKind::Terrain { .. } | ItemKind::Goods => None,
+        ItemKind::Terrain { .. } | ItemKind::Goods | ItemKind::Garment { .. } => None,
     }
 }
 
@@ -132,6 +141,7 @@ fn aim(
     obstacles: Res<Obstacles>,
     camera: Single<&Transform, With<WorldCamera>>,
     player: Query<&Position, With<InputMarker<PlayerInput>>>,
+    villagers: Query<(Entity, &Transform), With<Villager>>,
     mut aim: ResMut<Aim>,
 ) {
     *aim = Aim::default();
@@ -153,12 +163,48 @@ fn aim(
         .raycast(origin, direction, max_distance)
         .map(|(blocker, distance)| (blocker, distance, origin + direction * distance))
         .filter(|&(_, _, point)| tools::in_reach(eyes, point));
+    let nearest_so_far = match (ground, thing) {
+        (Some(hit), Some((_, distance, _))) => hit.distance.min(distance),
+        (Some(hit), None) => hit.distance,
+        (None, Some((_, distance, _))) => distance,
+        (None, None) => max_distance,
+    };
+    if let Some(villager) = villager_hit(&villagers, origin, direction, nearest_so_far)
+        .filter(|&(_, distance)| tools::in_reach(eyes, origin + direction * distance))
+    {
+        aim.villager = Some(villager.0);
+        return;
+    }
     match thing {
         Some((blocker, distance, point)) if ground.is_none_or(|hit| distance < hit.distance) => {
             aim.thing = Some((blocker, point));
         }
         _ => aim.ground = ground,
     }
+}
+
+/// The first villager a ray from `origin` along `direction` meets within
+/// `max_distance`, and how far along.
+fn villager_hit(
+    villagers: &Query<(Entity, &Transform), With<Villager>>,
+    origin: Vec3,
+    direction: Vec3,
+    max_distance: f32,
+) -> Option<(Entity, f32)> {
+    let mut distance = 0.0;
+    while distance <= max_distance {
+        let point = origin + direction * distance;
+        for (entity, transform) in villagers {
+            let feet = transform.translation;
+            let within = point.xz().distance(feet.xz()) <= VILLAGER_RADIUS
+                && (feet.y..=feet.y + VILLAGER_HEIGHT).contains(&point.y);
+            if within {
+                return Some((entity, distance));
+            }
+        }
+        distance += AIM_STEP;
+    }
+    None
 }
 
 fn use_held_item(
@@ -248,19 +294,27 @@ fn draw_aim(
     view: Res<View>,
     content: Res<Content>,
     held: Res<HeldSlot>,
-    player: Query<&Belongings, With<InputMarker<PlayerInput>>>,
+    claims: Claims,
+    player: Query<(&Belongings, &PlayerId), With<InputMarker<PlayerInput>>>,
     mut gizmos: Gizmos,
 ) {
-    let (Some(hit), Ok(belongings)) = (aim.ground, player.single()) else {
+    let (Some(hit), Ok((belongings, player))) = (aim.ground, player.single()) else {
         return;
     };
     // Gizmo shapes are drawn facing +Z; this lays them on the ground.
     let flat = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    let key = player_key(player.0);
+    let workable = |point: Vec3, reach: f32| {
+        !village::reaches(point, reach)
+            && key
+                .as_deref()
+                .is_some_and(|key| claims.allows(key, point.xz()))
+    };
     let color = |reach| {
-        if village::reaches(hit.point, reach) {
-            PROTECTED_AIM_COLOR
-        } else {
+        if workable(hit.point, reach) {
             AIM_COLOR
+        } else {
+            PROTECTED_AIM_COLOR
         }
     };
     match held_handling(&content, &held, belongings) {
@@ -292,10 +346,10 @@ fn draw_aim(
                 );
                 let reach = Vec2::new(width, depth).length() / 2.0;
                 gizmos.rect(ground, Vec2::new(width, depth), {
-                    if village::reaches(plan.position, reach) {
-                        PROTECTED_AIM_COLOR
-                    } else {
+                    if workable(plan.position, reach) {
                         AIM_COLOR
+                    } else {
+                        PROTECTED_AIM_COLOR
                     }
                 });
             }

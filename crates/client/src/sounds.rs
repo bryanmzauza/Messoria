@@ -14,7 +14,7 @@ use bevy::{
 use messoria_calendar::Season;
 use messoria_content::Tool;
 use messoria_shared::{
-    protocol::{Happened, PlayerId},
+    protocol::{Happened, PlayerId, Villager},
     terrain::Terrain,
     village,
 };
@@ -161,9 +161,9 @@ impl Cue {
             Happened::Watered => Self::Water,
             Happened::Planted => Self::Plant,
             Happened::Fertilized => Self::Fertilize,
-            Happened::Harvested => Self::Harvest,
+            Happened::Harvested | Happened::Gave => Self::Harvest,
             Happened::Struck(Tool::Axe) => Self::Chop,
-            Happened::Traded => Self::Coins,
+            Happened::Traded | Happened::ClaimedLot => Self::Coins,
             Happened::Built => Self::Build,
             Happened::Ate => Self::Eat,
         }
@@ -271,7 +271,10 @@ fn sound_footsteps(
     sounds: Res<Sounds>,
     terrain: Res<Terrain>,
     season: Res<DrawnSeason>,
-    mut characters: Query<(Entity, &Transform, Option<&mut Stride>), With<PlayerId>>,
+    mut characters: Query<
+        (Entity, &Transform, Option<&mut Stride>),
+        Or<(With<PlayerId>, With<Villager>)>,
+    >,
     mut commands: Commands,
 ) {
     for (character, transform, stride) in &mut characters {

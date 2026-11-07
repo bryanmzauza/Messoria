@@ -1,5 +1,5 @@
 //! What each client is sent of what stands in the world: only the fields,
-//! structures, stalls and characters near its own character.
+//! structures, stalls, villagers and characters near its own character.
 //!
 //! Every column of the world is a room. Whatever stands in the world is put
 //! in the room of the column it stands in, characters moving from room to
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use lightyear::{connection::host::HostClient, prelude::*};
-use messoria_shared::protocol::{Field, PlayerId, Position, Shopfront, Structure};
+use messoria_shared::protocol::{Field, PlayerId, Position, Shopfront, Structure, Villager};
 use messoria_worldgen::{COLUMNS, column_of};
 
 use crate::{players::ControlledCharacter, terrain::VIEW_RADIUS};
@@ -131,10 +131,11 @@ fn place_stall(
     }
 }
 
-/// Moves each character into the room of the column it walked into.
+/// Moves each character, and each villager, into the room of the column
+/// it walked into.
 fn follow_characters(
     rooms: Res<ColumnRooms>,
-    characters: Query<(Entity, &Position, Option<&InColumn>), With<PlayerId>>,
+    characters: Query<(Entity, &Position, Option<&InColumn>), Or<(With<PlayerId>, With<Villager>)>>,
     mut commands: Commands,
 ) {
     for (entity, feet, was) in &characters {

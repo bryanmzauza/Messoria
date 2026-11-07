@@ -1,0 +1,18 @@
+Third-party licenses
+====================
+
+Messoria is built with the open source crates below, grouped by license.
+Each license's text follows the crates released under it. The sounds from
+other authors are credited in CREDITS.md.
+{{#each licenses}}
+
+----------------------------------------------------------------------------
+{{{name}}} ({{{id}}})
+
+Used by:
+{{#each used_by}}
+  {{{crate.name}}} {{{crate.version}}}{{#if crate.repository}} {{{crate.repository}}}{{/if}}
+{{/each}}
+
+{{{text}}}
+{{/each}}

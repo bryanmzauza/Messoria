@@ -20,11 +20,13 @@ use messoria_shared::{
     SharedPlugin,
     content::{Content, load_content},
     energy::Energy,
+    lots::{LotId, lot},
     movement::EYE_HEIGHT,
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Asleep, Belongings, Deal, Field, ItemAction, Money, PlayerId, PlayerInput,
-        Position, Shopfront, SleepRequest, Structure, Trade, UseItem, WorldClock,
+        ActionChannel, Asleep, Belongings, ClaimLot, Deal, Field, ItemAction, LotClaim, Money,
+        PlayerId, PlayerInput, Position, Shopfront, SleepRequest, Structure, Trade, UseItem,
+        WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
@@ -119,6 +121,7 @@ fn shovel_edits_reach_the_client_identically() {
     let server_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, free_udp_port()));
     let mut server = server_app(server_addr);
     let mut client = client_app(server_addr, Behavior::StandStill);
+    settle_on_a_lot(&mut server, &mut client);
 
     let mut target = None;
     run_until(
@@ -403,6 +406,8 @@ fn server_app_starting_at(bind_addr: SocketAddr, start_time: WorldTime) -> App {
         },
         ServerPlugin {
             bind_addr,
+            open_to_guests: true,
+            max_players: 8,
             sleep_rule: SleepRule::Everyone,
             minute_length: GAME_MINUTE,
             world: WorldSetup::fresh(1, start_time),
@@ -457,6 +462,65 @@ fn walk(
             ..default()
         };
     }
+}
+
+/// Has the client claim the first lot at the notice board and puts its
+/// character in the middle of that lot, where it may work the ground.
+fn settle_on_a_lot(server: &mut App, client: &mut App) {
+    run_until(
+        server,
+        client,
+        "client to control a character",
+        |_, client| local_character_if_any(client).is_some(),
+    );
+    let content = load_content().expect("the shipped content is valid");
+    let board = {
+        let world = server.world_mut();
+        *world
+            .query::<&Structure>()
+            .iter(world)
+            .find(|structure| content.structure(structure.kind).purpose == Purpose::NoticeBoard)
+            .expect("the village has a notice board")
+    };
+    move_character(server, board.to_world(Vec3::new(0.0, 0.0, -1.3)));
+    run_until(
+        server,
+        client,
+        "the client to stand at the board",
+        |_, client| local_character(client).distance(board.position) < 3.0,
+    );
+    client
+        .world_mut()
+        .query_filtered::<&mut MessageSender<ClaimLot>, With<Client>>()
+        .single_mut(client.world_mut())
+        .expect("one client connection")
+        .send::<ActionChannel>(ClaimLot { lot: LotId(0) });
+    run_until(server, client, "the lot to be claimed", |server, _| {
+        server
+            .world_mut()
+            .query::<&LotClaim>()
+            .iter(server.world())
+            .any(|claim| claim.lot == LotId(0))
+    });
+    let middle = lot(LotId(0)).center();
+    let height = server.world().resource::<Valley>().height(middle);
+    move_character(server, Vec3::new(middle.x, height, middle.y));
+    run_until(
+        server,
+        client,
+        "the client to reach its lot",
+        |_, client| local_character(client).xz().distance(middle) < 1.0,
+    );
+}
+
+/// Moves the one character on the server to `feet`.
+fn move_character(server: &mut App, feet: Vec3) {
+    let world = server.world_mut();
+    world
+        .query_filtered::<&mut Position, With<PlayerId>>()
+        .single_mut(world)
+        .expect("one character")
+        .0 = feet;
 }
 
 /// Feet of the character the client controls, once it has one.

@@ -17,6 +17,7 @@ use crate::{
     shop::{MarketRules, ShopDef, ShopId, Shops, ShopsFile},
     structure::{StructureDef, StructureId, Structures, StructuresFile},
     village::{Village, VillageFile},
+    villager::{VillagerDef, VillagerId, Villagers, VillagersFile},
 };
 
 /// Files within the data folder.
@@ -28,6 +29,7 @@ const PALETTE_FILE: &str = "palette.ron";
 const STRUCTURES_FILE: &str = "structures.ron";
 const CHARACTERS_FILE: &str = "characters.ron";
 const VILLAGE_FILE: &str = "village.ron";
+const VILLAGERS_FILE: &str = "villagers.ron";
 /// Folder of the models, next to the data folder.
 const MODELS_FOLDER: &str = "models";
 const SKINS_FOLDER: &str = "skins";
@@ -43,6 +45,7 @@ pub struct Sources<'a> {
     pub structures: &'a str,
     pub characters: &'a str,
     pub village: &'a str,
+    pub villagers: &'a str,
 }
 
 /// All loaded content, with every cross-reference checked.
@@ -70,6 +73,8 @@ pub struct Catalog {
     structures_by_item: HashMap<ItemId, StructureId>,
     characters: Characters,
     village: Village,
+    villagers: Vec<VillagerDef>,
+    villager_keys: HashMap<String, VillagerId>,
 }
 
 impl Catalog {
@@ -92,6 +97,7 @@ impl Catalog {
         let (scenery, palette) = (read(SCENERY_FILE)?, read(PALETTE_FILE)?);
         let structures = read(STRUCTURES_FILE)?;
         let (characters, village) = (read(CHARACTERS_FILE)?, read(VILLAGE_FILE)?);
+        let villagers = read(VILLAGERS_FILE)?;
         let sources = Sources {
             items: &items,
             crops: &crops,
@@ -101,6 +107,7 @@ impl Catalog {
             structures: &structures,
             characters: &characters,
             village: &village,
+            villagers: &villagers,
         };
         let catalog = Self::build(sources, data_dir)?;
 
@@ -117,12 +124,14 @@ impl Catalog {
         let item_models = catalog.items.iter().filter_map(|item| item.model.as_ref());
         let crop_models = catalog.crops.iter().flat_map(|crop| &crop.models);
         let shop_models = catalog.shops.iter().map(|shop| &shop.stall);
+        let lot_models = [&catalog.village.lots.fence, &catalog.village.lots.gate];
         let used = models_used
             .map(|model| (model, SCENERY_FILE))
             .chain(structure_models.map(|model| (model, STRUCTURES_FILE)))
             .chain(item_models.map(|model| (model, ITEMS_FILE)))
             .chain(crop_models.map(|model| (model, CROPS_FILE)))
-            .chain(shop_models.map(|model| (model, SHOPS_FILE)));
+            .chain(shop_models.map(|model| (model, SHOPS_FILE)))
+            .chain(lot_models.map(|model| (model, VILLAGE_FILE)));
         for (model, file) in used {
             if !models.join(model).is_file() {
                 return Err(ContentError {
@@ -133,16 +142,21 @@ impl Catalog {
         }
 
         let skins = data_dir.parent().unwrap_or(data_dir).join(SKINS_FOLDER);
-        let keeper_skins = catalog
-            .shops
+        let villager_skins = catalog
+            .villagers
             .iter()
-            .flat_map(|shop| shop.keeper.layers())
-            .map(|skin| (skin, SHOPS_FILE));
+            .flat_map(|villager| villager.look.skins())
+            .map(|skin| (skin, VILLAGERS_FILE));
+        let garment_skins = catalog.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Garment { skin, .. } => Some((skin.as_str(), ITEMS_FILE)),
+            _ => None,
+        });
         let used = catalog
             .characters
             .skins_used()
             .map(|skin| (skin.as_str(), CHARACTERS_FILE))
-            .chain(keeper_skins);
+            .chain(villager_skins)
+            .chain(garment_skins);
         for (skin, file) in used {
             if !skins.join(skin).is_file() {
                 return Err(ContentError {
@@ -196,6 +210,9 @@ impl Catalog {
         let village = parse::<VillageFile>(sources.village)
             .and_then(|file| file.resolve(&shops.by_key, &structures.by_key))
             .map_err(in_file(VILLAGE_FILE))?;
+        let villagers: Villagers = parse::<VillagersFile>(sources.villagers)
+            .and_then(|file| file.resolve(&shops.by_key, &items, &village))
+            .map_err(in_file(VILLAGERS_FILE))?;
 
         let mut harvest_seasons: HashMap<ItemId, Vec<Season>> = HashMap::new();
         for crop in &crops.definitions {
@@ -229,6 +246,8 @@ impl Catalog {
             structures_by_item: structures.by_item,
             characters,
             village,
+            villagers: villagers.definitions,
+            villager_keys: villagers.by_key,
         })
     }
 
@@ -247,6 +266,13 @@ impl Catalog {
     }
 
     /// Every item, with its id.
+    /// The garment that paints `skin`, if any item does.
+    pub fn garment_with(&self, skin: &str) -> Option<ItemId> {
+        self.items()
+            .find(|(_, item)| matches!(&item.kind, ItemKind::Garment { skin: own, .. } if own == skin))
+            .map(|(id, _)| id)
+    }
+
     pub fn items(&self) -> impl Iterator<Item = (ItemId, &ItemDef)> {
         (0..=u16::MAX).map(ItemId).zip(&self.items)
     }
@@ -382,6 +408,26 @@ impl Catalog {
         &self.village
     }
 
+    /// The definition of `id`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` did not come from this catalog.
+    pub fn villager(&self, id: VillagerId) -> &VillagerDef {
+        &self.villagers[usize::from(id.0)]
+    }
+
+    pub fn villagers(&self) -> impl Iterator<Item = (VillagerId, &VillagerDef)> {
+        self.villagers
+            .iter()
+            .zip((0..=u16::MAX).map(VillagerId))
+            .map(|(villager, id)| (id, villager))
+    }
+
+    pub fn villager_id(&self, key: &str) -> Option<VillagerId> {
+        self.villager_keys.get(key).copied()
+    }
+
     /// The plants covering grassy ground.
     pub fn cover(&self) -> &[CoverDef] {
         &self.cover
@@ -473,7 +519,6 @@ mod tests {
                 buys: [("turnip", 30), ("berries", 8)],
                 sells: [(item: "turnip_seeds", price: 10, seasons: [Spring]), (item: "compost", price: 5)],
                 stall: "town/stall.glb",
-                keeper: (body: "b.png", outfit: "o.png", hair: "h.png", hair_color: (0.2, 0.1, 0.1)),
             ),
         ],
     )"#;
@@ -516,7 +561,8 @@ mod tests {
             palette,
             structures: "(structures: [])",
             characters: CHARACTERS,
-            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)])",
+            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"), haircut: (price: 60, shop: \"grocer\"))",
+            villagers: "(villagers: [])",
         })
     }
 
@@ -536,7 +582,7 @@ mod tests {
         ),
         expressions: (blink: (0, 0), smile: (0, 0), surprise: (0, 0), effort: (0, 0)),
         grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
-        wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
+        wardrobe: (bodies: ["b.png"], eyes: "e.png", eye_colors: [(0.3, 0.2, 0.1)], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.2, 0.1, 0.1)]),
     )"#;
 
     fn valid() -> Catalog {
@@ -740,7 +786,7 @@ mod tests {
     fn inconsistent_shops_are_rejected() {
         let cases = [
             (
-                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\", keeper: (body: \"b.png\", outfit: \"o.png\", hair: \"h.png\", hair_color: (0.0, 0.0, 0.0))),"),
+                SHOPS.replace("shops: [", "shops: [(id: \"grocer\", name: \"Again\", opens: \"09:00\", closes: \"10:00\", daily_limit: 1, buys: [], sells: [], stall: \"s.glb\"),"),
                 "shop `grocer` is defined more than once",
             ),
             (

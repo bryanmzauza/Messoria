@@ -1,19 +1,20 @@
 //! Everything that crosses the wire: replicated components, player input,
-//! the valley, inventories, fields, money, shops and player actions.
+//! the valley, inventories, fields, farm lots, money, shops, villagers and
+//! player actions.
 
 use std::fmt;
 
 use bevy::{ecs::entity::MapEntities, prelude::*};
 use lightyear::prelude::{input::native::InputPlugin, *};
 use messoria_calendar::{Weather, WorldTime};
-use messoria_content::{ItemId, ShopId, StructureId, Tool};
+use messoria_content::{ItemId, Look, Reaction, ShopId, StructureId, Tool, VillagerId};
 use messoria_economy::{Market, Refusal, SalesLedger, Wallet};
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
 use messoria_voxel::{ChunkChanges, Material};
 use serde::{Deserialize, Serialize};
 
-use crate::{energy::Energy, valley::PropKey};
+use crate::{energy::Energy, lots::LotId, valley::PropKey};
 
 /// The peer an entity belongs to.
 #[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -247,6 +248,186 @@ pub struct GiveMoney {
     pub amount: u32,
 }
 
+/// A farm lot someone owns: whose it is and who they let work it, by the
+/// players' keys. One entity per claimed lot, sent to everyone, so the
+/// notice board can list every lot wherever a player is.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct LotClaim {
+    pub lot: LotId,
+    pub owner: String,
+    pub invited: Vec<String>,
+}
+
+impl LotClaim {
+    /// Whether the player `key` names may work the lot.
+    pub fn allows(&self, key: &str) -> bool {
+        self.owner == key || self.invited.iter().any(|invited| invited == key)
+    }
+}
+
+/// A client taking the free lot `lot` at the village notice board: for
+/// nothing if it is the player's first, for the village's price otherwise.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClaimLot {
+    pub lot: LotId,
+}
+
+/// A client letting another player, who is in the world, work a lot of
+/// theirs.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InviteToLot {
+    pub lot: LotId,
+    pub player: PeerId,
+}
+
+/// A client taking back an invitation to a lot of theirs, by the invited
+/// player's key, who need not be in the world.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Uninvite {
+    pub lot: LotId,
+    pub player: String,
+}
+
+/// A villager, by their place in the content, living in the village and
+/// moved by the server along their day.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Villager(pub VillagerId);
+
+/// What a villager is doing, as everyone sees it.
+#[derive(Component, Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Doing {
+    #[default]
+    Standing,
+    Walking,
+    Sitting,
+    /// Bent over the ground, as over a garden bed.
+    Tending,
+    /// Inside a house, out of sight.
+    Indoors,
+}
+
+/// A client having its character talk to the villager it stands by.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TalkTo {
+    pub villager: VillagerId,
+}
+
+/// A client giving the villager it stands by the item in a hotbar slot.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GiveGift {
+    pub villager: VillagerId,
+    pub slot: u8,
+}
+
+/// What a villager said to the player, with how the two stand and, for a
+/// gift, what the villager made of it and gave back.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Dialogue {
+    pub villager: VillagerId,
+    pub says: String,
+    pub points: u16,
+    pub reaction: Option<Reaction>,
+    /// What the villager gave the player, for befriending them.
+    pub given: Option<(ItemId, u16)>,
+}
+
+/// How the player stands with every villager they have met, sent when they
+/// arrive and whenever it changes.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Friendships(pub Vec<Friendship>);
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Friendship {
+    pub villager: VillagerId,
+    pub points: u16,
+    pub talked_today: bool,
+    pub gave_today: bool,
+}
+
+/// How a character looks, as everyone sees it: chosen by the player on
+/// arrival, changed at the wardrobe and at the barber's.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Appearance(pub Look);
+
+/// What a player is called, as they introduced themselves.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PlayerName(pub String);
+
+/// Tells a client its player is new to this world and should introduce
+/// themselves.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Newcomer;
+
+/// A newcomer saying who they are: a name and the look they made.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Introduce {
+    pub name: String,
+    pub look: Look,
+}
+
+/// A client having its character change, at the wardrobe it stands by,
+/// into the garment in a slot, or out of its hat.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChangeClothes {
+    pub slot: Option<u8>,
+}
+
+/// A client asking the barber for this hair, in this color.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Restyle {
+    pub hair: String,
+    pub hair_color: (f32, f32, f32),
+}
+
+/// What a client says on connecting: the version of the protocol it
+/// speaks, so a server of another version can say so.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hello {
+    pub protocol: u64,
+}
+
+/// Why a server will not have a client, which then leaves.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rejected {
+    pub reason: Rejection,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rejection {
+    /// The server runs another version of the game.
+    OtherVersion,
+    /// The world has as many players as it takes.
+    Full,
+    /// The host has not opened the world to guests, or closed it.
+    Closed,
+}
+
+impl fmt::Display for Rejection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OtherVersion => "That world runs another version of Messoria.",
+            Self::Full => "That world is full.",
+            Self::Closed => "That world is closed to guests.",
+        })
+    }
+}
+
+/// The host opening the world to guests, or closing it.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetHospitality {
+    pub open: bool,
+}
+
+/// Whether the world is open to guests, on which port, and who is here,
+/// on the clock entity.
+#[derive(Component, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Hosting {
+    pub open: bool,
+    /// The port guests come in on; `None` for a world nobody can join.
+    pub port: Option<u16>,
+    pub here: Vec<String>,
+}
+
 /// Carries [`TerrainUpdate`]s, in order and without loss.
 pub struct TerrainChannel;
 
@@ -284,6 +465,26 @@ pub enum Notice {
     GroundTooUneven,
     /// Going to sleep away from a bed.
     SleepInABed,
+    /// Working ground that is on no lot of the player's.
+    OnlyOnYourLot,
+    /// Working ground on a lot somebody else owns.
+    NotYourLot,
+    /// Building a home anywhere but on a lot of one's own.
+    HomeOnYourLot,
+    /// Claiming a lot somebody owns.
+    LotTaken,
+    /// Claiming a lot that costs more than the player has.
+    LotCosts(u32),
+    /// Inviting someone who may already work the lot.
+    AlreadyInvited,
+    /// Giving a villager a second gift in a day.
+    GaveAlready,
+    /// Giving a villager something that cannot be given.
+    NothingToGive,
+    /// Changing into a slot that holds no garment, or out of no hat.
+    NothingToWear,
+    /// Asking the barber for more than the player can pay.
+    HaircutCosts(u32),
     Trade(Refusal),
 }
 
@@ -312,6 +513,16 @@ impl fmt::Display for Notice {
             Self::NoRoomToBuild => "There is no room to build that here.",
             Self::GroundTooUneven => "The ground is too uneven to build that here.",
             Self::SleepInABed => "Sleep in a bed.",
+            Self::OnlyOnYourLot => "Only on a farm lot of your own. Pick one at the notice board.",
+            Self::NotYourLot => "This lot belongs to someone else.",
+            Self::HomeOnYourLot => "Build your cabin on a lot of your own.",
+            Self::LotTaken => "Someone already owns that lot.",
+            Self::LotCosts(price) => return write!(f, "That lot costs {price} coins."),
+            Self::AlreadyInvited => "They can already work that lot.",
+            Self::GaveAlready => "They already got a gift from you today.",
+            Self::NothingToGive => "Hold something to give it.",
+            Self::NothingToWear => "There is nothing to change into.",
+            Self::HaircutCosts(price) => return write!(f, "A new look costs {price} coins."),
             Self::Trade(refusal) => return write!(f, "{}.", sentence(&refusal.to_string())),
         })
     }
@@ -356,6 +567,10 @@ pub enum Happened {
     Built,
     Traded,
     Ate,
+    /// A farm lot was claimed at the notice board.
+    ClaimedLot,
+    /// A gift was handed to a villager.
+    Gave,
 }
 
 impl Ease for Position {
@@ -434,6 +649,34 @@ impl Plugin for ProtocolPlugin {
             .add_direction(NetworkDirection::ClientToServer);
         app.register_message::<GiveMoney>()
             .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<ClaimLot>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<InviteToLot>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Uninvite>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<TalkTo>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<GiveGift>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Dialogue>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Friendships>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Hello>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Rejected>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<SetHospitality>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Newcomer>()
+            .add_direction(NetworkDirection::ServerToClient);
+        app.register_message::<Introduce>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<ChangeClothes>()
+            .add_direction(NetworkDirection::ClientToServer);
+        app.register_message::<Restyle>()
+            .add_direction(NetworkDirection::ClientToServer);
 
         app.component::<WorldClock>().replicate();
         app.component::<SleepTally>().replicate();
@@ -452,6 +695,12 @@ impl Plugin for ProtocolPlugin {
         app.component::<Structure>().replicate();
         app.component::<Stored>().replicate();
         app.component::<Holding>().replicate();
+        app.component::<LotClaim>().replicate();
+        app.component::<Villager>().replicate();
+        app.component::<Doing>().replicate();
+        app.component::<Appearance>().replicate();
+        app.component::<PlayerName>().replicate();
+        app.component::<Hosting>().replicate();
 
         app.component::<PlayerId>().replicate();
 

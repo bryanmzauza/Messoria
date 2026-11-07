@@ -1,10 +1,17 @@
-//! Joining a remote server or the world hosted by this same process.
+//! Joining a remote server or the world hosted by this same process, and
+//! leaving it: turned away by the server, or cut off.
+//!
+//! A server that will not have this client says why; the client then
+//! disconnects itself and, if it came from the title screen, goes back
+//! there with the reason on show. Losing the connection goes the same way.
 
 use std::{net::SocketAddr, time::Duration};
 
 use bevy::prelude::*;
 use lightyear::prelude::{server::Server, *};
-use messoria_shared::network;
+use messoria_shared::{network, protocol::Rejected};
+
+use crate::launch::{self, Launched};
 
 /// Where the client's world lives.
 #[derive(Resource, Clone, Debug)]
@@ -27,7 +34,8 @@ pub(crate) struct ConnectionPlugin {
 
 impl Plugin for ConnectionPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(self.session.clone());
+        app.insert_resource(self.session.clone())
+            .init_resource::<Farewell>();
         match self.session.clone() {
             // The in-process server entity is spawned during `Startup`.
             Session::Host => app.add_systems(PostStartup, join_hosted_world),
@@ -40,11 +48,16 @@ impl Plugin for ConnectionPlugin {
             }),
         };
 
-        app.add_observer(log_connection)
-            .add_observer(log_connection_failure)
-            .add_observer(log_disconnection);
+        app.add_systems(PreUpdate, hear_rejection.after(MessageSystems::Receive))
+            .add_observer(log_connection)
+            .add_observer(leave_on_failure)
+            .add_observer(leave_on_disconnection);
     }
 }
+
+/// Why the server sent this client away, if it did.
+#[derive(Resource, Default)]
+struct Farewell(Option<String>);
 
 fn join_hosted_world(server: Single<Entity, With<Server>>, mut commands: Commands) {
     let client = commands.spawn(network::host_client(*server)).id();
@@ -75,24 +88,70 @@ fn log_connection(trigger: On<Add, Connected>, clients: Query<(), With<Client>>)
     }
 }
 
-/// Reports a connection attempt that ended without connecting.
-fn log_connection_failure(
-    trigger: On<Remove, Connecting>,
-    clients: Query<&Disconnected, With<Client>>,
+/// A server that will not have this client says why; the client leaves.
+fn hear_rejection(
+    mut clients: Query<(Entity, &mut MessageReceiver<Rejected>), With<Client>>,
+    mut farewell: ResMut<Farewell>,
+    mut commands: Commands,
 ) {
-    if let Ok(disconnected) = clients.get(trigger.entity) {
-        warn!("could not connect: {}", disconnected.reason);
+    for (client, mut receiver) in &mut clients {
+        if let Some(Rejected { reason }) = receiver.receive().last() {
+            farewell.0 = Some(reason.to_string());
+            commands.trigger(Disconnect { entity: client });
+        }
     }
 }
 
-/// Reacts to losing an established connection only: a client also starts out
-/// `Disconnected`, which is not worth reporting.
-fn log_disconnection(
-    trigger: On<Remove, Connected>,
-    clients: Query<Option<&Disconnected>, With<Client>>,
+/// A connection attempt that ended without connecting.
+fn leave_on_failure(
+    trigger: On<Remove, Connecting>,
+    session: Res<Session>,
+    launched: Res<Launched>,
+    clients: Query<&Disconnected, With<Client>>,
+    mut exit: MessageWriter<AppExit>,
 ) {
-    if let Ok(disconnected) = clients.get(trigger.entity) {
-        let reason = disconnected.map_or(DisconnectedReason::Unknown, |d| d.reason.clone());
-        warn!("disconnected: {reason}");
+    let (Ok(disconnected), Session::Join { server_addr, .. }) =
+        (clients.get(trigger.entity), &*session)
+    else {
+        return;
+    };
+    warn!("could not connect: {}", disconnected.reason);
+    leave(
+        &format!("Could not reach the world at {server_addr}."),
+        *launched,
+        &mut exit,
+    );
+}
+
+/// Losing an established connection to a remote world. A client also
+/// starts out `Disconnected`, which is not a loss, and the host's own
+/// client only disconnects as the app exits.
+fn leave_on_disconnection(
+    trigger: On<Remove, Connected>,
+    session: Res<Session>,
+    launched: Res<Launched>,
+    farewell: Res<Farewell>,
+    clients: Query<Option<&Disconnected>, With<Client>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let (Ok(disconnected), Session::Join { .. }) = (clients.get(trigger.entity), &*session) else {
+        return;
+    };
+    let reason = disconnected.map_or(DisconnectedReason::Unknown, |d| d.reason.clone());
+    warn!("disconnected: {reason}");
+    let notice = farewell
+        .0
+        .clone()
+        .unwrap_or_else(|| "The connection to the world was lost.".to_owned());
+    leave(&notice, *launched, &mut exit);
+}
+
+/// Ends this instance, back to the title screen if it came from there.
+fn leave(notice: &str, launched: Launched, exit: &mut MessageWriter<AppExit>) {
+    if launched.from_title {
+        launch::back_to_title(Some(notice));
+        exit.write(AppExit::Success);
+    } else {
+        exit.write(AppExit::error());
     }
 }

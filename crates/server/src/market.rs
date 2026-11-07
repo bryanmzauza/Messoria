@@ -8,6 +8,7 @@
 use bevy::prelude::*;
 use lightyear::prelude::*;
 use messoria_economy::{Customer, buy, sell};
+use messoria_shared::friendship::{discount, keeper_of};
 use messoria_shared::{
     content::Content,
     protocol::{
@@ -21,6 +22,7 @@ use crate::{
     Beginning, WorldStart,
     day_cycle::{ClockSystems, DayStarted},
     feedback::{Show, Tell},
+    friendship::Bonds,
     players::ControlledCharacter,
 };
 
@@ -56,7 +58,13 @@ fn trade(
     stalls: Query<&Shopfront>,
     mut clients: Query<(&mut MessageReceiver<Trade>, &ControlledCharacter)>,
     mut characters: Query<
-        (&Position, &mut Belongings, &mut Money, &mut SoldToday),
+        (
+            &Position,
+            &mut Belongings,
+            &mut Money,
+            &mut SoldToday,
+            &Bonds,
+        ),
         Without<Asleep>,
     >,
     mut tell: MessageWriter<Tell>,
@@ -65,7 +73,8 @@ fn trade(
     let now = clock.0;
     for (mut requests, character) in &mut clients {
         for Trade { shop, deal } in requests.receive() {
-            let Ok((feet, mut belongings, mut money, mut sold)) = characters.get_mut(character.0)
+            let Ok((feet, mut belongings, mut money, mut sold, bonds)) =
+                characters.get_mut(character.0)
             else {
                 continue;
             };
@@ -97,7 +106,8 @@ fn trade(
                 )
                 .map(|_| market.set_changed()),
                 Deal::Buy { item, count } => {
-                    buy(&content, shop, now, customer, item, count).map(|_| ())
+                    let hearts = keeper_of(&content, shop).map_or(0, |keeper| bonds.hearts(keeper));
+                    buy(&content, shop, now, customer, item, count, discount(hearts)).map(|_| ())
                 }
             };
             match outcome {

@@ -136,7 +136,7 @@ mod tests {
     /// No scenery, and a palette with only the ground colors.
     const SCENERY: &str = "(props: [], cover: [])";
     const PALETTE: &str = "(colors: {\"terrain_grass\": (0.3, 0.5, 0.2), \"terrain_soil\": (0.4, 0.3, 0.2), \"terrain_stone\": (0.5, 0.5, 0.5), \"terrain_sand\": (0.8, 0.7, 0.5)})";
-    const SHOPS: &str = "(market: (off_season_markup: 1.5, halves_after: 100.0, daily_recovery: 0.25, silver_bonus: 1.25, gold_bonus: 1.5), shops: [])";
+    const SHOPS: &str = "(market: (off_season_markup: 1.5, halves_after: 100.0, daily_recovery: 0.25, silver_bonus: 1.25, gold_bonus: 1.5), shops: [(id: \"grocer\", name: \"Grocer\", opens: \"09:00\", closes: \"17:00\", closed_on: [], daily_limit: 10, stall: \"s.glb\", buys: [], sells: [])])";
     const CROPS: &str = r#"(
         crops: [
             (id: "turnip", name: "Turnip", seeds: "turnip_seeds", produce: "turnip",
@@ -161,9 +161,10 @@ mod tests {
                 limbs: (body: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), head: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_arm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_arm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_leg: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_leg: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_forearm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_forearm: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), right_shin: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))]), left_shin: (joint: (0.0, 0.0, 0.0), boxes: [(from: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), uv: (0, 0))])),
                 expressions: (blink: (0, 0), smile: (0, 0), surprise: (0, 0), effort: (0, 0)),
                 grip: (at: (0.0, 0.0, 0.0), turn: (0.0, 0.0, 0.0), tool_size: 1.0, item_size: 0.5),
-                wardrobe: (bodies: ["b.png"], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.0, 0.0, 0.0)]),
+                wardrobe: (bodies: ["b.png"], eyes: "e.png", eye_colors: [(0.0, 0.0, 0.0)], outfits: ["o.png"], hair: ["h.png"], hair_colors: [(0.0, 0.0, 0.0)]),
             )"#,
-            village: "(stalls: [])",
+            village: "(stalls: [(id: \"grocer\", at: (0.0, -3.0), turn: 180.0)], lots: (price: 100, fence: \"f.glb\", gate: \"g.glb\"), haircut: (price: 60, shop: \"grocer\"))",
+            villagers: "(villagers: [])",
         })
         .unwrap();
         let turnip = catalog.crop_id("turnip").unwrap();

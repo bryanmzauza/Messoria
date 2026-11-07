@@ -11,8 +11,9 @@
 //! whichever other columns are worked out, and in whatever order: servers
 //! and clients each grow the scenery near their players by themselves.
 //!
-//! The village, the roads, the river, the edge of the world and the
-//! clearing where players arrive stay free.
+//! The village, the roads, the river, the edge of the world, the clearing
+//! where players arrive, the fences of the farm lots, the way in through
+//! their gates and the middle of each lot, where a cabin goes, stay free.
 
 use glam::{FloatExt, IVec2, Vec2, Vec3, Vec3Swizzles};
 use messoria_content::{Catalog, PropDef, PropId};
@@ -22,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     landscape::{HALF_WIDTH, Landscape, VILLAGE_CENTER, VILLAGE_RADIUS, column_of},
+    lots::{fence_distance, gate_distance, homestead_distance},
     noise::{mix, unit},
     river::RIVER_HALF_WIDTH,
     roads::ROAD_HALF_WIDTH,
@@ -29,12 +31,17 @@ use crate::{
 
 /// Radius of the clearing around the world's origin, where players arrive.
 const ARRIVAL_CLEARING: f32 = 12.0;
-/// Room kept free around the village, the roads, the river and the edge of
-/// the world.
+/// Room kept free around the village, the roads, the river, the edge of
+/// the world and the lots' fences.
 const VILLAGE_MARGIN: f32 = 4.0;
 const ROAD_MARGIN: f32 = 1.0;
 const RIVER_MARGIN: f32 = 2.0;
 const EDGE_MARGIN: f32 = 8.0;
+const FENCE_MARGIN: f32 = 1.0;
+/// Radius of the clearing inside each gate, so the way in is open, and of
+/// the one in the middle of each lot, where its owner's cabin has room.
+const GATE_CLEARING: f32 = 6.0;
+const HOMESTEAD_CLEARING: f32 = 12.0;
 /// Size of the groves and clearings, in meters.
 const GROVE_SIZE: f32 = 28.0;
 /// How thick scenery grows across the farmland, and in the wilds, as a
@@ -182,7 +189,8 @@ fn candidate(
 }
 
 /// Whether a prop with `footprint` may stand at `spot`, clear of the
-/// village, the roads, the river, the arrival clearing and the edge.
+/// village, the roads, the river, the arrival clearing, the edge, the
+/// lots' fences, their gates and their middles.
 fn free(landscape: &Landscape, spot: Vec2, footprint: f32) -> bool {
     spot.abs().max_element() < HALF_WIDTH - EDGE_MARGIN
         && spot.length() >= ARRIVAL_CLEARING
@@ -191,6 +199,9 @@ fn free(landscape: &Landscape, spot: Vec2, footprint: f32) -> bool {
             .road_distance(spot)
             .is_none_or(|distance| distance >= ROAD_HALF_WIDTH + ROAD_MARGIN + footprint)
         && landscape.river_distance(spot) >= RIVER_HALF_WIDTH + RIVER_MARGIN + footprint
+        && fence_distance(spot) >= FENCE_MARGIN + footprint
+        && gate_distance(spot) >= GATE_CLEARING + footprint
+        && homestead_distance(spot) >= HOMESTEAD_CLEARING + footprint
 }
 
 /// Cells across the world in a grid of `spacing`-meter cells.
@@ -316,6 +327,9 @@ mod tests {
                     .road_distance(spot)
                     .is_none_or(|d| d > ROAD_HALF_WIDTH)
             );
+            assert!(fence_distance(spot) > FENCE_MARGIN);
+            assert!(gate_distance(spot) > GATE_CLEARING);
+            assert!(homestead_distance(spot) > HOMESTEAD_CLEARING);
             assert!((prop.position.y - landscape.height(spot)).abs() < 1e-4);
         }
     }

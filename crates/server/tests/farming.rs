@@ -12,6 +12,7 @@ fn a_crop_ripens_on_the_day_its_data_predicts() {
     let turnip = content.crop_id("turnip").expect("turnips exist");
     let days_to_ripen = u32::from(content.crop(turnip).days_to_ripen());
     let mut world = HostedWorld::new(content.clone());
+    world.settle_on_a_lot(&content);
 
     let target = world.ground_ahead();
     let tile = tile_at(target);

@@ -32,8 +32,9 @@ impl Plugin for SettingsPlugin {
 #[derive(Resource, Debug)]
 pub(crate) struct Preferences(pub Settings);
 
+/// Where the settings are saved.
 #[derive(Resource)]
-struct SettingsFile(PathBuf);
+pub(crate) struct SettingsFile(pub PathBuf);
 
 fn apply_volume(preferences: Res<Preferences>, mut volume: ResMut<GlobalVolume>) {
     if preferences.is_changed() {
@@ -66,7 +67,7 @@ fn save_on_close(
         return;
     }
     if *panel == OpenPanel::Options {
-        *shown = Some(preferences.0);
+        *shown = Some(preferences.0.clone());
     } else if let Some(before) = shown.take()
         && before != preferences.0
         && let Err(error) = preferences.0.save(&file.0)

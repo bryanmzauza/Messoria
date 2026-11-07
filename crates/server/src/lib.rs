@@ -9,15 +9,19 @@
 //! reads before building the app, as it does content, so a damaged save stops
 //! the program instead of being overwritten.
 
+mod appearance;
 mod building;
 mod connections;
 mod day_cycle;
 mod feedback;
 mod fields;
+mod friendship;
 mod gathering;
 mod homes;
+mod hosting;
 mod interest;
 mod inventory;
+mod lots;
 mod market;
 mod players;
 mod report;
@@ -25,6 +29,7 @@ mod saving;
 mod storage;
 mod terrain;
 mod village;
+mod villagers;
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -37,6 +42,11 @@ use messoria_shared::valley::{Landscape, Valley};
 pub struct ServerPlugin {
     /// Address the server listens on for clients.
     pub bind_addr: SocketAddr,
+    /// Whether guests may join from the start; the host may open or close
+    /// the world later.
+    pub open_to_guests: bool,
+    /// Players the world takes at once, the host included.
+    pub max_players: u32,
     /// How many players must sleep to end the day.
     pub sleep_rule: SleepRule,
     /// Real time one game minute lasts; `messoria_calendar::GAME_MINUTE` for
@@ -84,10 +94,25 @@ impl WorldSetup {
         content: &Catalog,
         new_start_time: WorldTime,
     ) -> Result<Self, SaveError> {
+        Self::open_with(save_dir, content, new_start_time, None)
+    }
+
+    /// Like [`Self::open`], with the seed a new world gets, if one is
+    /// wanted.
+    ///
+    /// # Errors
+    ///
+    /// If a save exists but cannot be read.
+    pub fn open_with(
+        save_dir: SaveDir,
+        content: &Catalog,
+        new_start_time: WorldTime,
+        new_seed: Option<u64>,
+    ) -> Result<Self, SaveError> {
         let start = match save_dir.load(content)? {
             Some(saved) => WorldStart::Resume(Box::new(saved)),
             None => WorldStart::New {
-                seed: rand::random(),
+                seed: new_seed.unwrap_or_else(rand::random),
                 start_time: new_start_time,
             },
         };
@@ -128,6 +153,11 @@ impl Plugin for ServerPlugin {
                 connections::ConnectionsPlugin {
                     bind_addr: self.bind_addr,
                 },
+                hosting::HostingPlugin {
+                    bind_addr: self.bind_addr,
+                    open_to_guests: self.open_to_guests,
+                    max_players: self.max_players,
+                },
                 players::PlayersPlugin,
                 feedback::FeedbackPlugin,
                 inventory::InventoryPlugin,
@@ -137,11 +167,15 @@ impl Plugin for ServerPlugin {
                 building::BuildingPlugin,
                 homes::HomesPlugin,
                 storage::StoragePlugin,
+                lots::LotsPlugin,
+                friendship::FriendshipPlugin,
+                appearance::AppearancePlugin,
             ))
             // The world itself, what each player is sent of it, and keeping it.
             .add_plugins((
                 terrain::TerrainPlugin,
                 village::VillagePlugin,
+                villagers::VillagersPlugin,
                 interest::InterestPlugin,
                 day_cycle::DayCyclePlugin {
                     sleep_rule: self.sleep_rule,

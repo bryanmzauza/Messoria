@@ -8,8 +8,10 @@
 //! distance walked, they lean into a run, spread their arms in the air, act
 //! out what the server reports their player did, and lie down in bed asleep.
 //! Their faces blink now and then, strain at hard work, smile at a trade or
-//! a meal, start when they fall and close their eyes in sleep. Shopkeepers
-//! are figures too.
+//! a meal, start when they fall and close their eyes in sleep. Villagers
+//! are figures too, dressed as villagers.ron says, sitting, tending the
+//! ground or out of sight indoors as the server says they are, and greeting
+//! whoever trades at the shop they keep.
 
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
@@ -23,8 +25,8 @@ use messoria_shared::{
     content::Content,
     movement::{SPRINT_FACTOR, WALK_SPEED},
     protocol::{
-        Asleep, Belongings, Happened, Heading, Holding, PlayerId, PlayerInput, Position, Structure,
-        Velocity,
+        Appearance, Asleep, Belongings, Doing, Happened, Heading, Holding, PlayerId, PlayerInput,
+        Position, Shopfront, Structure, Velocity, Villager,
     },
 };
 
@@ -72,6 +74,13 @@ const BLINK_EVERY: (f32, f32) = (3.2, 5.8);
 const BLINK_LENGTH: f32 = 0.14;
 /// How far from a stall a trade makes its keeper greet the customer.
 const KEEPER_REACH: f32 = 4.0;
+/// How often a villager tending the ground bends down to it.
+const TENDING_EVERY: Duration = Duration::from_millis(3200);
+/// How a sitting figure is posed: how far it is lowered, in meters, and
+/// how its thighs and shins turn, in radians.
+const SEAT_DROP: f32 = 0.42;
+const SEAT_THIGH: f32 = 1.45;
+const SEAT_SHIN: f32 = -1.4;
 /// How far from a bed a sleeper lies down in it, and how high over its
 /// base, and how far from its middle toward its foot the sleeper's feet
 /// rest.
@@ -86,8 +95,13 @@ pub(crate) struct AvatarPlugin;
 impl Plugin for AvatarPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(attach_avatar)
+            .add_observer(attach_villager)
             .add_observer(smooth_between_ticks)
-            .add_systems(Update, (act_out, hold_items, pose_figures).chain())
+            .add_observer(smooth_villagers)
+            .add_systems(
+                Update,
+                (redress, act_out, hold_items, pose_figures, hide_indoors).chain(),
+            )
             .add_systems(
                 PostUpdate,
                 place_avatars
@@ -116,6 +130,8 @@ pub(crate) struct Pose {
     /// Keeps figures standing idle, or blinking, from all moving as one.
     offset: f32,
     expression: Expression,
+    /// When the figure last finished acting something out.
+    idle_since: Duration,
 }
 
 /// Something a figure acts out once.
@@ -143,7 +159,9 @@ impl Act {
             Happened::Dug(_) | Happened::Raised => Self::Dig,
             Happened::Planted | Happened::Fertilized | Happened::Harvested => Self::Pick,
             Happened::Watered => Self::Water,
-            Happened::Traded | Happened::Built => Self::Reach,
+            Happened::Traded | Happened::Built | Happened::ClaimedLot | Happened::Gave => {
+                Self::Reach
+            }
             Happened::Ate => Self::Eat,
         }
     }
@@ -318,12 +336,6 @@ impl Angles {
     }
 }
 
-/// A shopkeeper, who greets whoever trades at the stall at `stall`.
-#[derive(Component)]
-pub(crate) struct Keeper {
-    pub stall: Vec3,
-}
-
 /// The model held in a figure's hand, and the item it shows.
 #[derive(Component)]
 struct HeldModel {
@@ -354,18 +366,67 @@ pub(crate) fn dress(
     ));
 }
 
+/// Characters are dressed as the server says they look.
 fn attach_avatar(
-    trigger: On<Add, PlayerId>,
-    players: Query<&PlayerId>,
+    trigger: On<Add, Appearance>,
+    players: Query<&Appearance, With<PlayerId>>,
     content: Res<Content>,
     meshes: Res<FigureMeshes>,
     mut tailor: Tailor,
     mut commands: Commands,
 ) {
-    let Ok(&PlayerId(peer)) = players.get(trigger.entity) else {
+    let Ok(appearance) = players.get(trigger.entity) else {
         return;
     };
-    let look = content.characters().look_for(peer.to_bits());
+    commands.entity(trigger.entity).insert(Transform::default());
+    dress(
+        &mut commands,
+        &content,
+        &meshes,
+        &mut tailor,
+        trigger.entity,
+        &appearance.0,
+    );
+}
+
+/// A character whose look changed, at the wardrobe or the barber's, gets a
+/// new figure; what it held hangs from the new hand next frame.
+fn redress(
+    characters: Query<(Entity, Ref<Appearance>, &Figure), Changed<Appearance>>,
+    content: Res<Content>,
+    meshes: Res<FigureMeshes>,
+    mut tailor: Tailor,
+    mut commands: Commands,
+) {
+    for (entity, appearance, figure) in &characters {
+        if appearance.is_added() {
+            continue;
+        }
+        commands.entity(figure.root).despawn();
+        commands.entity(entity).remove::<HeldModel>();
+        dress(
+            &mut commands,
+            &content,
+            &meshes,
+            &mut tailor,
+            entity,
+            &appearance.0,
+        );
+    }
+}
+
+fn attach_villager(
+    trigger: On<Add, Villager>,
+    villagers: Query<&Villager>,
+    content: Res<Content>,
+    meshes: Res<FigureMeshes>,
+    mut tailor: Tailor,
+    mut commands: Commands,
+) {
+    let Ok(&Villager(id)) = villagers.get(trigger.entity) else {
+        return;
+    };
+    let look = content.villager(id).look.clone();
     commands.entity(trigger.entity).insert(Transform::default());
     dress(
         &mut commands,
@@ -375,6 +436,18 @@ fn attach_avatar(
         trigger.entity,
         &look,
     );
+}
+
+/// Villagers the server in this app moves change once per tick, like the
+/// host's own character.
+fn smooth_villagers(
+    trigger: On<Add, Villager>,
+    villagers: Query<Has<Remote>, With<Villager>>,
+    mut commands: Commands,
+) {
+    if let Ok(false) = villagers.get(trigger.entity) {
+        commands.entity(trigger.entity).insert(FrameInterpolate);
+    }
 }
 
 /// Characters simulated in this app (all of them on a host, the predicted one
@@ -393,13 +466,16 @@ fn smooth_between_ticks(
     }
 }
 
-/// Characters act out what the server reports they did, and shopkeepers
-/// greet whoever trades with them.
+/// Characters act out what the server reports they did, villagers keeping
+/// a shop greet whoever trades at its stall, and villagers tending the
+/// ground bend down to it now and then.
 fn act_out(
     time: Res<Time>,
+    content: Res<Content>,
     mut witnessed: MessageReader<Witnessed>,
     mut characters: Query<(&PlayerId, &mut Pose)>,
-    mut keepers: Query<(&Keeper, &mut Pose), Without<PlayerId>>,
+    mut villagers: Query<(&Villager, &Doing, &mut Pose), Without<PlayerId>>,
+    stalls: Query<&Shopfront>,
 ) {
     let now = time.elapsed();
     for Witnessed(happening) in witnessed.read() {
@@ -409,12 +485,37 @@ fn act_out(
             pose.acting = Some((Act::of(happening.what), now));
         }
         if happening.what == Happened::Traded {
-            for (keeper, mut pose) in &mut keepers {
-                if keeper.stall.distance(happening.at) < KEEPER_REACH {
+            for (villager, _, mut pose) in &mut villagers {
+                let Some(shop) = content.villager(villager.0).keeps else {
+                    continue;
+                };
+                let at_the_stall = stalls.iter().any(|stall| {
+                    stall.shop == shop && stall.position.distance(happening.at) < KEEPER_REACH
+                });
+                if at_the_stall {
                     pose.acting = Some((Act::Greet, now));
                 }
             }
         }
+    }
+    for (_, doing, mut pose) in &mut villagers {
+        if *doing == Doing::Tending
+            && pose.acting.is_none()
+            && now >= pose.idle_since + TENDING_EVERY
+        {
+            pose.acting = Some((Act::Pick, now));
+        }
+    }
+}
+
+/// Villagers indoors are out of sight.
+fn hide_indoors(mut villagers: Query<(&Doing, &mut Visibility), (With<Villager>, Changed<Doing>)>) {
+    for (doing, mut visibility) in &mut villagers {
+        visibility.set_if_neq(if *doing == Doing::Indoors {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
     }
 }
 
@@ -431,6 +532,7 @@ fn pose_figures(
         Option<&Velocity>,
         Has<Asleep>,
         Option<&HeldModel>,
+        Option<&Doing>,
     )>,
     beds: Query<&Structure>,
     mut transforms: Query<&mut Transform>,
@@ -439,12 +541,13 @@ fn pose_figures(
     let now = time.elapsed();
     let clock = time.elapsed_secs();
     let dt = time.delta_secs();
-    for (figure, mut pose, placed, velocity, asleep, held) in &mut figures {
+    for (figure, mut pose, placed, velocity, asleep, held, doing) in &mut figures {
         if pose
             .acting
             .is_some_and(|(act, since)| now >= since + act.length())
         {
             pose.acting = None;
+            pose.idle_since = now;
         }
         let velocity = velocity.map_or(Vec3::ZERO, |velocity| velocity.0);
         let speed = velocity.xz().length();
@@ -459,6 +562,9 @@ fn pose_figures(
         let mut root = Transform::default();
         if asleep {
             root = lying(placed, &content, &beds);
+        } else if doing == Some(&Doing::Sitting) {
+            sitting(&mut angles, clock + pose.offset);
+            root.translation.y = angles.root_lift;
         } else {
             moving(&mut angles, &pose, velocity, clock + pose.offset);
             if let Some(landed) = pose.landed {
@@ -524,6 +630,26 @@ fn expression(pose: &Pose, asleep: bool, velocity: Vec3, clock: f32) -> Expressi
     } else {
         Expression::Rest
     }
+}
+
+/// Poses a figure sitting: lowered onto its seat, thighs forward and shins
+/// hanging, hands in its lap, breathing.
+fn sitting(angles: &mut Angles, clock: f32) {
+    angles.root_lift = -SEAT_DROP;
+    for leg in [&mut angles.right_leg, &mut angles.left_leg] {
+        leg.x = SEAT_THIGH;
+    }
+    for shin in [&mut angles.right_shin, &mut angles.left_shin] {
+        shin.x = SEAT_SHIN;
+    }
+    let breath = 0.03 * (clock * 1.3).sin();
+    for arm in [&mut angles.right_arm, &mut angles.left_arm] {
+        arm.x = 0.55 + breath;
+    }
+    angles.right_forearm.x = 0.9;
+    angles.left_forearm.x = 0.9;
+    angles.body.x = -0.08;
+    angles.head.x = 0.05 + breath;
 }
 
 /// Poses a figure for how it moves: standing, walking, running or in the
@@ -700,7 +826,9 @@ fn hold_items(
     }
 }
 
-fn place_avatars(mut avatars: Query<(&Position, &Heading, &mut Transform), With<PlayerId>>) {
+fn place_avatars(
+    mut avatars: Query<(&Position, &Heading, &mut Transform), Or<(With<PlayerId>, With<Villager>)>>,
+) {
     for (position, heading, mut transform) in &mut avatars {
         transform.translation = position.0;
         transform.rotation = Quat::from_rotation_y(heading.0);

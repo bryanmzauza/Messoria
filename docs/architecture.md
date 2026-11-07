@@ -7,9 +7,11 @@ render the state the server replicates back to them. The same server code runs
 in two places:
 
 - **Dedicated server:** a headless process for community hosting.
-- **Hosted world:** inside the game client. Solo play is a hosted world that
-  only listens on loopback; opening it to friends means listening on a public
-  port instead.
+- **Hosted world:** inside the game client. A world played from the title
+  screen listens on a public port from the start, closed to guests until
+  its host opens it from the game menu; one started from a terminal without
+  `--host` listens on loopback only
+  ([ADR 0021](adr/0021-playing-from-the-game.md)).
 
 See [ADR 0001](adr/0001-server-authoritative-single-codebase.md).
 
@@ -24,7 +26,7 @@ crates/
   inventory/         messoria-inventory         Slots, stacks, quality and spoilage
   save/              messoria-save              Versioned save files for worlds and players
   voxel/             messoria-voxel             Terrain storage, edits, queries, Surface Nets meshing
-  worldgen/          messoria-worldgen          The valley grown from the seed: its shape, river, roads and scenery
+  worldgen/          messoria-worldgen          The valley grown from the seed: its shape, river, roads, farm lots and scenery
   shared/            messoria-shared            Networking setup, protocol, deterministic simulation
   server/            messoria-server            Authoritative game logic
   client/            messoria-client            Rendering, input, camera, UI, audio
@@ -45,7 +47,7 @@ starts, never ahead of time:
 
 | Crate | Milestone | Responsibility |
 |---|---|---|
-| `rendezvous` (binary) | M8 | Access codes, hole punching, relay |
+| `rendezvous` (binary) | After the MVP | Access codes, hole punching, relay |
 
 ## Dependency rules
 
@@ -79,11 +81,55 @@ lightyear requires its client and server plugin groups to exist before the
 protocol is registered, and the role (`Server`, `Client` or `Host`) decides
 which groups are added.
 
+## Sessions
+
+See [ADR 0021](adr/0021-playing-from-the-game.md).
+
+- The game executable runs the title screen (`TitlePlugin`, Bevy's
+  default plugins and nothing of the game) when given no world or
+  address; the title lists the worlds under the saves folder
+  (`SaveDir::worlds`), remembers the last one and the addresses joined
+  lately in the settings, and starts the chosen world or server in a new
+  instance of the executable with the arguments for it (`launch`). The
+  game comes back to the title the same way, carrying a notice when it
+  was sent away or cut off (`connection`).
+- Every client says hello with `PROTOCOL_VERSION` once connected
+  (`SharedPlugin`); the server's `hosting` module admits it, or answers
+  `Rejected` with the reason (another version, a full world, a closed
+  one) and the client leaves. Only admitted connections get a character.
+  The host's own client opens and closes the world (`SetHospitality`);
+  the clock entity carries `Hosting`: open or not, the port, who is here.
+- The client's `menu` shows the world's door and who is in it, `controls`
+  the card of controls (F1, and on first arrival), `nametags` other
+  players' names over their heads, and `names` the name to call a player
+  by wherever players are listed.
+
+## Shipping
+
+- Release builds find `assets/` next to the executable (Bevy's asset root
+  and `content::load_content` follow the same rule), so the zip runs from
+  wherever it is unpacked. Development runs read them from the workspace
+  through `BEVY_ASSET_ROOT` in `.cargo/config.toml`.
+- The game keeps worlds, the profile, the settings and its log in the
+  player's data folder (`bins/game/src/paths.rs`): `--data-dir`, else
+  `MESSORIA_DATA_DIR` (the workspace's `saves` folder for development runs),
+  else `%APPDATA%\Messoria` or the XDG data folder. A release build of the
+  game has no console on Windows and logs to `messoria.log` there, panics
+  included; the dedicated server keeps its console.
+- The executable's icon is embedded at build time (`bins/game/build.rs`)
+  and the window's is set from `assets/textures/icon.png`.
+- `.github/workflows/release.yml` builds the game and the server for
+  Windows (a zip) and Linux (a tarball, built on Ubuntu 22.04 for an older
+  glibc) on a `v*` tag, packs them with the assets, the README, the
+  license, the credits, the changelog and the licenses of the third-party
+  crates (`cargo about`, configured by `about.toml`), and creates a GitHub
+  release.
+
 ## Networking
 
 - Transport is UDP with netcode.io authentication, configured in
   `messoria_shared::network`. Clients currently sign their own connect tokens;
-  the rendezvous service takes over token issuing in M8.
+  the rendezvous service planned after the MVP takes over token issuing.
 - The server spawns a character when a connection is confirmed and replicates
   it to everyone. Its owner predicts it; everyone else interpolates it.
   `ControlledBy` ties the character's lifetime to the connection.
@@ -99,8 +145,8 @@ which groups are added.
   world is a lightyear room. Fields, structures, stalls and characters are
   put in the room of the column they stand in, characters changing rooms as
   they walk, and each client joins the rooms around its character, as far as
-  it holds terrain. What is in no room (the clock, the market) reaches
-  everyone. See [ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
+  it holds terrain. What is in no room (the clock, the market, the claims
+  on farm lots) reaches everyone. See [ADR 0015](adr/0015-a-larger-valley-grown-on-both-sides.md).
 
 ## Terrain
 
@@ -112,8 +158,9 @@ See [ADR 0004](adr/0004-terrain-representation.md),
 - `messoria-worldgen` grows the valley from the seed: `Landscape` gives the
   ground's height and material anywhere, the river's course and the roads,
   and generates any column of chunks; `props_in_column` grows the scenery of
-  a column. The world is 64 by 64 columns of three chunks, two kilometers
-  across. `messoria_shared::valley::Valley` holds the `Landscape`: the server
+  a column; `lots` lays out the farm lots along the roads, the same in
+  every world. The world is 64 by 64 columns of three chunks, two
+  kilometers across. `messoria_shared::valley::Valley` holds the `Landscape`: the server
   from the start, a client once `TerrainUpdate::World` tells it the seed.
 - The server owns the authoritative `Terrain` resource, holding the columns
   within a few columns of any player: `terrain::loading` generates missing
@@ -142,6 +189,57 @@ See [ADR 0004](adr/0004-terrain-representation.md),
   (`horizon`): tiles of the heightfield on a coarse grid, in the same ground,
   leaving out the columns drawn in full with skirts beside them. `water`
   lays the river's water along its whole course.
+
+## Villagers
+
+See [ADR 0018](adr/0018-villagers-with-days-of-their-own.md).
+
+- `villagers.ron` names the villagers, dresses them, gives each a house (a
+  labeled building in `village.ron`), the shop they keep and a day of
+  slots by time, weekday, season and weather. `village.ron` lists the spots
+  they go to, with a facing, a pose and the spots passed on the way in,
+  and the paths they walk.
+- The server's `villagers` module spawns one replicated character per
+  villager (`Villager`, position, heading, velocity, `Doing`) and, every
+  tick, picks the slot that holds, routes along the paths
+  (`villagers::paths`) and walks the villager there; while no player is
+  near the village, villagers are put where they belong once every couple
+  of seconds instead. They move through rooms like players.
+- The client dresses villagers from the content (`avatars`), seats them,
+  bends them to the ground or hides them indoors as `Doing` says, names
+  them under the crosshair (`actions`, `target`) and has the one keeping
+  a shop greet whoever trades at its stall.
+- Talking (`TalkTo`) and giving (`GiveGift`) go to the server's
+  `friendship` module, which keeps each character's friendships (`Bonds`,
+  saved in the player's file), picks the villager's line from the content
+  by the moment and the hearts, counts the points, hands over the
+  villager's present at new hearts, answers with a `Dialogue` and sends
+  the player's `Friendships` whenever they change. A friend of a shop's
+  keeper pays less there (`messoria_shared::friendship`). The client's
+  `talk` module shows the dialogue window and the list of villagers.
+  See [ADR 0019](adr/0019-talking-gifts-and-friendship.md).
+
+## Farm lots
+
+See [ADR 0016](adr/0016-farm-lots.md).
+
+- The lots are laid out by the valley (`messoria_worldgen::lots`): three to
+  a side along each road out of the village, 64 meters square, a gate on
+  the road. Who owns one is a replicated `LotClaim` (owner and guests, by
+  key), one entity per claimed lot, in no room, so every client can list
+  them at the notice board. The world file keeps them.
+- `messoria_shared::lots` grows the fences of every loaded column as
+  obstacles on every peer, and its `Claims` tells the systems that work
+  the ground whether a player may work a point: only on a lot they own or
+  were invited to. The server's `lots` module answers `ClaimLot` (at the
+  notice board; free the first time, the village's price after),
+  `InviteToLot` and `Uninvite`. The shovel, the fields, building and chests
+  refuse with a notice everywhere else, and a home is built only on a lot
+  of one's own.
+- The client draws fence sections and gateways for the columns it draws in
+  full (`fences`), opens the notice board's window with the interact key
+  (`board`), names the lot the crosshair is on and whose it is, and colors
+  the aim red over ground the player cannot work.
 
 ## Days
 
@@ -298,6 +396,18 @@ See [ADR 0011](adr/0011-structures-and-homes.md).
   and hotbar.
 - The world file keeps every structure, whose home it is and what it keeps.
 
+## Music and ambience
+
+See [ADR 0022](adr/0022-music-and-ambience.md).
+
+- `music` plays the piece of the season drawn (`assets/music/`), looping,
+  crossfading to the next as the season turns, at the music volume among
+  the settings; the title screen plays spring.
+- `ambience` keeps wind, birds, crickets, rain and the river looping
+  (`assets/sounds/ambience/`), each in a plain and a muffled recording,
+  easing their volumes toward what the hour, the season, the weather,
+  the distance to the river and being indoors call for.
+
 ## Feedback and feel
 
 See [ADR 0009](adr/0009-action-feedback-and-collision.md).
@@ -319,6 +429,9 @@ See [ADR 0009](adr/0009-action-feedback-and-collision.md).
   a ray cast against the same obstacles.
 - The game menu, its options and the backpack window are client panels
   (`OpenPanel`), one at a time. Options are kept in `saves/settings.ron`.
+- Seen from behind or ahead, the camera (`camera`) is pulled in to stay
+  this side of any obstacle or ground between it and the character's head,
+  so rooms are seen from within.
 
 ## Characters and icons
 
@@ -326,13 +439,23 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 
 - Every character is a figure of boxes (`figures`), built from the limbs in
   `characters.ron` and painted from a skin. `skins` lays each look's layers
-  (a body, an outfit, hair tinted with a hair color) into one image once they
-  load, and figures dressed alike share its material. Players are dressed
-  from the wardrobe by their id (`Characters::look_for`), so everyone sees
-  the same look for the same player; shopkeepers' looks are in `shops.ron`.
-  Faces blink, strain at hard work, smile at a trade or a meal, start when
-  falling and close in sleep, by swapping the head's front for another
-  painted expression.
+  (a body, eyes and hair tinted with their colors, an outfit, a hat) into
+  one image once they load, and figures dressed alike share its material.
+  Players are dressed as their replicated `Appearance` says, villagers as
+  `villagers.ron` says. Faces blink, strain at hard work, smile at a trade
+  or a meal, start when falling and close in sleep, by swapping the head's
+  front for another painted expression.
+- A look is the player's own (see
+  [ADR 0020](adr/0020-a-look-of-ones-own.md)): the server's `appearance`
+  module asks a newcomer to introduce themselves (`Newcomer`, `Introduce`:
+  a name and a look the wardrobe offers), keeps both on the character
+  (`Appearance`, `PlayerName`) and in the player's file, changes clothes
+  at a wardrobe (`ChangeClothes`: garments are items, what comes off goes
+  back into the backpack) and restyles hair at the barber's for the
+  village's price (`Restyle`). The client's `creator` opens the character
+  creator or answers from the profile, `wardrobe` and `barber` are the
+  windows, and `mirror` draws the look being made into an image they
+  show.
 - `avatars` poses figures every frame rather than playing recorded clips:
   legs and arms swing with the distance walked, knees and elbows bending,
   figures lean into a run, tuck their legs in a jump, crouch on landing,
@@ -346,8 +469,8 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 - In first person a second camera draws the player's own arm, holding the
   item, over the world on its own render layer, so it never sinks into
   walls; it sways with the steps and swings on each use.
-- Shopkeepers stand behind their stalls' counters, with some of their wares
-  on them, and greet whoever trades there.
+- Stalls carry some of their shops' wares on the counter; the villager
+  keeping the shop stands behind it in its hours.
 - Item icons are rendered by the client at startup from each item's model
   (a lump of its color if it has none; seeds with what they grow into),
   each by its own camera into an image, far below the valley on a render
@@ -358,13 +481,19 @@ See [ADR 0012](adr/0012-characters-village-and-icons.md).
 See [ADR 0006](adr/0006-shared-market-priced-on-both-sides.md).
 
 - The village is a fixed area of the valley (`messoria_shared::village`),
-  generated level and paved. Its ground cannot be dug, raised or tilled.
-- `village.ron` places each shop's stall and the village's buildings around
-  the square. At startup the server spawns a replicated `Shopfront` for each
-  stall and a `Structure` marked `Landmark` for each building; landmarks are
-  rebuilt from the data every time, so saves leave them out. A client trades by sending `Trade` while its character
-  stands at the stall; the server checks the stall, the shop's hours and the
-  trade rules.
+  generated level, its square and streets paved (`messoria_worldgen::paved`).
+  Its ground cannot be dug, raised or tilled. See
+  [ADR 0017](adr/0017-a-village-to-walk-into.md).
+- `village.ron` places each shop's stall and the village's buildings: the
+  grocer's and the carpenter's stalls on the square, the tavern and the
+  other shops around it with their counters inside, the houses along the
+  lanes, and says what a farm lot costs and how the lots are fenced. At
+  startup the server spawns a replicated `Shopfront` for each stall and a
+  `Structure` marked `Landmark` for each building; landmarks are rebuilt
+  from the data every time, so saves leave them out. A client trades by
+  sending `Trade` while its character stands at the stall, on the square or
+  indoors; the server checks the stall, the shop's hours and the trade
+  rules.
 - Characters carry `Money` and `SoldToday` (their sales against the shops'
   daily limits). One `MarketState` entity holds the server-wide saturation.
   At dawn the market recovers and everyone's daily sales start over.

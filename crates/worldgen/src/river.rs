@@ -22,8 +22,9 @@ const EDGE_DEPTH: f32 = 0.15;
 const BANK_SLOPE: f32 = 0.55;
 /// Distance between the points the water level is worked out at.
 const STEP: f32 = 4.0;
-/// How far the river runs from the middle of the world, give or take.
-const OFFSET: (f32, f32) = (300.0, 380.0);
+/// How far the river runs from the middle of the world, give or take: past
+/// the farm lots along the roads east and west, even at its widest bend.
+const OFFSET: (f32, f32) = (370.0, 440.0);
 /// Its bends: two waves across its course, of these sizes and lengths.
 const BENDS: [(f32, f32); 2] = [(70.0, 170.0), (25.0, 65.0)];
 

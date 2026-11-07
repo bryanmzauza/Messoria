@@ -1,9 +1,16 @@
-//! The look shared by on-screen windows: colors, text, frames and buttons.
+//! The look shared by on-screen windows: colors, text, frames, buttons and
+//! fields to type into.
 //!
 //! Windows are dark wood with a brass edge, in keeping with the valley's
 //! cozy medieval style.
 
-use bevy::prelude::*;
+use bevy::{
+    input::{
+        ButtonState,
+        keyboard::{Key, KeyboardInput},
+    },
+    prelude::*,
+};
 
 const WINDOW_COLOR: Color = Color::srgba(0.13, 0.1, 0.08, 0.97);
 const WINDOW_EDGE_COLOR: Color = Color::srgb(0.6, 0.45, 0.26);
@@ -23,12 +30,151 @@ const BUTTON_EDGE_COLOR: Color = Color::srgb(0.52, 0.38, 0.22);
 const BUTTON_HOVER_EDGE_COLOR: Color = ACCENT_COLOR;
 /// Width of the buttons in menus, which stack in a column.
 const WIDE_BUTTON_WIDTH: f32 = 300.0;
+const FIELD_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.35);
+const FIELD_EDGE_COLOR: Color = BUTTON_EDGE_COLOR;
+/// How often the caret in a field blinks, in seconds.
+const CARET_BLINK: f32 = 1.0;
 
 pub(crate) struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, highlight_buttons);
+        app.add_systems(
+            Update,
+            (
+                highlight_buttons,
+                (focus_fields, type_into_fields, show_fields).chain(),
+            ),
+        );
+    }
+}
+
+/// A line of text the player types into. Clicking a field gives it the
+/// focus, which one field has at a time.
+#[derive(Component)]
+pub(crate) struct TextField {
+    pub text: String,
+    placeholder: String,
+    limit: usize,
+    pub focused: bool,
+    /// Enter was pressed with the focus here this frame.
+    pub submitted: bool,
+}
+
+/// The text shown in a field.
+#[derive(Component)]
+struct FieldText;
+
+/// Spawns a field holding `text` under `parent`, `width` pixels wide, with
+/// `extra` on it so a system can tell which field it is.
+pub(crate) fn spawn_text_field(
+    parent: &mut ChildSpawnerCommands,
+    text: &str,
+    placeholder: &str,
+    limit: usize,
+    width: f32,
+    focused: bool,
+    extra: impl Bundle,
+) {
+    parent
+        .spawn((
+            TextField {
+                text: text.to_owned(),
+                placeholder: placeholder.to_owned(),
+                limit,
+                focused,
+                submitted: false,
+            },
+            Button,
+            Node {
+                width: px(width),
+                padding: UiRect::axes(px(8), px(5)),
+                border: UiRect::all(px(1)),
+                border_radius: BorderRadius::all(px(BUTTON_CORNER)),
+                ..default()
+            },
+            BackgroundColor(FIELD_COLOR),
+            BorderColor::all(FIELD_EDGE_COLOR),
+            extra,
+        ))
+        .with_child((FieldText, label("", TEXT_SIZE, TEXT_COLOR)));
+}
+
+fn focus_fields(
+    clicked: Query<(Entity, &Interaction), (With<TextField>, Changed<Interaction>)>,
+    mut fields: Query<(Entity, &mut TextField)>,
+) {
+    let Some((chosen, _)) = clicked
+        .iter()
+        .find(|(_, interaction)| **interaction == Interaction::Pressed)
+    else {
+        return;
+    };
+    for (entity, mut field) in &mut fields {
+        field.focused = entity == chosen;
+    }
+}
+
+fn type_into_fields(mut keys: MessageReader<KeyboardInput>, mut fields: Query<&mut TextField>) {
+    for mut field in &mut fields {
+        if field.submitted {
+            field.submitted = false;
+        }
+    }
+    let Some(mut field) = fields.iter_mut().find(|field| field.focused) else {
+        keys.clear();
+        return;
+    };
+    for key in keys.read() {
+        if key.state != ButtonState::Pressed {
+            continue;
+        }
+        match &key.logical_key {
+            Key::Backspace => {
+                field.text.pop();
+            }
+            Key::Enter => field.submitted = true,
+            _ => {
+                let typed = key.text.iter().flat_map(|text| text.chars());
+                for letter in typed.filter(|letter| !letter.is_control()) {
+                    if field.text.chars().count() < field.limit {
+                        field.text.push(letter);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn show_fields(
+    time: Res<Time>,
+    mut fields: Query<(&TextField, &Children, &mut BorderColor)>,
+    mut texts: Query<(&mut Text, &mut TextColor), With<FieldText>>,
+) {
+    let caret = if (time.elapsed_secs() / CARET_BLINK).fract() < 0.5 {
+        "|"
+    } else {
+        " "
+    };
+    for (field, children, mut edge) in &mut fields {
+        *edge = BorderColor::all(if field.focused {
+            ACCENT_COLOR
+        } else {
+            FIELD_EDGE_COLOR
+        });
+        let (shown, color) = match (field.focused, field.text.is_empty()) {
+            (true, _) => (format!("{}{caret}", field.text), TEXT_COLOR),
+            (false, true) => (field.placeholder.clone(), MUTED_TEXT_COLOR),
+            (false, false) => (field.text.clone(), TEXT_COLOR),
+        };
+        for child in children {
+            if let Ok((mut text, mut text_color)) = texts.get_mut(*child) {
+                if text.0 != shown {
+                    text.0.clone_from(&shown);
+                }
+                text_color.0 = color;
+            }
+        }
     }
 }
 

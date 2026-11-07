@@ -240,14 +240,14 @@ per second in a release build, and the server stays within its tick budget.
 
 Goal: every player farms on land of their own.
 
-- [ ] The land around the village laid out in fenced 64 m lots, from data,
+- [x] The land around the village laid out in fenced 64 m lots, from data,
       each with a gate on a road
-- [ ] A notice board in the village to pick a free lot: the first one is
+- [x] A notice board in the village to pick a free lot: the first one is
       free, more can be bought
-- [ ] Only a lot's owner and the players they invite till, dig, plant,
+- [x] Only a lot's owner and the players they invite till, dig, plant,
       harvest, build and open chests there; anyone may walk through
-- [ ] Outside the lots, anyone may gather, but not till, plant or build
-- [ ] The cabin is built on the player's own lot; lots and invitations are
+- [x] Outside the lots, anyone may gather, but not till, plant or build
+- [x] The cabin is built on the player's own lot; lots and invitations are
       kept in the save
 
 **Exit criterion:** two players on neighboring lots cannot change each
@@ -257,12 +257,16 @@ other's land unless invited, and ownership survives a restart.
 
 Goal: a village worth walking through.
 
-- [ ] A larger village: streets, houses for the villagers, gardens, a well
+- [x] A larger village: streets, houses for the villagers, gardens, a well
       and the notice board
-- [ ] New buildings: a tavern, a tailor, a barber and a blacksmith
-- [ ] Interiors for the shops and the tavern, walked into through their doors
-- [ ] The grocer and the carpenter move into proper shops, or keep their
+- [x] New buildings: a tavern, a tailor, a barber and a blacksmith
+- [x] Interiors for the shops and the tavern, walked into through their doors
+- [x] The grocer and the carpenter move into proper shops, or keep their
       stalls on a market street
+
+**Decided:** the grocer and the carpenter keep their stalls on the square,
+an open-air market; the tavern and the new shops are walked into
+([ADR 0017](adr/0017-a-village-to-walk-into.md)).
 
 **Exit criterion:** the village looks lived-in in screenshots, day and night,
 in every season, and every door that opens leads somewhere furnished.
@@ -271,14 +275,14 @@ in every season, and every door that opens leads somewhere furnished.
 
 Goal: the village has people with lives of their own.
 
-- [ ] Eight to ten named villagers, defined in data: look, home, work and a
+- [x] Eight to ten named villagers, defined in data: look, home, work and a
       daily schedule by hour, weekday, season and weather
-- [ ] Villagers simulated on the server, walking the village's paths, and
+- [x] Villagers simulated on the server, walking the village's paths, and
       seen by everyone moving and animated like players
-- [ ] Shopkeepers keep their shop's hours from behind the counter; others
+- [x] Shopkeepers keep their shop's hours from behind the counter; others
       sit on benches, chat in pairs, tend gardens, eat at the tavern and go
       home at night
-- [ ] Villagers far from every player are simulated at a lower rate
+- [x] Villagers far from every player are simulated at a lower rate
 
 **Exit criterion:** following one villager through a whole day matches their
 schedule, and all of them keep to it with players anywhere on the map.
@@ -287,14 +291,18 @@ schedule, and all of them keep to it with players anywhere on the map.
 
 Goal: getting to know the villagers is part of the game.
 
-- [ ] Talking to a villager with the interact key opens a dialogue with
+- [x] Talking to a villager with the interact key opens a dialogue with
       their lines, chosen by friendship, season, weather and time of day
-- [ ] Gifts: each villager loves, likes and dislikes some items, and reacts
+- [x] Gifts: each villager loves, likes and dislikes some items, and reacts
       with an expression
-- [ ] Friendship per player, raised by a daily talk and by gifts, shown in a
+- [x] Friendship per player, raised by a daily talk and by gifts, shown in a
       list of villagers and kept in the save
-- [ ] Friendship opens small things: warmer lines, a discount, a recipe or
+- [x] Friendship opens small things: warmer lines, a discount, a recipe or
       seeds as a gift
+
+**Decided:** friendship brings warmer lines, a present from the villager
+at new hearts and a friend's price at their counter; recipes wait for
+crafting ([ADR 0019](adr/0019-talking-gifts-and-friendship.md)).
 
 **Exit criterion:** two players befriend the same villager at different
 rates, and each sees their own friendship after a restart.
@@ -303,14 +311,18 @@ rates, and each sees their own friendship after a restart.
 
 Goal: every player looks like who they want to be.
 
-- [ ] A character creator on first arrival: body and skin tone, eyes,
+- [x] A character creator on first arrival: body and skin tone, eyes,
       hairstyle, hair color and a first outfit
-- [ ] The look is saved with the player and seen by everyone; it no longer
+- [x] The look is saved with the player and seen by everyone; it no longer
       comes from the player's id
-- [ ] More hairstyles and outfits, painted in the characters' style, and hats
-- [ ] Clothes are items sold by the tailor and worn from a wardrobe in the
+- [x] More hairstyles and outfits, painted in the characters' style, and hats
+- [x] Clothes are items sold by the tailor and worn from a wardrobe in the
       cabin
-- [ ] The barber changes a player's hairstyle and hair color for a fee
+- [x] The barber changes a player's hairstyle and hair color for a fee
+
+**Decided:** the look and the name live in the player's file on the
+server and seed the profile for other worlds; clothes are items changed
+into at home ([ADR 0020](adr/0020-a-look-of-ones-own.md)).
 
 **Exit criterion:** two new players make looks of their own, change clothes
 and hair in the village, and are seen that way by each other after a
@@ -320,10 +332,68 @@ restart.
 
 Goal: the slice feels like a game.
 
-- [ ] Seasonal music and ambient audio
-- [ ] Playtest: a group plays a full in-game week
+- [x] Seasonal music and ambient audio
+- [x] Playtest: a group plays a full in-game week
 
 **Exit criterion:** the MVP success criteria in the design document are met.
+
+**Decided:** the music and the ambient loops are made for the game by
+scripts that synthesize them ([ADR 0022](adr/0022-music-and-ambience.md)).
+The week was played by eight bots, four farming and four roaming, and a
+game client on a dedicated server with two-minute days, stopped and resumed
+halfway: updates took about 1.4 ms of a 33 ms tick throughout, and neither
+the server nor the client grew in memory.
+
+## M22 — Playing from the game
+
+Goal: the game is entered from a title screen, not a terminal.
+
+- [x] A title screen in the game's own style: continue the last world, a
+      new world (name, seed if wanted), host for friends (port, sleepers to
+      end the night), join by address with the addresses joined lately,
+      options, quit; the command-line flags still work and skip it
+- [x] Worlds listed from the saves folder with their date and when they were
+      last played; a world is deleted after a second thought
+- [x] From the game menu: open or close the world to friends, see who is
+      here, go back to the title screen. A lost connection, a full world or
+      another version of the game lead back to the title with a clear word;
+      the server tells clients of another version why
+- [x] A card of controls on first arrival in a world, and on F1 after
+- [x] Players go by the name chosen in the character creator, over their
+      heads and wherever players are listed
+
+**Exit criterion:** a new player opens the game, makes a world, hosts it,
+a friend joins by address and both see each other's names; the friend is
+sent back to the title screen with the reason when the host closes the
+world.
+
+**Decided:** the title screen starts the game in a second instance rather
+than rebuilding the server and client at runtime
+([ADR 0021](adr/0021-playing-from-the-game.md)).
+
+## M23 — Release
+
+Goal: anyone downloads a zip, unpacks it and plays.
+
+- [x] Release builds find `assets/` next to the executable, and keep
+      worlds, the profile and the settings in the user's data folder
+      (`%APPDATA%\Messoria` on Windows, the XDG data folder on Linux), with
+      `--world` and `--data-dir` for anywhere else
+- [x] An icon on the window and the Windows executable, no console behind
+      the game on Windows (its log goes to a file in the data folder); the
+      dedicated server keeps its console
+- [x] A release workflow on tags `v*`: a Windows x64 zip and a Linux x64
+      tarball (built on Ubuntu 22.04 for an older glibc) with the game, the
+      server, the assets, the README, the license, the credits, the
+      changelog and the licenses of the third-party crates, with checksums
+      and a GitHub release from the changelog
+- [x] Version 0.1.0, a changelog, a README for players first (download and
+      play, hosting for friends step by step, a dedicated server, the
+      controls) and builders after, with honest hardware requirements
+- [x] A last sweep of the public repository
+
+**Exit criterion:** the release zip, unpacked in an empty folder on another
+machine, plays alone, hosts for a friend and runs a dedicated server.
 
 ## After the MVP
 

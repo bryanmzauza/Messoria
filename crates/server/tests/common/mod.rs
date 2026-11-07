@@ -2,11 +2,18 @@
 //! that play through the game by sending the messages a player's client
 //! sends. Time runs one simulation tick per update, and nights are skipped
 //! by going to sleep.
+//!
+//! Also a dedicated server and remote clients talking over loopback UDP in
+//! real time, for tests of what crosses the network.
 
 // Each test file uses a different part of this harness.
 #![allow(dead_code)]
 
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr, UdpSocket},
+    thread,
+    time::{Duration, Instant},
+};
 
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use lightyear::prelude::{input::native::InputMarker, server::Server, *};
@@ -16,18 +23,23 @@ use messoria_farming::Planting;
 use messoria_server::{ServerPlugin, WorldSetup};
 use messoria_shared::{
     SharedPlugin,
-    content::Content,
+    content::{Content, load_content},
     fields::{tile_at, tile_center},
+    lots::{self, Lot, LotId},
     network::{self, NetworkRole},
     protocol::{
-        ActionChannel, Belongings, Crop, Deal, Field, Happening, HarvestRequest, ItemAction, Money,
-        Notice, PlayerInput, Position, Shopfront, SleepRequest, Structure, Trade, UseItem, Watered,
-        WorldClock,
+        ActionChannel, Belongings, ClaimLot, Crop, Deal, Dialogue, Field, Friendships, Happening,
+        HarvestRequest, ItemAction, LotClaim, Money, Newcomer, Notice, PlayerInput, Position,
+        Rejected, Shopfront, SleepRequest, Structure, Trade, UseItem, Watered, WorldClock,
     },
     scenery::Scenery,
     terrain::Terrain,
+    valley::Valley,
 };
 use messoria_worldgen::column_of;
+
+/// Real time the apps talking over the network get to reach a state.
+const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Updates to run while waiting for something; far more than it takes.
 const PATIENCE: u32 = 2_000;
@@ -40,6 +52,11 @@ pub const PAUSE_BETWEEN_USES: u32 = 10;
 pub struct Heard {
     pub notices: Vec<Notice>,
     pub happenings: Vec<Happening>,
+    pub dialogues: Vec<Dialogue>,
+    pub friendships: Vec<Friendships>,
+    /// How many times the server said the player is new here.
+    pub newcomers: u32,
+    pub rejections: Vec<Rejected>,
 }
 
 /// A world hosted in-process, with the host playing in it.
@@ -64,6 +81,8 @@ impl HostedWorld {
             },
             ServerPlugin {
                 bind_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                open_to_guests: true,
+                max_players: 8,
                 sleep_rule: SleepRule::Everyone,
                 minute_length: GAME_MINUTE,
                 world,
@@ -278,6 +297,69 @@ impl HostedWorld {
         assert_eq!(left, 0, "{key} fits in the inventory");
     }
 
+    /// The village notice board.
+    pub fn board(&mut self, content: &Catalog) -> Structure {
+        let world = self.app.world_mut();
+        *world
+            .query::<&Structure>()
+            .iter(world)
+            .find(|structure| content.structure(structure.kind).purpose == Purpose::NoticeBoard)
+            .expect("the village has a notice board")
+    }
+
+    /// Puts the host's character in front of the notice board.
+    pub fn go_to_board(&mut self, content: &Catalog) {
+        let board = self.board(content);
+        self.teleport(board.to_world(Vec3::new(0.0, 0.0, -1.3)));
+    }
+
+    /// Every claimed lot.
+    pub fn claims(&mut self) -> Vec<LotClaim> {
+        let world = self.app.world_mut();
+        world.query::<&LotClaim>().iter(world).cloned().collect()
+    }
+
+    /// Claims `lot` at the notice board, as the host, and waits for the
+    /// server's answer: the claim, or a notice.
+    pub fn claim(&mut self, content: &Catalog, lot: LotId) {
+        self.go_to_board(content);
+        let (claims, notices) = (self.claims().len(), self.heard().notices.len());
+        self.send(ClaimLot { lot });
+        self.run_until("the claim to be answered", |world| {
+            world.claims().len() > claims || world.heard().notices.len() > notices
+        });
+        // What the claim showed follows a frame behind.
+        self.run(2);
+    }
+
+    /// Claims the first free lot at the notice board and walks to its
+    /// middle, where the ground can be worked.
+    pub fn settle_on_a_lot(&mut self, content: &Catalog) -> Lot {
+        let claimed: Vec<LotId> = self.claims().iter().map(|claim| claim.lot).collect();
+        let lot = lots::lots()
+            .find(|lot| !claimed.contains(&lot.id))
+            .expect("a free lot");
+        self.claim(content, lot.id);
+        assert!(
+            self.claims().iter().any(|claim| claim.lot == lot.id),
+            "the lot was claimed"
+        );
+        self.teleport_to(lot.center());
+        lot
+    }
+
+    /// Moves the host's character onto the ground at `place`.
+    pub fn teleport_to(&mut self, place: Vec2) {
+        let feet = self.ground_at(place);
+        self.teleport(feet);
+    }
+
+    /// The ground at `place`, as the valley grew it.
+    pub fn ground_at(&mut self, place: Vec2) -> Vec3 {
+        let height = self.app.world().resource::<Valley>().height(place);
+        Vec3::new(place.x, height, place.y)
+    }
+
     pub fn coins(&mut self) -> u32 {
         let world = self.app.world_mut();
         world
@@ -367,11 +449,122 @@ impl HostedWorld {
     }
 }
 
-/// Keeps what the host's client receives, which lightyear would otherwise
-/// drop at the end of the frame. Each receiver appears with its first message.
+/// A dedicated server listening on `bind_addr`, driven by hand.
+pub fn server_app(bind_addr: SocketAddr, world: WorldSetup) -> App {
+    server_app_for(bind_addr, world, true, 8)
+}
+
+/// A dedicated server with room for `max_players`, open to guests or not.
+pub fn server_app_for(
+    bind_addr: SocketAddr,
+    world: WorldSetup,
+    open_to_guests: bool,
+    max_players: u32,
+) -> App {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        SharedPlugin {
+            role: NetworkRole::Server,
+            content: load_content().expect("the shipped content is valid"),
+        },
+        ServerPlugin {
+            bind_addr,
+            open_to_guests,
+            max_players,
+            sleep_rule: SleepRule::Everyone,
+            minute_length: GAME_MINUTE,
+            world,
+        },
+    ));
+    ready(app)
+}
+
+/// A remote client of the server at `server_addr`, as player `client_id`,
+/// driven by hand, keeping what it hears in `Heard`.
+pub fn client_app(server_addr: SocketAddr, client_id: u64) -> App {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        SharedPlugin {
+            role: NetworkRole::Client,
+            content: load_content().expect("the shipped content is valid"),
+        },
+    ))
+    .init_resource::<Heard>()
+    .add_systems(PreUpdate, listen.after(MessageSystems::Receive));
+    let client = app
+        .world_mut()
+        .spawn(network::remote_client(server_addr, client_id, None).expect("valid connect token"))
+        .id();
+    app.add_systems(Startup, move |mut commands: Commands| {
+        commands.trigger(Connect { entity: client });
+    });
+    ready(app)
+}
+
+/// Completes plugin setup the way `App::run` would, since the tests drive
+/// updates by hand.
+pub fn ready(mut app: App) -> App {
+    app.finish();
+    app.cleanup();
+    app
+}
+
+/// Asks the OS for a UDP port that is free right now.
+pub fn free_udp_port() -> u16 {
+    UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
+        .and_then(|socket| socket.local_addr())
+        .expect("bind an ephemeral UDP port")
+        .port()
+}
+
+/// Feet of the character `client` controls, once it has one.
+pub fn local_character_if_any(client: &mut App) -> Option<Vec3> {
+    client
+        .world_mut()
+        .query_filtered::<&Position, With<InputMarker<PlayerInput>>>()
+        .iter(client.world())
+        .next()
+        .map(|position| position.0)
+}
+
+/// Updates the server and every client in lockstep, in real time, until
+/// `done` holds.
+pub fn run_apps_until(
+    server: &mut App,
+    clients: &mut [&mut App],
+    waiting_for: &str,
+    mut done: impl FnMut(&mut App, &mut [&mut App]) -> bool,
+) {
+    let deadline = Instant::now() + TIMEOUT;
+    while !done(server, clients) {
+        if Instant::now() >= deadline {
+            let seen: Vec<Option<Vec3>> = clients
+                .iter_mut()
+                .map(|client| local_character_if_any(client))
+                .collect();
+            panic!(
+                "timed out waiting for {waiting_for}; the clients see their characters at {seen:?}"
+            );
+        }
+        server.update();
+        for client in clients.iter_mut() {
+            client.update();
+        }
+        thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// Keeps what a client receives, which lightyear would otherwise drop at
+/// the end of the frame. Each receiver appears with its first message.
 fn listen(
     mut notices: Query<&mut MessageReceiver<Notice>, With<Client>>,
     mut happenings: Query<&mut MessageReceiver<Happening>, With<Client>>,
+    mut dialogues: Query<&mut MessageReceiver<Dialogue>, With<Client>>,
+    mut friendships: Query<&mut MessageReceiver<Friendships>, With<Client>>,
+    mut newcomers: Query<&mut MessageReceiver<Newcomer>, With<Client>>,
+    mut rejections: Query<&mut MessageReceiver<Rejected>, With<Client>>,
     mut heard: ResMut<Heard>,
 ) {
     for mut receiver in &mut notices {
@@ -379,5 +572,17 @@ fn listen(
     }
     for mut receiver in &mut happenings {
         heard.happenings.extend(receiver.receive());
+    }
+    for mut receiver in &mut dialogues {
+        heard.dialogues.extend(receiver.receive());
+    }
+    for mut receiver in &mut friendships {
+        heard.friendships.extend(receiver.receive());
+    }
+    for mut receiver in &mut newcomers {
+        heard.newcomers += u32::try_from(receiver.receive().count()).unwrap_or(u32::MAX);
+    }
+    for mut receiver in &mut rejections {
+        heard.rejections.extend(receiver.receive());
     }
 }

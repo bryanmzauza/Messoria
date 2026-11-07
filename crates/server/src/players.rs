@@ -1,8 +1,9 @@
 //! Player characters: one per connected client, gone when it disconnects.
 //!
 //! The server remembers every player who has been in the world. A player who
-//! comes back finds their character as they left it; if days went by, they
-//! slept through them, and their perishables aged.
+//! comes back finds their character as they left it, friendships, name and
+//! look and all; if days went by, they slept through them, and their
+//! perishables aged.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -15,14 +16,24 @@ use messoria_content::{Catalog, Quality};
 use messoria_economy::Wallet;
 use messoria_inventory::Inventory;
 use messoria_save::PlayerState;
+pub(crate) use messoria_shared::players::player_key;
 use messoria_shared::{
     content::Content,
     energy::Energy,
-    protocol::{Belongings, Heading, Money, PlayerId, Position, SoldToday, Velocity, WorldClock},
+    players::name_of,
+    protocol::{
+        Appearance, Belongings, Heading, Money, PlayerId, PlayerName, Position, SoldToday,
+        Velocity, WorldClock,
+    },
     valley::Valley,
 };
 
-use crate::{Beginning, WorldStart};
+use crate::{
+    Beginning, WorldStart,
+    appearance::{Unintroduced, wearable},
+    friendship::Bonds,
+    hosting::Admitted,
+};
 
 /// Distance from the world origin at which players appear.
 const SPAWN_RADIUS: f32 = 3.0;
@@ -59,22 +70,32 @@ pub(crate) type CharacterState<'a> = (
     &'a Belongings,
     &'a Money,
     &'a SoldToday,
+    &'a Bonds,
+    &'a Appearance,
+    &'a PlayerName,
+    Has<Unintroduced>,
 );
 
-/// The name of a player's save file, for the players the server can
-/// recognize when they come back.
-pub(crate) fn player_key(peer: PeerId) -> Option<String> {
-    match peer {
-        PeerId::Netcode(id) => Some(format!("{id:016x}")),
-        // The player hosting the world from the game.
-        PeerId::Local(_) => Some("host".to_owned()),
-        PeerId::Entity(_) | PeerId::Raw(_) | PeerId::Steam(_) | PeerId::Server => None,
-    }
-}
+/// What a [`CharacterState`] query yields.
+pub(crate) type CharacterStateItem<'a> = (
+    &'a PlayerId,
+    &'a Position,
+    &'a Heading,
+    &'a Energy,
+    &'a Belongings,
+    &'a Money,
+    &'a SoldToday,
+    &'a Bonds,
+    &'a Appearance,
+    &'a PlayerName,
+    bool,
+);
 
-/// A character's state, to save or to keep while its player is away.
+/// A character's state, to save or to keep while its player is away. A
+/// player who never introduced themselves is kept without a name or a
+/// look, to be asked again.
 pub(crate) fn state_of(
-    (_, position, heading, energy, belongings, money, sold): CharacterState<'_>,
+    (_, position, heading, energy, belongings, money, sold, bonds, look, name, unintroduced): CharacterStateItem<'_>,
     today: u32,
 ) -> PlayerState {
     PlayerState {
@@ -85,6 +106,9 @@ pub(crate) fn state_of(
         money: money.0,
         sold_today: sold.0.clone(),
         saved_on: today,
+        friendships: bonds.to_saved(),
+        name: (!unintroduced).then(|| name.0.clone()),
+        look: (!unintroduced).then(|| look.0.clone()),
     }
 }
 
@@ -94,10 +118,10 @@ fn remember_saved_players(beginning: Res<Beginning>, mut absent: ResMut<AbsentPl
     }
 }
 
-/// Spawns a character once the connection is confirmed, not when the link is
-/// first created: the server may still reject a connection attempt.
+/// Spawns a character once the client is admitted, which takes a hello of
+/// the right version on a connection the world has room for.
 fn spawn_player(
-    trigger: On<Add, Connected>,
+    trigger: On<Add, Admitted>,
     clients: Query<&RemoteId, With<ClientOf>>,
     valley: Res<Valley>,
     content: Res<Content>,
@@ -117,6 +141,14 @@ fn spawn_player(
         newcomer(&content, spawn.with_y(valley.height(spawn.xz())), today)
     };
 
+    // A look the content no longer has, or none yet, shows as one picked
+    // from the player's id.
+    let look = state
+        .look
+        .clone()
+        .filter(|look| wearable(&content, look))
+        .unwrap_or_else(|| content.characters().look_for(peer.to_bits()));
+    let name = state.name.clone().unwrap_or_else(|| name_of(peer));
     let character = commands
         .spawn((
             Name::new(format!("Player {peer:?}")),
@@ -128,6 +160,8 @@ fn spawn_player(
             Belongings(state.inventory),
             Money(state.money),
             SoldToday(state.sold_today),
+            Bonds::from_saved(&state.friendships),
+            (Appearance(look), PlayerName(name)),
             Replicate::to_clients(NetworkTarget::All),
             // The owner predicts its own character; everyone else interpolates it.
             PredictionTarget::to_clients(NetworkTarget::Single(peer)),
@@ -138,6 +172,9 @@ fn spawn_player(
             },
         ))
         .id();
+    if state.look.is_none() {
+        commands.entity(character).insert(Unintroduced);
+    }
     commands
         .entity(trigger.entity)
         .insert(ControlledCharacter(character));
@@ -180,6 +217,9 @@ fn newcomer(content: &Catalog, position: Vec3, today: u32) -> PlayerState {
         money: Wallet::with(content.starting_money()),
         sold_today: default(),
         saved_on: today,
+        friendships: Vec::new(),
+        name: None,
+        look: None,
     }
 }
 
@@ -218,6 +258,7 @@ mod tests {
         let grocer = content.shop_id("grocer").expect("the grocer exists");
         let berries = content.id("wild_berries").expect("wild berries exist");
         player.sold_today.record(grocer, berries, 5);
+        player.friendships.clear();
         player
     }
 

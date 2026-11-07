@@ -23,6 +23,21 @@ pub struct Customer<'a> {
     pub ledger: &'a mut SalesLedger,
 }
 
+/// A share taken off what a shop charges, in percent: what a friend of the
+/// keeper gets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Discount(pub u8);
+
+impl Discount {
+    pub const NONE: Self = Self(0);
+
+    /// `price` with the discount taken off, rounded in the shop's favor.
+    pub fn apply(self, price: u32) -> u32 {
+        let off = price * u32::from(self.0.min(100)) / 100;
+        price - off
+    }
+}
+
 /// Why a trade cannot happen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum Refusal {
@@ -97,7 +112,8 @@ pub fn sell(
 /// # Errors
 ///
 /// If the shop is closed or does not sell the item this season, or the
-/// customer cannot pay for or carry all of it.
+/// customer cannot pay for or carry all of it. The `discount` comes off
+/// each unit's price.
 pub fn buy(
     catalog: &Catalog,
     shop: ShopId,
@@ -105,6 +121,7 @@ pub fn buy(
     customer: Customer<'_>,
     item: ItemId,
     count: u16,
+    discount: Discount,
 ) -> Result<u32, Refusal> {
     let definition = catalog.shop(shop);
     if !definition.is_open(now) {
@@ -120,8 +137,8 @@ pub fn buy(
     if customer.inventory.room_for(catalog, item, Quality::Normal) < u32::from(count) {
         return Err(Refusal::NoRoom);
     }
-    let cost = listing
-        .price
+    let cost = discount
+        .apply(listing.price)
         .checked_mul(u32::from(count))
         .ok_or(Refusal::CannotAfford)?;
     customer
@@ -137,6 +154,14 @@ pub fn buy(
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+
+    #[test]
+    fn a_discount_comes_off_each_unit_in_the_shops_favor() {
+        assert_eq!(Discount(10).apply(15), 14);
+        assert_eq!(Discount(10).apply(40), 36);
+        assert_eq!(Discount::NONE.apply(7), 7);
+        assert_eq!(Discount(100).apply(7), 0);
+    }
 
     use super::*;
 
@@ -200,7 +225,15 @@ mod tests {
 
         fn buy(&mut self, now: WorldTime, key: &str, count: u16) -> Result<u32, Refusal> {
             let (catalog, grocer, item) = (self.catalog.clone(), self.grocer, self.item(key));
-            buy(&catalog, grocer, now, self.customer(), item, count)
+            buy(
+                &catalog,
+                grocer,
+                now,
+                self.customer(),
+                item,
+                count,
+                Discount::NONE,
+            )
         }
     }
 

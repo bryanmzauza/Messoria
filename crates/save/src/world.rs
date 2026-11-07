@@ -1,5 +1,5 @@
 //! The world file: the world's seed, clock, market, fields, the scenery
-//! players gathered and what they built.
+//! players gathered, what they built and the farm lots they own.
 
 use glam::{IVec2, Vec3};
 use messoria_calendar::WorldTime;
@@ -7,6 +7,7 @@ use messoria_content::{Catalog, PropId, StructureId};
 use messoria_economy::Market;
 use messoria_farming::Planting;
 use messoria_inventory::Inventory;
+use messoria_worldgen::{LOT_COUNT, LotId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,10 +16,11 @@ use crate::{
     stacks::{self, SlotEntry},
 };
 
-/// Version of the format this game writes. Worlds of versions 1 to 3 grew
-/// from a smaller valley, which the seed no longer grows: their terrain,
-/// scenery, fields and buildings would not fit the valley it grows now.
-const VERSION: u32 = 4;
+/// Version of the format this game writes. Worlds of versions 1 to 4 grew
+/// from an earlier valley, which the seed no longer grows (smaller before
+/// 4, without farm lots at 4): their terrain, scenery, fields and buildings
+/// would not fit the valley it grows now.
+const VERSION: u32 = 5;
 
 /// Everything about a world that is not terrain or players.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,6 +32,16 @@ pub struct WorldState {
     pub fields: Vec<FieldState>,
     pub gathered: Vec<GatheredProp>,
     pub structures: Vec<StructureState>,
+    pub lots: Vec<LotState>,
+}
+
+/// A farm lot someone owns, and who they let work it, by the players'
+/// keys.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LotState {
+    pub lot: LotId,
+    pub owner: String,
+    pub invited: Vec<String>,
 }
 
 /// Something players built, and what it holds.
@@ -78,6 +90,14 @@ struct WorldFile {
     fields: Vec<FieldEntry>,
     gathered: Vec<GatheredEntry>,
     structures: Vec<StructureEntry>,
+    lots: Vec<LotEntry>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LotEntry {
+    lot: u16,
+    owner: String,
+    invited: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -161,6 +181,15 @@ impl WorldState {
                         .map(|stored| stacks::to_entries(catalog, stored)),
                 })
                 .collect(),
+            lots: self
+                .lots
+                .iter()
+                .map(|lot| LotEntry {
+                    lot: lot.lot.0,
+                    owner: lot.owner.clone(),
+                    invited: lot.invited.clone(),
+                })
+                .collect(),
         };
         to_ron(&file)
     }
@@ -168,7 +197,7 @@ impl WorldState {
     pub(crate) fn from_ron(text: &str, mut resolver: Resolver<'_>) -> Result<Self, Problem> {
         let file: WorldFile = match version_of(text)? {
             VERSION => ron::from_str(text)?,
-            found @ 1..=3 => return Err(Problem::OlderValley(found)),
+            found @ 1..=4 => return Err(Problem::OlderValley(found)),
             // Files from older versions of the format are read and upgraded here.
             found => return Err(unreadable(found, VERSION)),
         };
@@ -256,6 +285,29 @@ impl WorldState {
             fields,
             gathered,
             structures,
+            lots: lots_from(file.lots)?,
         })
     }
+}
+
+/// The claimed lots as listed, each lot one the valley has, listed once.
+fn lots_from(entries: Vec<LotEntry>) -> Result<Vec<LotState>, Problem> {
+    let mut lots: Vec<LotState> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if entry.lot >= LOT_COUNT {
+            return Err(Problem::OutOfRange(format!("lot {}", entry.lot)));
+        }
+        if lots.iter().any(|lot| lot.lot.0 == entry.lot) {
+            return Err(Problem::OutOfRange(format!(
+                "lot {}, which is listed twice",
+                entry.lot
+            )));
+        }
+        lots.push(LotState {
+            lot: LotId(entry.lot),
+            owner: entry.owner,
+            invited: entry.invited,
+        });
+    }
+    Ok(lots)
 }

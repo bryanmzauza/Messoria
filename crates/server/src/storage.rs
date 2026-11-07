@@ -1,4 +1,5 @@
-//! Chests: moving stacks between a character and the chest they stand at.
+//! Chests: moving stacks between a character and the chest they stand at,
+//! on a lot the character may work.
 
 use bevy::prelude::*;
 use lightyear::prelude::*;
@@ -6,12 +7,14 @@ use messoria_content::Purpose;
 use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
+    lots::Claims,
     movement::EYE_HEIGHT,
-    protocol::{Asleep, Belongings, MoveStored, Place, Position, Stored},
+    players::player_key,
+    protocol::{Asleep, Belongings, MoveStored, Notice, Place, PlayerId, Position, Stored},
     tools,
 };
 
-use crate::{building::Built, players::ControlledCharacter};
+use crate::{building::Built, feedback::Tell, players::ControlledCharacter};
 
 /// How far from where a client says a chest stands the chest may be, which
 /// absorbs rounding on the way.
@@ -28,13 +31,15 @@ impl Plugin for StoragePlugin {
 fn move_stored(
     content: Res<Content>,
     built: Built,
+    claims: Claims,
     mut clients: Query<(&mut MessageReceiver<MoveStored>, &ControlledCharacter)>,
-    mut characters: Query<(&Position, &mut Belongings), Without<Asleep>>,
+    mut characters: Query<(&Position, &PlayerId, &mut Belongings), Without<Asleep>>,
     mut chests: Query<&mut Stored>,
+    mut tell: MessageWriter<Tell>,
 ) {
     for (mut requests, character) in &mut clients {
         for MoveStored { chest, from, to } in requests.receive() {
-            let Ok((feet, mut belongings)) = characters.get_mut(character.0) else {
+            let Ok((feet, player, mut belongings)) = characters.get_mut(character.0) else {
                 continue;
             };
             let Some((entity, structure)) = built.nearest(Purpose::Storage, chest, CHEST_SLACK)
@@ -43,6 +48,15 @@ fn move_stored(
             };
             if !tools::in_reach(feet.0 + Vec3::Y * EYE_HEIGHT, structure.position) {
                 debug!("rejected a move at the chest at {chest}: out of reach");
+                continue;
+            }
+            let allowed = player_key(player.0)
+                .is_some_and(|key| claims.allows(&key, structure.position.xz()));
+            if !allowed {
+                tell.write(Tell {
+                    character: character.0,
+                    notice: Notice::NotYourLot,
+                });
                 continue;
             }
             let Ok(mut stored) = chests.get_mut(entity) else {

@@ -3,8 +3,9 @@
 //! The ground is a heightfield built up in layers: broad rolling land, low
 //! and gentle across the farmland around the village and rising into hills
 //! beyond it; mountains closing the world at its edge; roads graded into the
-//! ground; the village leveled, its square paved, over the roads that leave
-//! it; and the river's channel carved last, so it crosses roads as fords.
+//! ground; the village leveled, its square and streets paved, over the
+//! roads that leave it; and the river's channel carved last, so it crosses
+//! roads as fords.
 
 use glam::{IVec2, IVec3, Vec2, Vec3};
 use messoria_voxel::{CHUNK_SIZE, Chunk, ChunkPos, Material, Voxel};
@@ -27,10 +28,16 @@ pub const BOTTOM: f32 = -32.0;
 pub const TOP: f32 = 64.0;
 
 /// The middle of the village, which stands on level ground out to its
-/// radius, with a paved square in its middle.
+/// radius, with a paved square in its middle and paved streets across it.
 pub const VILLAGE_CENTER: Vec2 = Vec2::new(0.0, -30.0);
-pub const VILLAGE_RADIUS: f32 = 14.0;
+pub const VILLAGE_RADIUS: f32 = 44.0;
 const SQUARE_RADIUS: f32 = 9.0;
+/// Half the width of a street, and where the lanes run across the village,
+/// north and south of the square (along z from its middle).
+pub const STREET_HALF_WIDTH: f32 = 2.0;
+pub const LANES: [f32; 2] = [-24.0, 22.0];
+/// How far the lanes reach east and west of the middle.
+pub const LANE_REACH: f32 = 32.0;
 /// Distance beyond the village over which its level ground blends into the
 /// land around it.
 const VILLAGE_BLEND: f32 = 8.0;
@@ -199,7 +206,7 @@ impl Landscape {
 
     /// What the surface at `point`, of steepness `slope`, is made of.
     pub(crate) fn material_at(&self, point: Vec2, slope: f32) -> Material {
-        if point.distance(VILLAGE_CENTER) < SQUARE_RADIUS {
+        if paved(point) {
             Material::Stone
         } else if self.river.distance(point) < RIVER_HALF_WIDTH + SANDY_BANKS {
             Material::Sand
@@ -215,6 +222,25 @@ impl Landscape {
             Material::Grass
         }
     }
+}
+
+/// Whether `point` is on the village's paving: its square, or one of its
+/// streets, which run from the square to the village's edge toward each
+/// point of the compass, with two lanes across.
+pub fn paved(point: Vec2) -> bool {
+    let local = point - VILLAGE_CENTER;
+    if local.length() < SQUARE_RADIUS {
+        return true;
+    }
+    if local.length() > VILLAGE_RADIUS {
+        return false;
+    }
+    let on_street = local.x.abs() <= STREET_HALF_WIDTH || local.y.abs() <= STREET_HALF_WIDTH;
+    let on_lane = local.x.abs() <= LANE_REACH
+        && LANES
+            .iter()
+            .any(|&lane| (local.y - lane).abs() <= STREET_HALF_WIDTH);
+    on_street || on_lane
 }
 
 /// Whether ground at height `y` may be dug or raised.
@@ -423,11 +449,26 @@ mod tests {
             Vec2::new(10.0, 0.0),
             Vec2::new(-7.0, 9.0),
             Vec2::new(0.0, -13.0),
+            Vec2::new(30.0, 22.0),
+            Vec2::new(-40.0, -10.0),
         ] {
             let height = landscape.height(VILLAGE_CENTER + offset);
             assert!((height - middle).abs() < 0.05, "{offset} is not level");
         }
         assert_eq!(landscape.surface(VILLAGE_CENTER), Material::Stone);
+        // The streets are paved, the blocks between them are grass.
+        assert_eq!(
+            landscape.surface(VILLAGE_CENTER + Vec2::new(0.0, 30.0)),
+            Material::Stone
+        );
+        assert_eq!(
+            landscape.surface(VILLAGE_CENTER + Vec2::new(20.0, LANES[0])),
+            Material::Stone
+        );
+        assert_eq!(
+            landscape.surface(VILLAGE_CENTER + Vec2::new(20.0, -14.0)),
+            Material::Grass
+        );
     }
 
     #[test]

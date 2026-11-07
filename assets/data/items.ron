@@ -5,7 +5,9 @@
 // until a perishable item spoils), `spoils_into` (what it then becomes),
 // `color` (what it is marked with on screen, for items no crop or ground
 // colors) and `model` (what it is drawn with in the hand and in its icon;
-// items without one are drawn as a lump of their color).
+// items without one are drawn as a lump of their color). A `Garment` is
+// worn from the wardrobe in the cabin, as an `Outfit` or a `Hat`, and names
+// the skin layer it paints on the character (see characters.ron).
 (
     items: [
         (id: "shovel", name: "Shovel", kind: Tool(Shovel), model: "items/shovel.glb"),
@@ -49,8 +51,27 @@
             spoils_into: "compost",
             model: "items/berries.glb",
         ),
+        // Cooked at the tavern.
+        (id: "bread", name: "Bread", kind: Food(energy: 20), stack: 20, shelf_life: 4, spoils_into: "compost", model: "items/bread.glb"),
+        (id: "stew", name: "Stew", kind: Food(energy: 40), stack: 10, shelf_life: 2, spoils_into: "compost", model: "items/stew.glb"),
+
         // Spoiled food; spread on tilled soil, it improves harvests.
         (id: "compost", name: "Compost", kind: Fertilizer, stack: 99, model: "items/compost.glb"),
+
+        // Clothes, sold by the tailor and changed into at the wardrobe. The
+        // first five are what newcomers arrive in.
+        (id: "traveling_clothes", name: "Traveling clothes", kind: Garment(wear: Outfit, skin: "outfit-adventurer.png"), model: "items/traveling_clothes.glb"),
+        (id: "overalls", name: "Overalls", kind: Garment(wear: Outfit, skin: "outfit-overalls.png"), model: "items/overalls.glb"),
+        (id: "flannel_shirt", name: "Flannel shirt", kind: Garment(wear: Outfit, skin: "outfit-flannel.png"), model: "items/flannel_shirt.glb"),
+        (id: "vest_and_shirt", name: "Vest and shirt", kind: Garment(wear: Outfit, skin: "outfit-vest.png"), model: "items/vest.glb"),
+        (id: "linen_dress", name: "Linen dress", kind: Garment(wear: Outfit, skin: "outfit-dress.png"), model: "items/linen_dress.glb"),
+        (id: "green_tunic", name: "Green tunic", kind: Garment(wear: Outfit, skin: "outfit-tunic.png"), model: "items/green_tunic.glb"),
+        (id: "wool_kirtle", name: "Wool kirtle", kind: Garment(wear: Outfit, skin: "outfit-kirtle.png"), model: "items/wool_kirtle.glb"),
+        (id: "smock", name: "Smock", kind: Garment(wear: Outfit, skin: "outfit-smock.png"), model: "items/smock.glb"),
+        (id: "doublet", name: "Doublet", kind: Garment(wear: Outfit, skin: "outfit-doublet.png"), model: "items/doublet.glb"),
+        (id: "straw_hat", name: "Straw hat", kind: Garment(wear: Hat, skin: "hat-straw.png"), model: "items/straw_hat.glb"),
+        (id: "wool_cap", name: "Wool cap", kind: Garment(wear: Hat, skin: "hat-cap.png"), model: "items/wool_cap.glb"),
+        (id: "kerchief", name: "Kerchief", kind: Garment(wear: Hat, skin: "hat-kerchief.png"), model: "items/kerchief.glb"),
     ],
 
     starting_inventory: [

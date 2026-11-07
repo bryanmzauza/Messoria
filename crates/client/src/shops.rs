@@ -5,19 +5,23 @@
 //! carries, and what it sells. Every price and every refusal is worked out
 //! with the same trade rules the server applies, on copies of the player's
 //! state and the replicated market, so a button offers exactly what the
-//! trade will pay.
+//! trade will pay. The villager keeping the shop stands behind its counter
+//! in its hours. At the barber's, the window offers hair instead of wares.
 
 use bevy::prelude::*;
 use lightyear::prelude::{input::native::InputMarker, *};
 use messoria_calendar::WorldTime;
 use messoria_content::{Catalog, ItemId, Quality, ShopDef, ShopId};
-use messoria_economy::{Customer, Market, PriceBasis, Refusal, SalesLedger, Wallet, buy, sell};
+use messoria_economy::{
+    Customer, Discount, Market, PriceBasis, Refusal, SalesLedger, Wallet, buy, sell,
+};
 use messoria_inventory::Inventory;
 use messoria_shared::{
     content::Content,
+    friendship::{discount, keeper_of},
     protocol::{
-        ActionChannel, Belongings, Deal, MarketState, Money, PlayerInput, Position, Shopfront,
-        SoldToday, Trade,
+        ActionChannel, Appearance, Belongings, Deal, MarketState, Money, PlayerInput, Position,
+        Shopfront, SoldToday, Trade,
     },
     shops,
 };
@@ -25,13 +29,13 @@ use messoria_shared::{
 use crate::{
     actions::INTERACT_KEY,
     art::Models,
-    avatars::{Keeper, dress},
+    barber::{self, Styling},
     camera::View,
     clock::LocalClock,
-    figures::FigureMeshes,
     icons::ItemIcons,
+    mirror::Mirror,
     panels::OpenPanel,
-    skins::Tailor,
+    talk::{Hearts, WordWithKeeper},
     ui::{self, HEADING_SIZE, MUTED_TEXT_COLOR, TEXT_COLOR, TEXT_SIZE},
 };
 
@@ -45,9 +49,6 @@ const COUNTER_HEIGHT: f32 = 0.95;
 const COUNTER_FRONT: f32 = -0.45;
 /// Size of the item icons in the listing.
 const ROW_ICON_SIZE: f32 = 28.0;
-/// Where the keeper stands: to one side of the middle post, behind the counter.
-const KEEPER_SIDE: f32 = 0.55;
-const KEEPER_BEHIND: f32 = 0.55;
 
 pub(crate) struct ShopsPlugin;
 
@@ -75,15 +76,12 @@ struct ShopListing;
 #[derive(Component, Clone, Copy)]
 struct DealButton(Deal);
 
-/// A stall: the shop's stall model with some of its wares on the counter,
-/// and its keeper behind it. Built facing -Z, then turned the way the stall
-/// faces.
+/// A stall: the shop's stall model with some of its wares on the counter.
+/// Built facing -Z, then turned the way the stall faces.
 fn build_stall(
     trigger: On<Add, Shopfront>,
     content: Res<Content>,
     models: Res<Models>,
-    meshes: Res<FigureMeshes>,
-    mut tailor: Tailor,
     stalls: Query<&Shopfront>,
     mut commands: Commands,
 ) {
@@ -115,24 +113,6 @@ fn build_stall(
                 parts.spawn((ware, Transform::from_xyz(x, COUNTER_HEIGHT, COUNTER_FRONT)));
             }
         });
-    let keeper = commands
-        .spawn((
-            Name::new(format!("{} keeper", shop.name)),
-            Keeper {
-                stall: stall.position,
-            },
-            Transform::from_xyz(KEEPER_SIDE, 0.0, KEEPER_BEHIND),
-            ChildOf(trigger.entity),
-        ))
-        .id();
-    dress(
-        &mut commands,
-        &content,
-        &meshes,
-        &mut tailor,
-        keeper,
-        &shop.keeper,
-    );
 }
 
 fn spawn_shop_window(mut commands: Commands) {
@@ -199,8 +179,14 @@ fn show_shop_window(
     content: Res<Content>,
     icons: Res<ItemIcons>,
     clock: Res<LocalClock>,
+    hearts: Res<Hearts>,
+    styling: Res<Styling>,
+    mut mirror: ResMut<Mirror>,
     stalls: Query<&Shopfront>,
-    player: Query<(Ref<Belongings>, Ref<Money>, Ref<SoldToday>), With<InputMarker<PlayerInput>>>,
+    player: Query<
+        (Ref<Belongings>, Ref<Money>, Ref<SoldToday>, Ref<Appearance>),
+        With<InputMarker<PlayerInput>>,
+    >,
     market: Query<Ref<MarketState>>,
     mut shown_at: Local<Option<WorldTime>>,
     mut window: Single<&mut Visibility, With<ShopWindow>>,
@@ -212,20 +198,34 @@ fn show_shop_window(
         OpenPanel::None
         | OpenPanel::Backpack
         | OpenPanel::Chest(_)
+        | OpenPanel::Board(_)
+        | OpenPanel::Talk(_)
+        | OpenPanel::Villagers
+        | OpenPanel::Wardrobe(_)
+        | OpenPanel::Creator
+        | OpenPanel::Controls
         | OpenPanel::Menu
         | OpenPanel::Options => None,
     };
     window.set_if_neq(ui::visible_if(stall.is_some()));
-    let (Some(stall), Ok((belongings, money, sold)), Ok(market), Some(now)) =
+    let (Some(stall), Ok((belongings, money, sold, appearance)), Ok(market), Some(now)) =
         (stall, player.single(), market.single(), clock.time())
     else {
         return;
     };
+    let styled = (stall.shop == content.village().haircut.shop)
+        .then(|| barber::styled(&styling, &appearance.0));
+    if let Some(styled) = &styled {
+        mirror.show(styled);
+    }
     let changed = panel.is_changed()
         || belongings.is_changed()
         || money.is_changed()
         || sold.is_changed()
         || market.is_changed()
+        || hearts.is_changed()
+        || styling.is_changed()
+        || appearance.is_changed()
         || *shown_at != Some(now);
     if !changed {
         return;
@@ -241,11 +241,25 @@ fn show_shop_window(
         ledger: &sold.0,
         market: &market.0,
         icons: &icons,
+        discount: discount(keeper_of(&content, stall.shop).map_or(0, |keeper| hearts.with(keeper))),
     };
     commands
         .entity(*listing)
         .despawn_related::<Children>()
-        .with_children(|listing| counter.show(listing));
+        .with_children(|listing| {
+            counter.show_head(listing);
+            match &styled {
+                Some(styled) => barber::show(
+                    listing,
+                    &content,
+                    styled,
+                    &appearance.0,
+                    mirror.image.clone(),
+                    money.0.coins(),
+                ),
+                None => counter.show_wares(listing),
+            }
+        });
 }
 
 fn press_deals(
@@ -281,6 +295,8 @@ struct Counter<'a> {
     ledger: &'a SalesLedger,
     market: &'a Market,
     icons: &'a ItemIcons,
+    /// What the keeper takes off for a friend.
+    discount: Discount,
 }
 
 impl Counter<'_> {
@@ -319,19 +335,52 @@ impl Counter<'_> {
             wallet: &mut wallet,
             ledger: &mut ledger,
         };
-        buy(self.content, self.shop, self.now, customer, item, count)
+        buy(
+            self.content,
+            self.shop,
+            self.now,
+            customer,
+            item,
+            count,
+            self.discount,
+        )
     }
 
-    fn show(&self, listing: &mut ChildSpawnerCommands) {
+    /// The shop's name, a word with its keeper, its hours and the
+    /// player's coins.
+    fn show_head(&self, listing: &mut ChildSpawnerCommands) {
         let shop = self.definition();
-        listing.spawn(ui::label(shop.name.clone(), HEADING_SIZE, TEXT_COLOR));
+        listing
+            .spawn(Node {
+                column_gap: px(12),
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn((
+                    ui::label(shop.name.clone(), HEADING_SIZE, TEXT_COLOR),
+                    Node {
+                        flex_grow: 1.0,
+                        ..default()
+                    },
+                ));
+                if let Some(keeper) = keeper_of(self.content, self.shop) {
+                    let name = &self.content.villager(keeper).name;
+                    let first = name.split(' ').next().unwrap_or(name);
+                    ui::spawn_button(row, format!("A word with {first}"), WordWithKeeper(keeper));
+                }
+            });
         listing.spawn(ui::label(self.hours(), TEXT_SIZE, MUTED_TEXT_COLOR));
         listing.spawn(ui::label(
             format!("You have {} coins.", self.wallet.coins()),
             TEXT_SIZE,
             TEXT_COLOR,
         ));
+    }
 
+    /// What the shop buys among what the player carries, and what it sells.
+    fn show_wares(&self, listing: &mut ChildSpawnerCommands) {
+        let shop = self.definition();
         listing.spawn(ui::label("Sell", HEADING_SIZE, TEXT_COLOR));
         let mut selling = false;
         for (slot, stack) in self.inventory.slots().iter().enumerate() {
@@ -376,12 +425,19 @@ impl Counter<'_> {
         }
 
         listing.spawn(ui::label("Buy", HEADING_SIZE, TEXT_COLOR));
+        if self.discount != Discount::NONE {
+            listing.spawn(ui::label(
+                format!("A friend's price: {} percent off.", self.discount.0),
+                TEXT_SIZE,
+                MUTED_TEXT_COLOR,
+            ));
+        }
         let season = self.now.season();
         for listed in shop.sells.iter().filter(|listed| listed.on_sale_in(season)) {
             let description = format!(
                 "{}: {} each",
                 self.content.item(listed.item).name,
-                listed.price
+                self.discount.apply(listed.price)
             );
             let deals = [1, BULK_PURCHASE].map(|count| {
                 self.try_buy(listed.item, count).map(|cost| {

@@ -8,9 +8,12 @@
 pub mod content;
 pub mod energy;
 pub mod fields;
+pub mod friendship;
+pub mod lots;
 pub mod movement;
 pub mod network;
 pub mod obstacles;
+pub mod players;
 pub mod protocol;
 pub mod scenery;
 pub mod shops;
@@ -28,8 +31,8 @@ use lightyear::prelude::{
 use messoria_content::Catalog;
 
 use crate::{
-    network::NetworkRole,
-    protocol::{PlayerId, PlayerInput},
+    network::{NetworkRole, PROTOCOL_VERSION},
+    protocol::{ActionChannel, Hello, PlayerId, PlayerInput},
 };
 
 /// Networking and simulation common to every app that takes part in a game.
@@ -73,6 +76,7 @@ impl Plugin for SharedPlugin {
             valley::ValleyPlugin,
             terrain::TerrainPlugin,
             scenery::SceneryPlugin,
+            lots::LotsPlugin,
             obstacles::ObstaclesPlugin,
             movement::MovementPlugin,
         ))
@@ -80,8 +84,35 @@ impl Plugin for SharedPlugin {
             PreUpdate,
             terrain::LoadColumns.before(scenery::ScenerySystems),
         )
-        .add_observer(read_input_for_controlled_player);
+        .add_observer(read_input_for_controlled_player)
+        .add_observer(forget_hello)
+        .add_systems(PreUpdate, say_hello.after(MessageSystems::Receive));
     }
+}
+
+/// A client that has said hello on this connection.
+#[derive(Component)]
+struct SaidHello;
+
+/// Every client, the host's own included, says hello once connected, so
+/// the server can check its version before giving it a character.
+fn say_hello(
+    mut clients: Query<
+        (Entity, &mut MessageSender<Hello>),
+        (With<Client>, With<Connected>, Without<SaidHello>),
+    >,
+    mut commands: Commands,
+) {
+    for (client, mut sender) in &mut clients {
+        sender.send::<ActionChannel>(Hello {
+            protocol: PROTOCOL_VERSION,
+        });
+        commands.entity(client).insert(SaidHello);
+    }
+}
+
+fn forget_hello(trigger: On<Remove, Connected>, mut commands: Commands) {
+    commands.entity(trigger.entity).try_remove::<SaidHello>();
 }
 
 /// Marks the player this app controls as the one local input is written to.

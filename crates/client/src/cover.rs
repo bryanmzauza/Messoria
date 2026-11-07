@@ -24,7 +24,7 @@ use messoria_calendar::Season;
 use messoria_shared::{
     content::Content,
     fields::tile_at,
-    protocol::Field,
+    protocol::{Field, Structure},
     scenery::{Scenery, SceneryChanged},
     terrain::{ChunkChanged, Terrain},
 };
@@ -221,6 +221,7 @@ fn grow_cover(
     parts: Res<ModelParts>,
     camera: Single<&Transform, With<WorldCamera>>,
     fields: Query<&Field>,
+    structures: Query<&Structure>,
     scenery: Res<Scenery>,
     mut cover: ResMut<Cover>,
     mut palettes: Palettes,
@@ -275,8 +276,14 @@ fn grow_cover(
             commands.entity(entity).despawn();
         }
         let origin = chunk.origin().as_vec3();
+        // Nothing grows on tilled soil, under a prop or on the floor of a
+        // building.
         let clear = |point: Vec3| {
-            !tilled.contains(&tile_at(point)) && !scenery.blocks(point, PROP_CLEARANCE)
+            !tilled.contains(&tile_at(point))
+                && !scenery.blocks(point, PROP_CLEARANCE)
+                && !structures
+                    .iter()
+                    .any(|built| built.covers(content.structure(built.kind), point.xz(), 0.0))
         };
 
         let entities = plant_chunk(&content, &terrain, season.0, &parts, chunk, clear)

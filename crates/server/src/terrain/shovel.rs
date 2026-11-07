@@ -1,12 +1,16 @@
 //! Carrying out shovel uses: validating them, reshaping the terrain, and
-//! moving ground between the terrain and the character's inventory.
+//! moving ground between the terrain and the character's inventory. The
+//! ground is only dug or raised on a lot the player may work, and never
+//! under a fence.
 
 use bevy::prelude::*;
 use messoria_content::Quality;
 use messoria_shared::{
     content::Content,
     energy::Energy,
+    lots::{self, Claims},
     movement::{BODY_RADIUS, EYE_HEIGHT},
+    players::player_key,
     protocol::{Asleep, Belongings, Happened, Notice, PlayerId, Position, WorldClock},
     scenery::Scenery,
     terrain::{ChunkChanged, Terrain},
@@ -41,7 +45,8 @@ fn apply_shovel_uses(
     mut uses: MessageReader<ShovelUse>,
     scenery: Res<Scenery>,
     built: Built,
-    characters: Query<&Position, With<PlayerId>>,
+    claims: Claims,
+    characters: Query<(&Position, &PlayerId)>,
     mut workers: Query<(&mut Energy, &mut Belongings), Without<Asleep>>,
     mut terrain: ResMut<Terrain>,
     mut edited: MessageWriter<TerrainEdited>,
@@ -51,7 +56,7 @@ fn apply_shovel_uses(
     mut show: MessageWriter<Show>,
 ) {
     for shovel_use in uses.read() {
-        let (Ok(feet), Ok((mut energy, mut belongings))) = (
+        let (Ok((feet, player)), Ok((mut energy, mut belongings))) = (
             characters.get(shovel_use.character),
             workers.get_mut(shovel_use.character),
         ) else {
@@ -62,8 +67,19 @@ fn apply_shovel_uses(
             notice,
         };
         // Ground something stands on stays as it is.
-        let kept = |point, radius| scenery.blocks(point, radius) || built.covers(point, radius);
-        match validate(shovel_use, feet.0, &terrain, kept, &characters) {
+        let kept = |point: Vec3, radius| {
+            scenery.blocks(point, radius)
+                || built.covers(point, radius)
+                || lots::fence_keeps(point.xz(), radius)
+        };
+        let allowed = |point: Vec3| {
+            player_key(player.0)
+                .map_or(Err(Notice::OnlyOnYourLot), |key| {
+                    claims.may_work(&key, point.xz())
+                })
+                .map(|_| ())
+        };
+        match validate(shovel_use, feet.0, &terrain, kept, allowed, &characters) {
             Ok(()) => {}
             Err(Refusal::Malformed(reason)) => {
                 debug!("rejected {shovel_use:?}: {reason}");
@@ -127,7 +143,8 @@ fn validate(
     feet: Vec3,
     terrain: &Terrain,
     kept: impl Fn(Vec3, f32) -> bool,
-    characters: &Query<&Position, With<PlayerId>>,
+    allowed: impl Fn(Vec3) -> Result<(), Notice>,
+    characters: &Query<(&Position, &PlayerId)>,
 ) -> Result<(), Refusal> {
     let target = shovel_use.target;
     if !target.is_finite() || !editable(target.y) {
@@ -139,6 +156,7 @@ fn validate(
     if village::reaches(target, tools::BRUSH_RADIUS) {
         return Err(Refusal::Told(Notice::ProtectedGround));
     }
+    allowed(target).map_err(Refusal::Told)?;
     if kept(target, tools::BRUSH_RADIUS) {
         return Err(Refusal::Told(Notice::SceneryInTheWay));
     }
@@ -152,7 +170,7 @@ fn validate(
         let brush = tools::shovel_brush(target, shovel_use.action);
         if characters
             .iter()
-            .any(|character| lifts_body(&brush, character.0))
+            .any(|(character, _)| lifts_body(&brush, character.0))
         {
             return Err(Refusal::Told(Notice::WouldBuryPlayer));
         }

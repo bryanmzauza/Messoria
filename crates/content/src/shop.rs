@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Problem,
     item::{ItemId, Items, Quality},
-    people::Look,
     scenery::check_models,
 };
 
@@ -34,8 +33,6 @@ pub struct ShopDef {
     pub sells: Vec<Listing>,
     /// Model the stall is drawn with, relative to the models folder.
     pub stall: String,
-    /// How whoever keeps the shop is dressed.
-    pub keeper: Look,
 }
 
 /// An item a shop buys, and its base price per unit before the market moves
@@ -150,7 +147,6 @@ struct ShopEntry {
     buys: Vec<(String, u32)>,
     sells: Vec<ListingEntry>,
     stall: String,
-    keeper: Look,
 }
 
 #[derive(Deserialize)]
@@ -230,7 +226,6 @@ impl ShopEntry {
             buys,
             sells,
             stall: self.stall,
-            keeper: self.keeper,
         })
     }
 }
@@ -252,9 +247,6 @@ fn validate(shop: &ShopDef) -> Result<(), Problem> {
     }
     if check_models(std::slice::from_ref(&shop.stall)).is_err() {
         return problem("its stall must be a .glb file inside the models folder");
-    }
-    if let Err(reason) = shop.keeper.validate() {
-        return problem(&format!("its keeper's look is invalid: {reason}"));
     }
     if shop.buys.iter().any(|offer| offer.base_price == 0)
         || shop.sells.iter().any(|listing| listing.price == 0)

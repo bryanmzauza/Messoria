@@ -1,17 +1,23 @@
 //! Saving the world: as soon as a new world is created, every few minutes,
 //! at each dawn, and when the server shuts down.
 //!
-//! A save writes the world file, the terrain that changed since the world
-//! was generated (only if more of it changed since the last save), every
-//! player in the world, and every player who left since the last save.
+//! A save writes the world file (with the fields, what was gathered and
+//! built, and the farm lots players own), the terrain that changed since
+//! the world was generated (only if more of it changed since the last
+//! save), every player in the world, and every player who left since the
+//! last save.
 
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
-use messoria_save::{FieldState, GatheredProp, SaveDir, SaveError, StructureState, WorldState};
+use messoria_save::{
+    FieldState, GatheredProp, LotState, SaveDir, SaveError, StructureState, WorldState,
+};
 use messoria_shared::{
     content::Content,
-    protocol::{Crop, Fertilized, Field, MarketState, Stored, Structure, Watered, WorldClock},
+    protocol::{
+        Crop, Fertilized, Field, LotClaim, MarketState, Stored, Structure, Watered, WorldClock,
+    },
     scenery::Scenery,
     terrain::Terrain,
 };
@@ -80,6 +86,7 @@ fn save_world(
     fields: Query<(&Field, Has<Watered>, Has<Fertilized>, Option<&Crop>)>,
     scenery: Res<Scenery>,
     structures: Query<(&Structure, Option<&Home>, Option<&Stored>), Without<Landmark>>,
+    claims: Query<&LotClaim>,
     terrain: Res<Terrain>,
     mut edited: ResMut<EditedChunks>,
     characters: Query<CharacterState<'_>>,
@@ -124,6 +131,14 @@ fn save_world(
                 facing: structure.facing,
                 home_of: home.map(|home| home.0.clone()),
                 stored: stored.map(|stored| stored.0.clone()),
+            })
+            .collect(),
+        lots: claims
+            .iter()
+            .map(|claim| LotState {
+                lot: claim.lot,
+                owner: claim.owner.clone(),
+                invited: claim.invited.clone(),
             })
             .collect(),
     };

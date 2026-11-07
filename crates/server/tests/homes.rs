@@ -1,7 +1,7 @@
-//! Homes: every newcomer builds a cabin from their deed and sleeps in its
-//! bed; its chest keeps what is put in it, through a restart; whoever
-//! collapses at night wakes up at home; and nothing is built where something
-//! already stands.
+//! Homes: every newcomer builds a cabin from their deed, on their lot, and
+//! sleeps in its bed; its chest keeps what is put in it, through a restart;
+//! whoever collapses at night wakes up at home; and nothing is built where
+//! something already stands.
 
 mod common;
 
@@ -28,6 +28,7 @@ fn a_newcomer_builds_a_cabin_and_sleeps_in_its_bed() {
     world.run(2);
     assert_eq!(world.carried(deed), 1, "newcomers are given a deed");
 
+    world.settle_on_a_lot(&content);
     world.build_cabin(&content);
     assert_eq!(world.carried(deed), 0, "the deed was used");
     assert!(
@@ -71,6 +72,7 @@ fn a_chest_keeps_the_harvest_through_a_restart() {
         .expect("an empty folder opens a new world");
     let mut world = HostedWorld::with_world(content.clone(), setup);
     world.run(2);
+    world.settle_on_a_lot(&content);
     world.build_cabin(&content);
 
     let chest = world
@@ -108,6 +110,7 @@ fn whoever_collapses_at_night_wakes_up_beside_their_bed() {
     let content = load_content().expect("the shipped content is valid");
     let mut world = HostedWorld::new(content.clone());
     world.run(2);
+    world.settle_on_a_lot(&content);
     world.build_cabin(&content);
     let bed = world.structure(&content, Purpose::Bed).expect("a bed");
 
@@ -151,8 +154,15 @@ fn nothing_is_built_where_something_stands() {
     world.use_item(chest, square);
     assert_eq!(world.heard().notices.last(), Some(&Notice::ProtectedGround));
 
-    let arrival = ground(&mut world, Vec3::ZERO);
-    world.teleport(arrival);
+    // The road south of the village is on no lot.
+    let road = ground(&mut world, Vec3::new(0.0, 0.0, 60.0));
+    world.teleport(road);
+    let deed = world.slot_holding(&content, "cabin_deed");
+    let ahead = ground(&mut world, road + Vec3::new(0.0, 0.0, -3.5));
+    world.use_item(deed, ahead);
+    assert_eq!(world.heard().notices.last(), Some(&Notice::HomeOnYourLot));
+
+    world.settle_on_a_lot(&content);
     world.build_cabin(&content);
     let cabin = world.home(&content).expect("the cabin stands");
     let chests = world.count(&content, Purpose::Storage);
@@ -181,7 +191,11 @@ impl HostedWorld {
         let front = ground(self, feet + Vec3::new(0.0, 0.0, -3.5));
         let deed = self.slot_holding(content, "cabin_deed");
         self.use_item(deed, front);
-        assert!(self.home(content).is_some(), "the cabin was built");
+        assert!(
+            self.home(content).is_some(),
+            "the cabin was built; the last notice was {:?}",
+            self.heard().notices.last()
+        );
     }
 
     fn home(&mut self, content: &Catalog) -> Option<Structure> {

@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::Problem;
 
@@ -22,7 +22,7 @@ pub struct Characters {
     pub expressions: Expressions,
     /// Where a held item sits in the right hand.
     pub grip: Grip,
-    /// What players are dressed in; each player gets one of each.
+    /// What newcomers choose their look from.
     pub wardrobe: Wardrobe,
 }
 
@@ -133,11 +133,16 @@ pub struct Grip {
     pub item_size: f32,
 }
 
-/// The skins players are dressed in, as files in the skins folder.
+/// The skins newcomers choose their look from, as files in the skins
+/// folder. Other outfits, and hats, are garments the tailor sells.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Wardrobe {
     pub bodies: Vec<String>,
+    /// The eyes, painted in grays, to be tinted with an eye color.
+    pub eyes: String,
+    /// In sRGB, from 0 to 1.
+    pub eye_colors: Vec<(f32, f32, f32)>,
     pub outfits: Vec<String>,
     /// Painted in grays, to be tinted with a hair color.
     pub hair: Vec<String>,
@@ -145,39 +150,91 @@ pub struct Wardrobe {
     pub hair_colors: Vec<(f32, f32, f32)>,
 }
 
-/// How one character is dressed: a skin laid in layers, a body with an
-/// outfit over it and hair over both.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+/// How one character is dressed: a skin laid in layers, a body with its
+/// eyes, an outfit over it, hair over both and a hat, if any, on top.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Look {
     pub body: String,
+    /// In sRGB, from 0 to 1.
+    pub eyes: (f32, f32, f32),
     pub outfit: String,
     pub hair: String,
     pub hair_color: (f32, f32, f32),
+    #[serde(default)]
+    pub hat: Option<String>,
+}
+
+/// One layer of a skin: a file, and the color it is tinted with, if any.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SkinLayer<'a> {
+    pub file: &'a str,
+    pub tint: Option<(f32, f32, f32)>,
 }
 
 impl Look {
-    /// The skin files it is laid from, bottom layer first.
-    pub fn layers(&self) -> [&str; 3] {
+    /// The skin files of its own, bottom layer first; the eyes come from the
+    /// wardrobe.
+    pub fn skins(&self) -> impl Iterator<Item = &str> {
         [&self.body, &self.outfit, &self.hair]
+            .into_iter()
+            .map(String::as_str)
+            .chain(self.hat.as_deref())
     }
 
     pub(crate) fn validate(&self) -> Result<(), String> {
-        if let Some(file) = self.layers().into_iter().find(|file| !is_skin(file)) {
+        if let Some(file) = self.skins().find(|file| !is_skin(file)) {
             return Err(format!(
                 "`{file}` is not a .png file inside the skins folder"
             ));
         }
-        if !in_unit_range(self.hair_color) {
-            return Err("its hair color has a channel outside 0 to 1".to_owned());
+        if !in_unit_range(self.hair_color) || !in_unit_range(self.eyes) {
+            return Err("its hair or eye color has a channel outside 0 to 1".to_owned());
         }
         Ok(())
     }
 }
 
 impl Characters {
-    /// The look of the player whose id is `seed`: the same on every screen,
-    /// and spread over the whole wardrobe.
+    /// The layers `look` is laid from, bottom first, each with its tint.
+    pub fn layers_of<'a>(&'a self, look: &'a Look) -> Vec<SkinLayer<'a>> {
+        let plain = |file: &'a str| SkinLayer { file, tint: None };
+        let mut layers = vec![
+            plain(&look.body),
+            SkinLayer {
+                file: &self.wardrobe.eyes,
+                tint: Some(look.eyes),
+            },
+            plain(&look.outfit),
+            SkinLayer {
+                file: &look.hair,
+                tint: Some(look.hair_color),
+            },
+        ];
+        layers.extend(look.hat.as_deref().map(plain));
+        layers
+    }
+
+    /// Whether the wardrobe offers `look` to a newcomer: every part of it is
+    /// on offer, and nobody arrives in a hat.
+    pub fn offers(&self, look: &Look) -> bool {
+        let wardrobe = &self.wardrobe;
+        wardrobe.bodies.contains(&look.body)
+            && wardrobe.eye_colors.contains(&look.eyes)
+            && wardrobe.outfits.contains(&look.outfit)
+            && self.styles(&look.hair, look.hair_color)
+            && look.hat.is_none()
+    }
+
+    /// Whether the barber can give this hair and color.
+    pub fn styles(&self, hair: &str, hair_color: (f32, f32, f32)) -> bool {
+        let wardrobe = &self.wardrobe;
+        wardrobe.hair.iter().any(|style| style == hair)
+            && wardrobe.hair_colors.contains(&hair_color)
+    }
+
+    /// A look for whoever has not chosen one, from `seed`: the same on every
+    /// screen, and spread over the whole wardrobe.
     pub fn look_for(&self, seed: u64) -> Look {
         let wardrobe = &self.wardrobe;
         let mut bits = mix(seed);
@@ -190,9 +247,11 @@ impl Characters {
         };
         Look {
             body: wardrobe.bodies[pick(wardrobe.bodies.len())].clone(),
+            eyes: wardrobe.eye_colors[pick(wardrobe.eye_colors.len())],
             outfit: wardrobe.outfits[pick(wardrobe.outfits.len())].clone(),
             hair: wardrobe.hair[pick(wardrobe.hair.len())].clone(),
             hair_color: wardrobe.hair_colors[pick(wardrobe.hair_colors.len())],
+            hat: None,
         }
     }
 
@@ -202,6 +261,7 @@ impl Characters {
         wardrobe
             .bodies
             .iter()
+            .chain(std::iter::once(&wardrobe.eyes))
             .chain(&wardrobe.outfits)
             .chain(&wardrobe.hair)
     }
@@ -243,12 +303,14 @@ impl Characters {
         }
         let wardrobe = &self.wardrobe;
         if wardrobe.bodies.is_empty()
+            || wardrobe.eye_colors.is_empty()
             || wardrobe.outfits.is_empty()
             || wardrobe.hair.is_empty()
             || wardrobe.hair_colors.is_empty()
         {
             return problem(
-                "the wardrobe needs a body, an outfit, hair and a hair color".to_owned(),
+                "the wardrobe needs a body, an eye color, an outfit, hair and a hair color"
+                    .to_owned(),
             );
         }
         if let Some(file) = self.skins_used().find(|file| !is_skin(file)) {
@@ -256,8 +318,9 @@ impl Characters {
                 "`{file}` is not a .png file inside the skins folder"
             ));
         }
-        if !wardrobe.hair_colors.iter().copied().all(in_unit_range) {
-            return problem("a hair color has a channel outside 0 to 1".to_owned());
+        let colors = wardrobe.hair_colors.iter().chain(&wardrobe.eye_colors);
+        if !colors.copied().all(in_unit_range) {
+            return problem("a hair or eye color has a channel outside 0 to 1".to_owned());
         }
         Ok(())
     }
@@ -285,7 +348,7 @@ impl Characters {
 }
 
 /// Whether `file` names a PNG image inside the skins folder.
-fn is_skin(file: &str) -> bool {
+pub(crate) fn is_skin(file: &str) -> bool {
     let png = Path::new(file)
         .extension()
         .is_some_and(|extension| extension == "png");
@@ -354,11 +417,44 @@ mod tests {
             },
             wardrobe: Wardrobe {
                 bodies: vec!["a.png".to_owned(), "b.png".to_owned()],
+                eyes: "eyes.png".to_owned(),
+                eye_colors: vec![(0.3, 0.2, 0.1), (0.2, 0.4, 0.6)],
                 outfits: vec!["c.png".to_owned(), "d.png".to_owned(), "e.png".to_owned()],
                 hair: vec!["f.png".to_owned(), "g.png".to_owned()],
                 hair_colors: vec![(0.1, 0.1, 0.1), (0.9, 0.6, 0.2)],
             },
         }
+    }
+
+    #[test]
+    fn a_look_is_laid_from_the_body_up_with_tinted_eyes_and_hair() {
+        let characters = characters();
+        let mut look = characters.look_for(7);
+        look.hat = Some("hat.png".to_owned());
+        let layers = characters.layers_of(&look);
+        let files: Vec<&str> = layers.iter().map(|layer| layer.file).collect();
+        assert_eq!(
+            files,
+            [&look.body, "eyes.png", &look.outfit, &look.hair, "hat.png"]
+        );
+        assert_eq!(layers[1].tint, Some(look.eyes));
+        assert_eq!(layers[3].tint, Some(look.hair_color));
+        assert_eq!(layers[4].tint, None);
+    }
+
+    #[test]
+    fn newcomers_pick_only_from_the_wardrobe_and_arrive_bareheaded() {
+        let characters = characters();
+        let look = characters.look_for(3);
+        assert!(characters.offers(&look));
+        let mut hatted = look.clone();
+        hatted.hat = Some("hat.png".to_owned());
+        assert!(!characters.offers(&hatted));
+        let mut dyed = look;
+        dyed.hair_color = (0.5, 0.5, 0.5);
+        assert!(!characters.offers(&dyed));
+        assert!(characters.styles("g.png", (0.9, 0.6, 0.2)));
+        assert!(!characters.styles("z.png", (0.9, 0.6, 0.2)));
     }
 
     #[test]

@@ -19,6 +19,6 @@ mod wallet;
 pub use crate::{
     ledger::SalesLedger,
     market::{Market, PriceBasis},
-    trade::{Customer, Refusal, buy, sell},
+    trade::{Customer, Discount, Refusal, buy, sell},
     wallet::{MoneyError, Wallet},
 };

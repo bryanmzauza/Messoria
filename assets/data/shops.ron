@@ -5,8 +5,8 @@
 // moves, and `sells` items at a fixed price. A sold item that lists `seasons`
 // is only on sale in them. Each player can sell a shop at most `daily_limit`
 // units of each item a day. A shop's `stall` is the model its counter is
-// drawn with, and its `keeper` how the character behind it is dressed (see
-// characters.ron); village.ron says where each stall stands.
+// drawn with; village.ron says where each stall stands, and villagers.ron
+// who keeps it.
 (
     // Prices shops pay are shared by the whole server: every unit anyone
     // sells saturates the market for that item and lowers its price, and the
@@ -31,12 +31,6 @@
             closed_on: [Sunday],
             daily_limit: 60,
             stall: "village/stall_red.glb",
-            keeper: (
-                body: "body-brown.png",
-                outfit: "outfit-grocer.png",
-                hair: "hair-bun.png",
-                hair_color: (0.2, 0.12, 0.08),
-            ),
             buys: [
                 ("turnip", 35),
                 ("potato", 40),
@@ -61,21 +55,86 @@
             closed_on: [Sunday],
             daily_limit: 60,
             stall: "village/stall_green.glb",
-            keeper: (
-                body: "body-light.png",
-                outfit: "outfit-carpenter.png",
-                hair: "hair-beard.png",
-                hair_color: (0.62, 0.3, 0.14),
-            ),
             buys: [
                 ("wood", 8),
+            ],
+            sells: [
+                (item: "chest", price: 80),
+            ],
+        ),
+        (
+            id: "blacksmith",
+            name: "Blacksmith",
+            opens: "08:00",
+            closes: "17:00",
+            closed_on: [Sunday],
+            daily_limit: 80,
+            stall: "village/counter.glb",
+            buys: [
                 ("stone", 6),
             ],
             sells: [
+                (item: "shovel", price: 90),
+                (item: "hoe", price: 80),
+                (item: "watering_can", price: 70),
                 (item: "axe", price: 120),
                 (item: "pickaxe", price: 150),
-                (item: "chest", price: 80),
             ],
+        ),
+        (
+            id: "tavern",
+            name: "Tavern",
+            opens: "10:00",
+            closes: "23:00",
+            closed_on: [],
+            daily_limit: 40,
+            stall: "village/counter.glb",
+            buys: [
+                ("strawberry", 25),
+                ("wild_berries", 8),
+                ("potato", 30),
+            ],
+            sells: [
+                (item: "bread", price: 15),
+                (item: "stew", price: 40),
+            ],
+        ),
+        (
+            id: "tailor",
+            name: "Tailor",
+            opens: "09:00",
+            closes: "17:00",
+            closed_on: [Monday],
+            daily_limit: 20,
+            stall: "village/counter.glb",
+            buys: [
+                ("wheat", 20),
+            ],
+            sells: [
+                (item: "smock", price: 90),
+                (item: "flannel_shirt", price: 140),
+                (item: "overalls", price: 150),
+                (item: "linen_dress", price: 160),
+                (item: "vest_and_shirt", price: 170),
+                (item: "green_tunic", price: 180),
+                (item: "traveling_clothes", price: 200),
+                (item: "wool_kirtle", price: 220),
+                (item: "doublet", price: 420),
+                (item: "kerchief", price: 40),
+                (item: "straw_hat", price: 60),
+                (item: "wool_cap", price: 80),
+            ],
+        ),
+        (
+            id: "barber",
+            name: "Barber",
+            opens: "09:00",
+            closes: "16:00",
+            closed_on: [Tuesday],
+            daily_limit: 20,
+            stall: "village/counter.glb",
+            buys: [],
+            sells: [],
         ),
     ],
 )

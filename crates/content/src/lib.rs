@@ -18,16 +18,21 @@ mod scenery;
 mod shop;
 mod structure;
 mod village;
+mod villager;
 
 pub use crate::{
     catalog::{Catalog, Sources},
     crop::{CropDef, CropId},
     error::{ContentError, Problem},
-    item::{ItemDef, ItemId, ItemKind, Quality, Tool},
+    item::{ItemDef, ItemId, ItemKind, Quality, Tool, Wear},
     palette::{Palette, Rgb},
-    people::{Characters, Cube, Expressions, Grip, Limb, Limbs, Look, Wardrobe},
+    people::{Characters, Cube, Expressions, Grip, Limb, Limbs, Look, SkinLayer, Wardrobe},
     scenery::{CoverDef, Gathering, PropDef, PropId, Remains},
     shop::{Listing, MarketRules, Offer, ShopDef, ShopId},
     structure::{Part, Placement, Purpose, Solid, StructureDef, StructureId},
-    village::{Stall, Village},
+    village::{Haircut, Lots, Paths, Spot, SpotPose, Stall, Village},
+    villager::{
+        Activity, Gift, GiftLines, HEART, Line, MOST_HEARTS, Reaction, Slot, VillagerDef,
+        VillagerId, hearts,
+    },
 };

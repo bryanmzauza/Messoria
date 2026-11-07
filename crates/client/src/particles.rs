@@ -73,9 +73,11 @@ impl Burst {
             Happened::Dug(Material::Sand) => Some(Self::Sand),
             Happened::Watered => Some(Self::Water),
             Happened::Harvested => Some(Self::Leaves),
-            Happened::Traded => Some(Self::Coins),
+            Happened::Traded | Happened::ClaimedLot => Some(Self::Coins),
             Happened::Fertilized | Happened::Planted => Some(Self::Fertilizer),
-            Happened::Struck(Tool::Shovel | Tool::Hoe | Tool::WateringCan) | Happened::Ate => None,
+            Happened::Struck(Tool::Shovel | Tool::Hoe | Tool::WateringCan)
+            | Happened::Ate
+            | Happened::Gave => None,
         }
     }
 
