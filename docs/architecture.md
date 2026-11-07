@@ -117,8 +117,11 @@ See [ADR 0021](adr/0021-playing-from-the-game.md).
 - The executable's icon is embedded at build time (`bins/game/build.rs`)
   and the window's is set from `assets/textures/icon.png`.
 - `.github/workflows/release.yml` builds the game and the server for
-  Windows and Linux on a `v*` tag, packs them with the assets, the README,
-  the license, the credits and the changelog, and publishes a release.
+  Windows (a zip) and Linux (a tarball, built on Ubuntu 22.04 for an older
+  glibc) on a `v*` tag, packs them with the assets, the README, the
+  license, the credits, the changelog and the licenses of the third-party
+  crates (`cargo about`, configured by `about.toml`), and creates a GitHub
+  release.
 
 ## Networking
 

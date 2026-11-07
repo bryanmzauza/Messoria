@@ -20,12 +20,19 @@ jobs:
         include:
           - os: windows-latest
             platform: windows-x64
+            target: x86_64-pc-windows-msvc
             game: messoria.exe
             server: messoria-dedicated-server.exe
-          - os: ubuntu-latest
+            archive: zip
+          # Linux executables need the glibc they were built against or a
+          # newer one: building on 22.04 (glibc 2.35) keeps Ubuntu 22.04,
+          # Debian 12 and their peers able to play.
+          - os: ubuntu-22.04
             platform: linux-x64
+            target: x86_64-unknown-linux-gnu
             game: messoria
             server: messoria-dedicated-server
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -33,6 +40,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev libasound2-dev
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
       - name: Build
         run: cargo build --release --locked -p messoria-game -p messoria-dedicated-server
       - name: Pack
@@ -45,18 +55,25 @@ jobs:
           cp -r assets "dist/${name}/assets"
           cp README.md LICENSE CHANGELOG.md "dist/${name}/"
           cp assets/CREDITS.md "dist/${name}/CREDITS.md"
+          # The game's dependency tree holds the server's, so its crates
+          # cover both executables.
+          cargo about generate --locked --fail -c about.toml \
+            -m bins/game/Cargo.toml --target "${{ matrix.target }}" \
+            -o "dist/${name}/THIRD-PARTY-LICENSES.txt" about.hbs
           cd dist
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a -tzip "${name}.zip" "${name}" > /dev/null
+          archive="${name}.${{ matrix.archive }}"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "${archive}" "${name}" > /dev/null
           else
-            zip -qr "${name}.zip" "${name}"
+            tar -czf "${archive}" "${name}"
           fi
-          sha256sum "${name}.zip" > "${name}.zip.sha256"
+          sha256sum "${archive}" > "${archive}.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}
           path: |
             dist/*.zip
+            dist/*.tar.gz
             dist/*.sha256
 
   release:
@@ -78,9 +95,13 @@ jobs:
             keep { print }
           ' CHANGELOG.md > notes.md
           cat notes.md
+      # A draft until the first release has been tried on Linux, which no
+      # machine the game is made on runs.
       - uses: softprops/action-gh-release@v2
         with:
+          draft: true
           body_path: notes.md
           files: |
             dist/*.zip
+            dist/*.tar.gz
             dist/*.sha256

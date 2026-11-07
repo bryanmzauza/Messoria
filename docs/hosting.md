@@ -87,8 +87,8 @@ field.
 ## Dedicated server
 
 `messoria-dedicated-server` runs a world with no window and no player of
-its own. It comes in the release zip and needs the `assets` folder beside
-it.
+its own. It comes in the release download and needs the `assets` folder
+beside it.
 
 | Flag | Default | |
 |---|---|---|
@@ -110,7 +110,10 @@ reason rather than being overwritten.
 
 ### As a systemd service
 
-Unpack the zip in `/opt/messoria`, make a `messoria` user
+Unpack the Linux download in `/opt/messoria`
+(`sudo mkdir -p /opt/messoria`, then
+`sudo tar -xzf messoria-<version>-linux-x64.tar.gz -C /opt/messoria --strip-components 1`),
+make a `messoria` user
 (`sudo useradd --system --home /opt/messoria --shell /usr/sbin/nologin messoria`),
 give it the folder (`sudo chown -R messoria:messoria /opt/messoria`) and
 write `/etc/systemd/system/messoria.service`:

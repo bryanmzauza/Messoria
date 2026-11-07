@@ -382,9 +382,11 @@ Goal: anyone downloads a zip, unpacks it and plays.
 - [x] An icon on the window and the Windows executable, no console behind
       the game on Windows (its log goes to a file in the data folder); the
       dedicated server keeps its console
-- [x] A release workflow on tags `v*`: Windows and Linux x64 zips with the
-      game, the server, the assets, the README, the license, the credits and
-      the changelog, with checksums and a GitHub release from the changelog
+- [x] A release workflow on tags `v*`: a Windows x64 zip and a Linux x64
+      tarball (built on Ubuntu 22.04 for an older glibc) with the game, the
+      server, the assets, the README, the license, the credits, the
+      changelog and the licenses of the third-party crates, with checksums
+      and a GitHub release from the changelog
 - [x] Version 0.1.0, a changelog, a README for players first (download and
       play, hosting for friends step by step, a dedicated server, the
       controls) and builders after, with honest hardware requirements

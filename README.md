@@ -16,10 +16,12 @@ for a larger group.
 
 ## Download and play
 
-1. Download the zip for Windows x64 or Linux x64 from the
+1. Download `messoria-<version>-windows-x64.zip` or
+   `messoria-<version>-linux-x64.tar.gz` from the
    [Releases](https://github.com/bryanmzauza/Messoria/releases) page. Each
    has a `.sha256` file beside it to check the download against.
-2. Unpack it anywhere. Keep the `assets` folder next to the executables.
+2. Unpack it anywhere (on Linux, `tar -xzf` it). Keep the `assets` folder
+   next to the executables.
 3. Run `messoria.exe` on Windows or `messoria` on Linux. The executable is
    not signed, so Windows may warn about it: "More info", then "Run anyway".
 
@@ -27,7 +29,8 @@ What it takes, as measured on a Ryzen 7 8700G with its integrated
 Radeon 780M graphics, at 1280x720, in the village while hosting: 40 to 55
 frames per second on High and 52 to 58 on Medium. A recent integrated GPU
 plays it; for High at 60 frames per second, a dedicated GPU. It needs
-64-bit Windows 10 or 11, or a 64-bit Linux with Vulkan drivers, and 8 GB
+64-bit Windows 10 or 11, or a 64-bit Linux with glibc 2.35 or newer
+(Ubuntu 22.04, Debian 12 or later) and Vulkan drivers, and 8 GB
 of memory. A dedicated server with nine players kept each update under
 2 ms of its 33 ms tick and used about 100 MB of memory.
 
@@ -86,8 +89,8 @@ all of this at length.
 
 ## Dedicated server
 
-`messoria-dedicated-server` (`.exe` on Windows) comes in the same zip and
-runs from a terminal, without a window:
+`messoria-dedicated-server` (`.exe` on Windows) comes in the same download
+and runs from a terminal, without a window:
 
 ```sh
 ./messoria-dedicated-server --port 5717 --world saves/world
@@ -105,8 +108,8 @@ runs from a terminal, without a window:
 The server saves the world every five minutes, at every dawn and when
 stopped with `Ctrl+C`. Every minute it logs how long its updates took.
 
-As a systemd service, with the zip unpacked in `/opt/messoria` and owned by
-a `messoria` user:
+As a systemd service, with the Linux download unpacked in `/opt/messoria`
+and owned by a `messoria` user:
 
 ```ini
 [Unit]
@@ -236,4 +239,6 @@ fit together.
 ## License
 
 Copyright (c) 2026 Bryan Munaretto Zauza. All rights reserved. The source is
-published for reference only; see [LICENSE](LICENSE).
+published for reference only; see [LICENSE](LICENSE). The release downloads
+carry `THIRD-PARTY-LICENSES.txt`, the licenses of the open source crates the
+game is built with.
